@@ -1,0 +1,128 @@
+{% extends "base.html.jinja" %}
+
+{% block content %}
+<div class="container">
+    <!-- Claude test comment - checking edit capabilities -->
+    <h1>Practice Items</h1>
+    
+    <div class="items-list">
+        {% for item in items %}
+        <div class="item-row">
+            <span class="item-title">{{ item.title }}</span>
+            {% if item.tuning %}
+            <span class="item-tuning">({{ item.tuning }})</span>
+            {% endif %}
+            <span class="item-duration">{{ item.duration }} mins</span>
+            <div class="item-actions">
+                <button class="edit-item-btn" data-item-id="{{ item.id }}">
+                    <i class="fas fa-pencil-alt"></i>
+                </button>
+                <button class="delete-item-btn" data-item-id="{{ item.id }}">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Edit Item Modal -->
+<div class="modal fade" id="editItemModal" tabindex="-1" aria-labelledby="editItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editItemModalLabel">Edit Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editItemForm">
+                    <input type="hidden" id="editItemId">
+                    <div class="mb-3">
+                        <label for="editItemTitle" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="editItemTitle" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editItemNotes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="editItemNotes"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editItemDuration" class="form-label">Duration (minutes)</label>
+                        <input type="number" class="form-control" id="editItemDuration" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editItemDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="editItemDescription"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editItemTuning" class="form-label">Tuning</label>
+                        <input type="text" class="form-control" id="editItemTuning" placeholder="e.g. EADGBE">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveItemEdit">Save changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Edit button click handler
+    document.querySelectorAll('.edit-item-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const itemId = this.getAttribute('data-item-id');
+            console.log('Edit button clicked for item:', itemId);
+            
+            // Fetch item data
+            fetch(`/api/items/${itemId}`)
+                .then(response => response.json())
+                .then(item => {
+                    // Populate modal fields
+                    document.getElementById('editItemId').value = item.id;
+                    document.getElementById('editItemTitle').value = item.title;
+                    document.getElementById('editItemNotes').value = item.notes;
+                    document.getElementById('editItemDuration').value = item.duration;
+                    document.getElementById('editItemDescription').value = item.description;
+                    document.getElementById('editItemTuning').value = item.tuning || '';
+                    
+                    // Show modal
+                    const modal = new bootstrap.Modal(document.getElementById('editItemModal'));
+                    modal.show();
+                });
+        });
+    });
+
+    // Save edit button click handler
+    document.getElementById('saveItemEdit').addEventListener('click', function() {
+        const itemId = document.getElementById('editItemId').value;
+        const data = {
+            title: document.getElementById('editItemTitle').value,
+            notes: document.getElementById('editItemNotes').value,
+            duration: document.getElementById('editItemDuration').value,
+            description: document.getElementById('editItemDescription').value,
+            tuning: document.getElementById('editItemTuning').value
+        };
+
+        // Send update request
+        fetch(`/api/items/${itemId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(() => {
+            // Close modal and refresh page
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editItemModal'));
+            modal.hide();
+            window.location.reload();
+        });
+    });
+});
+</script>
+{% endblock %}
+{% endblock %} 

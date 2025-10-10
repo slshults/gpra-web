@@ -1,0 +1,277 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark mode CSS variables (default theme) - CRITICAL: This must match the design system */
+:root {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 217.2 32.6% 12%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 212.7 26.8% 83.9%;
+  --radius: .5rem;
+}
+
+/* Force dark button styling for chord chart buttons */
+.chord-charts-container button {
+  background-color: #1a1a1a !important;
+  color: #f0f0f0 !important;
+}
+
+/* Force dark styling for small edit/delete buttons on chord charts */
+.chord-charts-container button.bg-gray-900 {
+  background-color: hsl(217.2 32.6% 12%) !important;
+  color: hsl(210 40% 98%) !important;
+}
+
+/* Force dark styling for Button components inside chord charts container */
+.chord-charts-container .bg-primary {
+  background-color: hsl(217.2 32.6% 12%) !important;
+}
+
+.chord-charts-container .text-primary-foreground {
+  color: hsl(210 40% 98%) !important;
+}
+
+/* Target outline variant buttons that might be white */
+.chord-charts-container .bg-background {
+  background-color: hsl(217.2 32.6% 12%) !important;
+  color: hsl(210 40% 98%) !important;
+}
+
+/* Target any other button variants that might appear white */
+.chord-charts-container button[class*="bg-"]:not(.bg-blue-):not(.bg-green-):not(.bg-red-):not(.bg-purple-):not(.bg-orange-):not(.bg-yellow-) {
+  background-color: hsl(217.2 32.6% 12%) !important;
+  color: hsl(210 40% 98%) !important;
+}
+
+/* Custom styles for the guitar practice app */
+
+/* Modal scroll styling */
+.modal-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-scroll::-webkit-scrollbar-track {
+  background: #374151;
+}
+
+.modal-scroll::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  border-radius: 4px;
+}
+
+.modal-scroll::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+.modal-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #6b7280 #374151;
+}
+
+/* Print styles for chord charts */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .chord-chart-print-area,
+  .chord-chart-print-area * {
+    visibility: visible;
+  }
+
+  .chord-chart-print-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    background: white !important;
+    color: black !important;
+    padding: 20px !important;
+  }
+
+  .chord-chart-print-area .bg-gray-700,
+  .chord-chart-print-area .bg-gray-800 {
+    background: white !important;
+    border: 1px solid #ddd !important;
+  }
+
+  .chord-chart-print-area .text-gray-300,
+  .chord-chart-print-area .text-gray-200,
+  .chord-chart-print-area .text-white {
+    color: black !important;
+  }
+
+  .chord-chart-print-area button {
+    display: none !important;
+  }
+
+  .chord-chart-print-area svg {
+    background: white !important;
+  }
+
+  .chord-chart-print-area svg path,
+  .chord-chart-print-area svg line,
+  .chord-chart-print-area svg rect {
+    stroke: black !important;
+    fill: none !important;
+  }
+
+  .chord-chart-print-area svg circle {
+    fill: black !important;
+    stroke: black !important;
+  }
+
+  .chord-chart-print-area svg text {
+    fill: black !important;
+  }
+}
+
+/* Light mode styles */
+.light-mode {
+  --background: 0 0% 100%;
+  --foreground: 222.2 47.4% 11.2%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 47.4% 11.2%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 47.4% 11.2%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 215 20.2% 65.1%;
+}
+
+body.light-mode {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+.light-mode .bg-gray-700 {
+  background-color: #f3f4f6 !important;
+}
+
+.light-mode .bg-gray-800 {
+  background-color: #e5e7eb !important;
+}
+
+.light-mode .bg-gray-900 {
+  background-color: #d1d5db !important;
+}
+
+.light-mode .text-gray-100 {
+  color: #1f2937 !important;
+}
+
+.light-mode .text-gray-200 {
+  color: #374151 !important;
+}
+
+.light-mode .text-gray-300 {
+  color: #4b5563 !important;
+}
+
+.light-mode .text-gray-400 {
+  color: #6b7280 !important;
+}
+
+.light-mode .text-gray-500 {
+  color: #9ca3af !important;
+}
+
+.light-mode .text-white {
+  color: #000000 !important;
+}
+
+.light-mode .border-gray-600 {
+  border-color: #d1d5db !important;
+}
+
+.light-mode h1,
+.light-mode h2,
+.light-mode h3,
+.light-mode h4,
+.light-mode h5,
+.light-mode h6,
+.light-mode p,
+.light-mode span,
+.light-mode div {
+  color: #000000 !important;
+}
+
+.light-mode .bg-blue-600 {
+  background-color: #2563eb !important;
+}
+
+.light-mode .bg-blue-700 {
+  background-color: #1d4ed8 !important;
+}
+
+.light-mode .bg-red-500 {
+  background-color: #ef4444 !important;
+}
+
+.light-mode .bg-red-600 {
+  background-color: #dc2626 !important;
+}
+
+.light-mode .bg-green-500 {
+  background-color: #22c55e !important;
+}
+
+/* SVG styling for light mode */
+.light-mode svg {
+  background: #ffffff !important;
+}
+
+.light-mode svg path,
+.light-mode svg line,
+.light-mode svg rect {
+  stroke: #000000 !important;
+}
+
+.light-mode svg circle {
+  fill: #000000 !important;
+  stroke: #000000 !important;
+}
+
+.light-mode svg text {
+  fill: #000000 !important;
+}
+
+/* Theme toggle button */
+.theme-toggle {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  cursor: pointer;
+  margin-top: 60px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.theme-toggle:hover {
+  opacity: 1;
+}

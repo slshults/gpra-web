@@ -1,0 +1,16 @@
+{% extends "base.html.jinja" %}
+
+{% block content %}
+<div class="notes-section">
+    <h3>NOTES</h3>
+    <div class="notes-header">
+        <span>THINGS TO REMEMBER</span>
+        <button id="add-note-btn-{{item['B']}}" class="add-note-btn">+ ADD NOTE</button>
+    </div>
+    <textarea 
+        id="item-notes-{{item['B']}}"
+        class="notes-input"
+        placeholder="Add notes about this item..."
+    >{{item['D'] if item['D'] else ''}}</textarea>
+</div>
+{% endblock %} 
