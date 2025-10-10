@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment and config
+.env
+.venv/
+venv/
+ENV/
+*.env
+
+# Credentials and secrets
+token.json
+client_secret.json
+credentials.json
+
+# IDE and editor files
+.vscode/
+*.swp
+*.swo
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Build and cache
+dist/
+build/
+*.egg-info/
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Vite
+*.timestamp-*
+.vite/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Backup and temporary files
+*[Cc]opy*
+*2024*
+*2025*
+CLAUDE.md~
+*.backup

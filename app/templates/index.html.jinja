@@ -1,0 +1,9 @@
+{% extends "base.html.jinja" %}
+
+{% block content %}
+<div id="root"></div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% endblock %}
