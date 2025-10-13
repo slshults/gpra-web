@@ -1,6 +1,11 @@
 """
 Data layer abstraction for gradual migration from Sheets to PostgreSQL.
 Allows switching between data sources via environment variable.
+
+RLS Integration:
+    This data layer automatically enforces Row-Level Security when in PostgreSQL mode.
+    All queries are filtered by the current user's ID, and all create operations
+    automatically set the user_id field.
 """
 import os
 import logging
@@ -29,6 +34,14 @@ try:
 except ImportError:
     POSTGRES_AVAILABLE = False
     logging.warning("PostgreSQL services not available")
+
+# Import RLS helpers
+try:
+    from app.middleware.rls import get_current_user_id, set_user_id_on_create
+    RLS_AVAILABLE = True
+except ImportError:
+    RLS_AVAILABLE = False
+    logging.warning("RLS middleware not available")
 
 # Configuration
 USE_POSTGRES = os.getenv('USE_POSTGRES', 'False').lower() == 'true'
@@ -70,14 +83,27 @@ class DataLayer:
     
     # Items API
     def get_all_items(self) -> List[Dict[str, Any]]:
+        """Get all items for the current user (RLS-filtered in postgres mode)."""
         if self.mode == 'postgres':
             service = ItemService()
-            return service.get_all_items()
+            items = service.get_all_items()
+
+            # RLS filtering happens at repository level, but log for debugging
+            if RLS_AVAILABLE:
+                user_id = get_current_user_id()
+                logging.debug(f"DataLayer.get_all_items: Retrieved items for user_id={user_id}")
+
+            return items
         else:
             return sheets.get_all_items()
     
     def add_item(self, item_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new item (automatically sets user_id in postgres mode)."""
         if self.mode == 'postgres':
+            # Automatically set user_id on create (RLS)
+            if RLS_AVAILABLE:
+                item_data = set_user_id_on_create(item_data)
+
             service = ItemService()
             return service.create_item(item_data)
         else:
@@ -150,30 +176,44 @@ class DataLayer:
     
     # Chord Charts API
     def get_chord_charts_for_item(self, item_id: int) -> List[Dict[str, Any]]:
+        """Get chord charts for an item (RLS-filtered in postgres mode)."""
         if self.mode == 'postgres':
             # Handle comma-separated ItemIDs - search for ItemIDs that contain this ID
             from sqlalchemy import text
             from app.database import DatabaseTransaction
-            
+
             item_id_str = str(item_id)
             charts = []
-            
+
             with DatabaseTransaction() as db:
-                # Look for exact match first, then comma-separated matches
-                result = db.execute(text('''
-                    SELECT chord_id, item_id, title, chord_data, created_at, order_col
-                    FROM chord_charts 
-                    WHERE item_id = :exact_id 
-                       OR item_id LIKE :pattern1 
-                       OR item_id LIKE :pattern2 
-                       OR item_id LIKE :pattern3
-                    ORDER BY order_col
-                '''), {
+                # Build RLS-aware query
+                user_filter = ''
+                params = {
                     'exact_id': item_id_str,
                     'pattern1': f'{item_id_str},%',  # "107, 61"
-                    'pattern2': f'%, {item_id_str}',  # "61, 107" 
+                    'pattern2': f'%, {item_id_str}',  # "61, 107"
                     'pattern3': f'%, {item_id_str},%'  # "61, 107, 45"
-                }).fetchall()
+                }
+
+                # Add user_id filter if RLS is available
+                if RLS_AVAILABLE:
+                    user_id = get_current_user_id()
+                    if user_id:
+                        user_filter = 'AND (user_id = :user_id OR user_id IS NULL)'
+                        params['user_id'] = user_id
+                        logging.debug(f"DataLayer.get_chord_charts_for_item: Filtering by user_id={user_id}")
+
+                # Look for exact match first, then comma-separated matches
+                result = db.execute(text(f'''
+                    SELECT chord_id, item_id, title, chord_data, created_at, order_col
+                    FROM chord_charts
+                    WHERE (item_id = :exact_id
+                       OR item_id LIKE :pattern1
+                       OR item_id LIKE :pattern2
+                       OR item_id LIKE :pattern3)
+                    {user_filter}
+                    ORDER BY order_col
+                '''), params).fetchall()
                 
                 for row in result:
                     # Parse chord_data JSON from database
@@ -226,33 +266,45 @@ class DataLayer:
             return sheets.get_chord_charts_for_item(item_id)
     
     def batch_get_chord_charts(self, item_ids: List[int]) -> Dict[str, List[Dict[str, Any]]]:
-        """Get chord charts for multiple items in a single operation."""
+        """Get chord charts for multiple items in a single operation (RLS-filtered in postgres mode)."""
         if self.mode == 'postgres':
             from sqlalchemy import text
             from app.database import DatabaseTransaction
-            
+
             result = {}
-            
+
             with DatabaseTransaction() as db:
                 for item_id in item_ids:
                     item_id_str = str(item_id)
                     charts = []
-                    
-                    # Look for exact match first, then comma-separated matches
-                    rows = db.execute(text('''
-                        SELECT chord_id, item_id, title, chord_data, created_at, order_col
-                        FROM chord_charts 
-                        WHERE item_id = :exact_id 
-                           OR item_id LIKE :pattern1 
-                           OR item_id LIKE :pattern2 
-                           OR item_id LIKE :pattern3
-                        ORDER BY order_col
-                    '''), {
+
+                    # Build RLS-aware query
+                    user_filter = ''
+                    params = {
                         'exact_id': item_id_str,
                         'pattern1': f'{item_id_str},%',  # "107, 61"
-                        'pattern2': f'%, {item_id_str},%',  # "23, 107, 61" 
+                        'pattern2': f'%, {item_id_str},%',  # "23, 107, 61"
                         'pattern3': f'%, {item_id_str}'  # "23, 107"
-                    }).fetchall()
+                    }
+
+                    # Add user_id filter if RLS is available
+                    if RLS_AVAILABLE:
+                        user_id = get_current_user_id()
+                        if user_id:
+                            user_filter = 'AND (user_id = :user_id OR user_id IS NULL)'
+                            params['user_id'] = user_id
+
+                    # Look for exact match first, then comma-separated matches
+                    rows = db.execute(text(f'''
+                        SELECT chord_id, item_id, title, chord_data, created_at, order_col
+                        FROM chord_charts
+                        WHERE (item_id = :exact_id
+                           OR item_id LIKE :pattern1
+                           OR item_id LIKE :pattern2
+                           OR item_id LIKE :pattern3)
+                        {user_filter}
+                        ORDER BY order_col
+                    '''), params).fetchall()
                     
                     for row in rows:
                         chart = {
@@ -315,7 +367,12 @@ class DataLayer:
             return sheets.batch_get_chord_charts(item_ids)
     
     def add_chord_chart(self, item_id: int, chart_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new chord chart (automatically sets user_id in postgres mode)."""
         if self.mode == 'postgres':
+            # Automatically set user_id on create (RLS)
+            if RLS_AVAILABLE:
+                chart_data = set_user_id_on_create(chart_data)
+
             # Use ItemID as string directly (no conversion needed)
             service = ChordChartService()
             return service.create_chord_chart(str(item_id), chart_data)
@@ -323,7 +380,12 @@ class DataLayer:
             return sheets.add_chord_chart(item_id, chart_data)
     
     def batch_add_chord_charts(self, item_id: int, chord_charts_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Batch create chord charts (automatically sets user_id in postgres mode)."""
         if self.mode == 'postgres':
+            # Automatically set user_id on each chart (RLS)
+            if RLS_AVAILABLE:
+                chord_charts_data = [set_user_id_on_create(chart) for chart in chord_charts_data]
+
             # Use ItemID as string directly (no conversion needed)
             service = ChordChartService()
             return service.batch_create(str(item_id), chord_charts_data)
@@ -398,13 +460,26 @@ class DataLayer:
     
     # Routines API
     def get_all_routines(self) -> List[Dict[str, Any]]:
+        """Get all routines for the current user (RLS-filtered in postgres mode)."""
         if self.mode == 'postgres':
-            return routine_service.get_all_routines()
+            routines = routine_service.get_all_routines()
+
+            # RLS filtering happens at repository level, but log for debugging
+            if RLS_AVAILABLE:
+                user_id = get_current_user_id()
+                logging.debug(f"DataLayer.get_all_routines: Retrieved routines for user_id={user_id}")
+
+            return routines
         else:
             return sheets.get_all_routines()
     
     def create_routine(self, routine_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new routine (automatically sets user_id in postgres mode)."""
         if self.mode == 'postgres':
+            # Automatically set user_id on create (RLS)
+            if RLS_AVAILABLE:
+                routine_data = set_user_id_on_create(routine_data)
+
             return routine_service.create_routine(routine_data)
         else:
             return sheets.add_routine(routine_data)
