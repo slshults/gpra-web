@@ -24,7 +24,8 @@ dependencies = [
     "pillow",
     "sqlalchemy",
     "psycopg2-binary",
-    "flask-cors"
+    "flask-cors",
+    "alembic"
 ]
 
 [tool.setuptools]

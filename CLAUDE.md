@@ -17,10 +17,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Deploy to DreamCompute with multiple domains
 
 **Key Architecture Changes in Progress**:
-- Database: Adding `users` and `subscriptions` tables, user_id foreign keys on all data tables
-- Backend: User auth, session management, tier-based feature gating
-- Frontend: Login/signup, account management, billing UI
-- Infrastructure: Production configs, proper secrets management, deployment setup
+- Database: Row-Level Security (RLS) with `user_id` on Items/Routines/ChordCharts, new `subscriptions` table, extending Flask-AppBuilder's `ab_user` table
+- Authentication: Flask-AppBuilder auth + OAuth (Google, SoundCloud), email/password signup
+- Subscriptions: 5 Stripe tiers (free/basic/standard/pro/unlimited), limits enforcement
+- Backend: Session management, tier-based feature gating, RLS middleware
+- Frontend: Login/signup, account management, billing UI (future)
+- Infrastructure: Production configs, proper secrets management (complete), Stripe integration (pending)
+
+**Current Deployment Status** (as of Oct 12, 2025):
+- ✅ **FULLY DEPLOYED** - App live on 10 domains with SSL (certificates fixed!)
+- ✅ DreamCompute instance: `gpra-web-prod` at `208.113.200.79` (2GB RAM, 1 vCPU)
+- ✅ PostgreSQL 14.19 with production data
+- ✅ Gunicorn systemd service with auto-restart
+- ✅ Nginx reverse proxy with security headers
+- ✅ **SSL certificates properly mapped** - Each domain uses correct cert via SNI
+- ✅ IP whitelist (108.172.116.193) - only Steven has access
+- ✅ Security: Vulnerable `/api/open-folder` endpoint disabled
+- ✅ **Flask-AppBuilder admin interface** - Installed and accessible at `/admin/`
+- ✅ **Multi-tenant architecture designed** - Row-Level Security approach, schema planned
+- ⏳ **Next**: Implement SQLAlchemy models, Alembic migrations, RLS middleware
+- See `~/.claude/handoffSummary.md` for full details
 
 When working on this codebase, keep in mind we're building for a multi-user hosted environment, not the original single-user local setup.
 
@@ -108,9 +124,10 @@ So, when we're fixing bugs, don't try to re-engineer it. Just refer to the code 
 
 ## Tech Stack
 
-- **Backend**: Flask (Python) with PostgreSQL database (migrating from Google Sheets API)
+- **Backend**: Flask (Python) with PostgreSQL database (migrated from Google Sheets API)
 - **Frontend**: React 18.2.0 + Vite 4.x build system + Tailwind CSS
-- **Authentication**: To be determined (previously Google OAuth2 for Sheets access)
+- **Admin Interface**: Flask-AppBuilder v5.0.1 (Bootstrap UI, mounted at `/admin/`)
+- **Authentication**: Flask-AppBuilder built-in auth (admin user created, multi-tenant TBD)
 - **Guitar Features**: SVGuitar library for chord chart rendering
 - **UI Components**: Custom component library with Radix UI primitives
 - **Analytics**: PostHog for event tracking and user behavior analysis (MCP integration enabled for direct API access)
@@ -416,7 +433,11 @@ The `gpr.sh` script runs:
 
 ### Authentication Flow
 - Legacy: OAuth2 flow for Google Sheets access (being removed)
-- New authentication system: To be determined for PostgreSQL version
+- Multi-tenant authentication: Flask-AppBuilder base auth + custom OAuth providers
+  - Email/password (Flask-AppBuilder built-in)
+  - Google OAuth (existing credentials, ready to integrate)
+  - SoundCloud OAuth 2.1 (musician-focused platform, planned)
+- Session management via Flask-AppBuilder security manager
 
 ### API Endpoints
 - `/api/items/*`: CRUD operations for practice items
