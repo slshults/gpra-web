@@ -3,6 +3,7 @@ Updated routes using the data layer abstraction.
 Drop-in replacement for existing routes.py during migration.
 """
 from flask import render_template, request, jsonify, redirect, session, url_for
+from flask_login import current_user
 from app import app
 from app.data_layer import data_layer
 from app.database import DatabaseTransaction
@@ -17,6 +18,20 @@ import json
 # Main route
 @app.route('/')
 def index():
+    """
+    Main app route - requires authentication.
+
+    If user is not logged in, redirect to Flask-AppBuilder login page.
+    After login, Flask-AppBuilder redirects to /admin/ by default,
+    but we'll handle that redirect in the admin interface.
+    """
+    # Check if user is authenticated via Flask-AppBuilder
+    if not current_user.is_authenticated:
+        app.logger.info("User not authenticated, redirecting to login")
+        # Redirect to Flask-AppBuilder login with next parameter
+        return redirect('/login/?next=/')
+
+    app.logger.info(f"Authenticated user accessing main app: {current_user.username}")
     posthog_key = os.getenv('POSTHOG_API_KEY', '')
     return render_template('index.html.jinja', posthog_key=posthog_key)
 

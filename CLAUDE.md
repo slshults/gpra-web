@@ -6,6 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Important Context**: This codebase is a COPY of the original single-user local PostgreSQL version, which we are converting into a hosted multi-tenant SaaS application.
 
+**IMPORTANT - Flask-AppBuilder Usage**: When working with authentication, security, or admin features, ALWAYS review the relevant Flask-AppBuilder documentation first:
+- Security & Auth: https://flask-appbuilder.readthedocs.io/en/latest/security.html
+- User Registration: https://flask-appbuilder.readthedocs.io/en/latest/security.html#authentication-methods
+- OAuth: https://flask-appbuilder.readthedocs.io/en/latest/security.html#oauth-authentication
+- API Reference: https://flask-appbuilder.readthedocs.io/en/latest/api.html
+**Never roll your own solution if Flask-AppBuilder provides it built-in.**
+
 **Original Version**: [guitar-practice-routine-app_postgresql](https://github.com/slshults/guitar-practice-routine-app_postgresql) - Single user, local-only, no authentication
 **This Version**: `gpra-web` - Multi-tenant hosted version with user accounts, subscriptions, and security
 
@@ -24,7 +31,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Frontend: Login/signup, account management, billing UI (future)
 - Infrastructure: Production configs, proper secrets management (complete), Stripe integration (pending)
 
-**Current Deployment Status** (as of Oct 12, 2025):
+**Current Deployment Status** (as of Oct 14, 2025):
 - ✅ **FULLY DEPLOYED** - App live on 10 domains with SSL (certificates fixed!)
 - ✅ DreamCompute instance: `gpra-web-prod` at `208.113.200.79` (2GB RAM, 1 vCPU)
 - ✅ PostgreSQL 14.19 with production data
@@ -34,8 +41,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ IP whitelist (108.172.116.193) - only Steven has access
 - ✅ Security: Vulnerable `/api/open-folder` endpoint disabled
 - ✅ **Flask-AppBuilder admin interface** - Installed and accessible at `/admin/`
-- ✅ **Multi-tenant architecture designed** - Row-Level Security approach, schema planned
-- ⏳ **Next**: Implement SQLAlchemy models, Alembic migrations, RLS middleware
+- ✅ **Multi-tenant infrastructure COMPLETE** - RLS middleware active, migrations applied
+- ✅ **Database migrated** - All data assigned to admin user, subscriptions table created
+- ✅ **Email/password registration** - Working locally with immediate activation (no Flask-Mail required)
+- ✅ **Free subscription auto-creation** - post_register hook creates subscriptions for new users
+- ⏳ **Next**: Test registration fix, verify OAuth, custom login UI, deployment
 - See `~/.claude/handoffSummary.md` for full details
 
 When working on this codebase, keep in mind we're building for a multi-user hosted environment, not the original single-user local setup.
@@ -438,6 +448,7 @@ The `gpr.sh` script runs:
   - Google OAuth (existing credentials, ready to integrate)
   - SoundCloud OAuth 2.1 (musician-focused platform, planned)
 - Session management via Flask-AppBuilder security manager
+- Row-Level Security (RLS) middleware active - filters all queries by user_id
 
 ### API Endpoints
 - `/api/items/*`: CRUD operations for practice items
