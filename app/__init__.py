@@ -15,13 +15,29 @@ app = Flask(__name__,
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '***REMOVED***')
 app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://gpra:***REMOVED***@localhost:5432/gpra_dev')
 
-# Session Configuration (required for CSRF to work with multiple Gunicorn workers)
+# Flask-Session Configuration (for multi-worker CSRF support)
+# CRITICAL: Must be configured BEFORE WTForms CSRF so CSRF tokens use Redis sessions
+from flask_session import Session
+import redis
+
+app.config['SESSION_TYPE'] = 'redis'
+app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_USE_SIGNER'] = True
+app.config['SESSION_KEY_PREFIX'] = 'gpra:'
+app.config['SESSION_REDIS'] = redis.from_url(
+    os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+)
+
+# Initialize Flask-Session FIRST (before CSRF config)
+Session(app)
+
+# Session Cookie Configuration
 app.config['SESSION_COOKIE_SECURE'] = True  # Use secure cookies in production (HTTPS)
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access to cookies
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
 
-# CSRF Configuration
+# CSRF Configuration (uses Redis sessions configured above)
 app.config['WTF_CSRF_ENABLED'] = True
 app.config['WTF_CSRF_TIME_LIMIT'] = None  # No time limit on CSRF tokens
 app.config['WTF_CSRF_SSL_STRICT'] = False  # Allow CSRF on non-HTTPS (for dev)
