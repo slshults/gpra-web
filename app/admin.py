@@ -8,7 +8,10 @@ from flask_appbuilder import ModelView
 from flask_sqlalchemy import SQLAlchemy
 
 # Import our existing models
-from app.models import Item, Routine, RoutineItem, ChordChart, CommonChord, ActiveRoutine
+from app.models import Item, Routine, RoutineItem, ChordChart, CommonChord, ActiveRoutine, Subscription
+
+# Import custom security manager
+from app.security import CustomSecurityManager, CustomAuthDBView
 
 
 class AdminIndexView(IndexView):
@@ -18,7 +21,7 @@ class AdminIndexView(IndexView):
 
 def init_admin(app: Flask, db_session):
     """
-    Initialize Flask-AppBuilder admin interface.
+    Initialize Flask-AppBuilder admin interface with custom security.
 
     Args:
         app: Flask application instance
@@ -34,8 +37,13 @@ def init_admin(app: Flask, db_session):
     # Flask-AppBuilder requires its own SQLAlchemy instance
     db = SQLAlchemy(app)
 
-    # Mount admin interface at /admin/ using custom IndexView
-    appbuilder = AppBuilder(app, db.session, indexview=AdminIndexView)
+    # Mount admin interface at /admin/ with custom security manager
+    appbuilder = AppBuilder(
+        app,
+        db.session,
+        indexview=AdminIndexView,
+        security_manager_class=CustomSecurityManager
+    )
 
     # Define admin views for each model
     # Each ModelView must set route_base to be under /admin/ prefix
@@ -83,6 +91,16 @@ def init_admin(app: Flask, db_session):
         list_columns = ['id', 'routine_id', 'updated_at']
         show_columns = ['id', 'routine_id', 'updated_at']
 
+    class SubscriptionModelView(ModelView):
+        datamodel = SQLAInterface(Subscription)
+        route_base = '/admin/subscriptions'
+        list_columns = ['id', 'user_id', 'tier', 'status', 'mrr', 'created_at']
+        show_columns = ['id', 'user_id', 'stripe_subscription_id', 'stripe_price_id',
+                       'tier', 'status', 'mrr', 'current_period_start',
+                       'current_period_end', 'cancel_at_period_end',
+                       'created_at', 'updated_at']
+        search_columns = ['tier', 'status']
+
     # Register views with AppBuilder
     appbuilder.add_view(
         ItemModelView,
@@ -119,6 +137,12 @@ def init_admin(app: Flask, db_session):
         "Active Routine",
         icon="fa-play-circle",
         category="Practice Data"
+    )
+    appbuilder.add_view(
+        SubscriptionModelView,
+        "Subscriptions",
+        icon="fa-credit-card",
+        category="User Management"
     )
 
     return appbuilder
