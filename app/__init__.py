@@ -15,9 +15,16 @@ app = Flask(__name__,
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '82a393ed5a3dbe58b0e03785215cfcb757f7d393ecde90d4ef25d6b46b28d819')
 app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://gpra:^66*B^mzg6Y6e#@localhost:5432/gpra_dev')
 
+# Session Configuration (required for CSRF to work with multiple Gunicorn workers)
+app.config['SESSION_COOKIE_SECURE'] = True  # Use secure cookies in production (HTTPS)
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access to cookies
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
+
 # CSRF Configuration
 app.config['WTF_CSRF_ENABLED'] = True
 app.config['WTF_CSRF_TIME_LIMIT'] = None  # No time limit on CSRF tokens
+app.config['WTF_CSRF_SSL_STRICT'] = False  # Allow CSRF on non-HTTPS (for dev)
 
 # Flask-AppBuilder Authentication Configuration
 app.config['AUTH_TYPE'] = 1  # 1 = Database authentication (email/password + OAuth)
