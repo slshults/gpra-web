@@ -28,12 +28,6 @@ app.config['AUTH_ROLE_PUBLIC'] = 'Public'
 app.config['AUTH_USER_REGISTRATION'] = True
 app.config['AUTH_USER_REGISTRATION_ROLE'] = 'Public'  # Default role for new users
 
-# Redirect configuration - where to send users after login/logout
-# By default Flask-AppBuilder redirects to /admin/ after login
-# We want to redirect to the main app at / instead
-app.config['FAB_INDEX_VIEW'] = '/'  # This doesn't work - F.A.B. only uses this for menu items
-# Instead we override the authdbview in CustomSecurityManager
-
 # ReCAPTCHA configuration for development
 # Using Google's test keys which always pass validation (for testing only!)
 # See: https://developers.google.com/recaptcha/docs/faq#id-like-to-run-automated-tests-with-recaptcha.-what-should-i-do
