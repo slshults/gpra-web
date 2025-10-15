@@ -159,16 +159,11 @@ class CustomAuthDBView(AuthDBView):
         """
         Override login to redirect to main app (/) instead of /admin/ after successful login.
 
-        Based on Flask-AppBuilder's source code pattern (views.py):
-        - Check if user already authenticated
-        - Process form validation
-        - Redirect to next URL or index after login
+        Simplified version that doesn't rely on internal Flask-AppBuilder APIs.
         """
         from flask import g, request
         from flask_appbuilder.security.forms import LoginForm_db
         from flask_login import login_user
-        from flask_appbuilder.security.decorators import no_cache
-        from flask_appbuilder.security._security_api import get_safe_redirect
 
         # If already authenticated, redirect to main app
         if g.user is not None and g.user.is_authenticated:
@@ -177,9 +172,6 @@ class CustomAuthDBView(AuthDBView):
         form = LoginForm_db()
 
         if form.validate_on_submit():
-            # Get next URL from request args, default to main app (/)
-            next_url = get_safe_redirect(request.args.get("next", "/"))
-
             # Authenticate user
             user = self.appbuilder.sm.auth_user_db(
                 form.username.data, form.password.data
@@ -187,13 +179,19 @@ class CustomAuthDBView(AuthDBView):
 
             if not user:
                 flash(as_unicode(self.invalid_login_message), "warning")
-                return redirect(self.appbuilder.get_url_for_login_with(next_url))
+                # Redirect back to login page
+                next_url = request.args.get("next", "")
+                if next_url:
+                    return redirect(f'/login/?next={next_url}')
+                return redirect('/login/')
 
             # Login successful
             login_user(user, remember=False)
 
-            # Always redirect to main app (/) unless explicit next parameter
-            if not request.args.get("next"):
+            # Check for next parameter, otherwise redirect to main app
+            next_url = request.args.get("next", "/")
+            if not next_url or next_url == "/admin/":
+                # Default to main app, not admin interface
                 return redirect('/')
             return redirect(next_url)
 
