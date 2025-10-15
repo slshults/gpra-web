@@ -9,6 +9,7 @@ from flask_appbuilder.security.registerviews import BaseRegisterUser
 from flask_appbuilder._compat import as_unicode
 from flask import flash, redirect
 from flask_babel import lazy_gettext
+from flask_appbuilder import expose
 from wtforms import StringField, PasswordField, HiddenField
 from wtforms.validators import DataRequired, EqualTo, Email
 import os
@@ -152,9 +153,57 @@ class CustomAuthDBView(AuthDBView):
     Extends Flask-AppBuilder's default auth views.
     Redirects to main app (/) after login instead of admin interface (/admin/).
     """
-    # Redirect to main app after successful login
-    login_redirect_url = '/'
-    logout_redirect_url = '/login/'
+
+    @expose('/login/', methods=['GET', 'POST'])
+    def login(self):
+        """
+        Override login to redirect to main app (/) instead of /admin/ after successful login.
+
+        Based on Flask-AppBuilder's source code pattern (views.py):
+        - Check if user already authenticated
+        - Process form validation
+        - Redirect to next URL or index after login
+        """
+        from flask import g, request
+        from flask_appbuilder.security.forms import LoginForm_db
+        from flask_login import login_user
+        from flask_appbuilder.security.decorators import no_cache
+        from flask_appbuilder.security._security_api import get_safe_redirect
+
+        # If already authenticated, redirect to main app
+        if g.user is not None and g.user.is_authenticated:
+            return redirect('/')
+
+        form = LoginForm_db()
+
+        if form.validate_on_submit():
+            # Get next URL from request args, default to main app (/)
+            next_url = get_safe_redirect(request.args.get("next", "/"))
+
+            # Authenticate user
+            user = self.appbuilder.sm.auth_user_db(
+                form.username.data, form.password.data
+            )
+
+            if not user:
+                flash(as_unicode(self.invalid_login_message), "warning")
+                return redirect(self.appbuilder.get_url_for_login_with(next_url))
+
+            # Login successful
+            login_user(user, remember=False)
+
+            # Always redirect to main app (/) unless explicit next parameter
+            if not request.args.get("next"):
+                return redirect('/')
+            return redirect(next_url)
+
+        # Show login form
+        return self.render_template(
+            self.login_template,
+            title=self.title,
+            form=form,
+            appbuilder=self.appbuilder
+        )
 
 
 class CustomRegisterUserDBView_OLD(AuthDBView):

@@ -31,21 +31,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Frontend: Login/signup, account management, billing UI (future)
 - Infrastructure: Production configs, proper secrets management (complete), Stripe integration (pending)
 
-**Current Deployment Status** (as of Oct 14, 2025):
+**Current Deployment Status** (as of Oct 15, 2025):
 - ✅ **FULLY DEPLOYED** - App live on 10 domains with SSL (certificates fixed!)
 - ✅ DreamCompute instance: `gpra-web-prod` at `208.113.200.79` (2GB RAM, 1 vCPU)
-- ✅ PostgreSQL 14.19 with production data
-- ✅ Gunicorn systemd service with auto-restart
+- ✅ PostgreSQL 14.19 with production data (prod DB different from local dev DB)
+- ✅ Gunicorn systemd service (`gpra-web.service`) with auto-restart
 - ✅ Nginx reverse proxy with security headers
 - ✅ **SSL certificates properly mapped** - Each domain uses correct cert via SNI
 - ✅ IP whitelist (108.172.116.193) - only Steven has access
 - ✅ Security: Vulnerable `/api/open-folder` endpoint disabled
-- ✅ **Flask-AppBuilder admin interface** - Installed and accessible at `/admin/`
+- ✅ **Deployment alias working** - `deploy-gpra` command configured with SSH keys
+- ✅ **Flask-AppBuilder admin interface** - Installed locally at `/admin/`
 - ✅ **Multi-tenant infrastructure COMPLETE** - RLS middleware active, migrations applied
-- ✅ **Database migrated** - All data assigned to admin user, subscriptions table created
+- ✅ **Database migrated locally** - All data assigned to admin user, subscriptions table created
 - ✅ **Email/password registration** - Working locally with immediate activation (no Flask-Mail required)
 - ✅ **Free subscription auto-creation** - post_register hook creates subscriptions for new users
-- ⏳ **Next**: Test registration fix, verify OAuth, custom login UI, deployment
+- ✅ **Login redirects to main app** - After login, users land on `/` instead of `/admin/`
+- ✅ **Auth system deployed to production** - Flask-AppBuilder dependencies installed on server
+- ⚠️ **Production needs setup** - No users created yet, `/login` route returns 404, OAuth env vars missing
+- ⏳ **Next**: Create admin user on production, test registration/login flow, fix API fetch errors
 - See `~/.claude/handoffSummary.md` for full details
 
 When working on this codebase, keep in mind we're building for a multi-user hosted environment, not the original single-user local setup.

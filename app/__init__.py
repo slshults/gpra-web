@@ -15,6 +15,10 @@ app = Flask(__name__,
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '82a393ed5a3dbe58b0e03785215cfcb757f7d393ecde90d4ef25d6b46b28d819')
 app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://gpra:^66*B^mzg6Y6e#@localhost:5432/gpra_dev')
 
+# CSRF Configuration
+app.config['WTF_CSRF_ENABLED'] = True
+app.config['WTF_CSRF_TIME_LIMIT'] = None  # No time limit on CSRF tokens
+
 # Flask-AppBuilder Authentication Configuration
 app.config['AUTH_TYPE'] = 1  # 1 = Database authentication (email/password + OAuth)
 app.config['AUTH_ROLE_ADMIN'] = 'Admin'
@@ -23,6 +27,12 @@ app.config['AUTH_ROLE_PUBLIC'] = 'Public'
 # Enable user self-registration
 app.config['AUTH_USER_REGISTRATION'] = True
 app.config['AUTH_USER_REGISTRATION_ROLE'] = 'Public'  # Default role for new users
+
+# Redirect configuration - where to send users after login/logout
+# By default Flask-AppBuilder redirects to /admin/ after login
+# We want to redirect to the main app at / instead
+app.config['FAB_INDEX_VIEW'] = '/'  # This doesn't work - F.A.B. only uses this for menu items
+# Instead we override the authdbview in CustomSecurityManager
 
 # ReCAPTCHA configuration for development
 # Using Google's test keys which always pass validation (for testing only!)
