@@ -1,17 +1,15 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Index, JSON, Numeric
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
 import json
 
-# CRITICAL: Use Flask-AppBuilder's Base to ensure ab_user foreign keys work
-# This must be imported before defining any models
-try:
-    from flask_appbuilder.security.sqla.models import Base
-except ImportError:
-    # Fallback for local development/testing without Flask-AppBuilder
-    from sqlalchemy.ext.declarative import declarative_base
-    Base = declarative_base()
+# NOTE: We use our own Base instead of Flask-AppBuilder's Base because:
+# 1. FAB's Base isn't available at import time (circular dependency)
+# 2. We removed ForeignKey constraints to ab_user to avoid Base mismatch errors
+# 3. Referential integrity is enforced at application level + PostgreSQL triggers
+Base = declarative_base()
 
 class Item(Base):
     __tablename__ = 'items'
@@ -29,7 +27,9 @@ class Item(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Multi-tenant fields
-    user_id = Column(Integer, ForeignKey('ab_user.id', ondelete='CASCADE'), nullable=True, index=True)
+    # NOTE: user_id references ab_user.id but NO ForeignKey constraint due to Base mismatch issues
+    # Referential integrity enforced at application level + PostgreSQL trigger
+    user_id = Column(Integer, nullable=True, index=True)
     created_via = Column(String(50), default='manual', nullable=False)  # 'manual', 'import' (for PostHog tracking)
 
     # Note: No direct relationship with ChordChart since it uses string ItemID now
@@ -53,7 +53,9 @@ class Routine(Base):
     order = Column(Integer, default=0, index=True)
 
     # Multi-tenant field
-    user_id = Column(Integer, ForeignKey('ab_user.id', ondelete='CASCADE'), nullable=True, index=True)
+    # NOTE: user_id references ab_user.id but NO ForeignKey constraint due to Base mismatch issues
+    # Referential integrity enforced at application level + PostgreSQL trigger
+    user_id = Column(Integer, nullable=True, index=True)
 
     # Relationships
     routine_items = relationship("RoutineItem", back_populates="routine", cascade="all, delete-orphan")
@@ -98,7 +100,9 @@ class ChordChart(Base):
     order_col = Column(Integer, default=0, index=True)  # matches Google Sheets Column F
 
     # Multi-tenant fields
-    user_id = Column(Integer, ForeignKey('ab_user.id', ondelete='CASCADE'), nullable=True, index=True)
+    # NOTE: user_id references ab_user.id but NO ForeignKey constraint due to Base mismatch issues
+    # Referential integrity enforced at application level + PostgreSQL trigger
+    user_id = Column(Integer, nullable=True, index=True)
     generation_method = Column(String(50), nullable=True)  # 'autocreate_file', 'autocreate_youtube', 'manual' (for PostHog tracking)
 
     # Note: No foreign key relationship since item_id is now a string matching Google Sheets format
@@ -156,7 +160,9 @@ class Subscription(Base):
     __tablename__ = 'subscriptions'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('ab_user.id', ondelete='CASCADE'), nullable=False, index=True)
+    # NOTE: user_id references ab_user.id but NO ForeignKey constraint due to Base mismatch issues
+    # Referential integrity enforced at application level + PostgreSQL trigger
+    user_id = Column(Integer, nullable=False, index=True)
     stripe_subscription_id = Column(String(255), unique=True, nullable=True)
     stripe_price_id = Column(String(255), nullable=True)
     tier = Column(String(50), nullable=False, default='free')  # 'free', 'basic', 'standard', 'pro', 'unlimited'
