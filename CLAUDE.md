@@ -31,25 +31,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Frontend: Login/signup, account management, billing UI (future)
 - Infrastructure: Production configs, proper secrets management (complete), Stripe integration (pending)
 
-**Current Deployment Status** (as of Oct 15, 2025):
+**Current Deployment Status** (as of Oct 15, 2025 - Session 7):
 - ✅ **FULLY DEPLOYED** - App live on 10 domains with SSL (certificates fixed!)
 - ✅ DreamCompute instance: `gpra-web-prod` at `208.113.200.79` (2GB RAM, 1 vCPU)
-- ✅ PostgreSQL 14.19 with production data (prod DB different from local dev DB)
-- ✅ Gunicorn systemd service (`gpra-web.service`) with auto-restart
-- ✅ Nginx reverse proxy with security headers
+- ✅ PostgreSQL: Production DB `gpra_production` (user: `gpra_user`, different from local dev DB)
+- ✅ **Gunicorn configuration optimized** - 1 worker with 3 threads (thread-based concurrency)
+- ✅ Nginx reverse proxy with security headers, serving static files directly
 - ✅ **SSL certificates properly mapped** - Each domain uses correct cert via SNI
 - ✅ IP whitelist (108.172.116.193) - only Steven has access
 - ✅ Security: Vulnerable `/api/open-folder` endpoint disabled
-- ✅ **Deployment alias working** - `deploy-gpra` command configured with SSH keys
-- ✅ **Flask-AppBuilder admin interface** - Installed locally at `/admin/`
-- ✅ **Multi-tenant infrastructure COMPLETE** - RLS middleware active, migrations applied
-- ✅ **Database migrated locally** - All data assigned to admin user, subscriptions table created
-- ✅ **Email/password registration** - Working locally with immediate activation (no Flask-Mail required)
-- ✅ **Free subscription auto-creation** - post_register hook creates subscriptions for new users
-- ✅ **Login redirects to main app** - After login, users land on `/` instead of `/admin/`
-- ✅ **Auth system deployed to production** - Flask-AppBuilder dependencies installed on server
-- ⚠️ **Production needs setup** - No users created yet, `/login` route returns 404, OAuth env vars missing
-- ⏳ **Next**: Create admin user on production, test registration/login flow, fix API fetch errors
+- ✅ **Deployment working** - `deploy-gpra` alias configured (`~/.bashrc`, requires shell reload)
+- ✅ **Flask-AppBuilder admin interface** - Installed at `/admin/`, CSS working
+- ✅ **Flask-AppBuilder static files** - Committed to Git at `app/static/appbuilder/`
+- ✅ **Multi-tenant infrastructure ACTIVE** - RLS middleware running, setting user context correctly
+- ✅ **Production admin user created** - admin (id=1), email: gpra-admin@shults.org
+- ✅ **Flask-Session + Redis configured** - Server-side sessions for multi-worker CSRF support
+- ✅ **CSRF ISSUE RESOLVED** - Login/registration working with thread-based workers
+- ✅ **Registration WORKING** - Email/password signup tested (testuser_oct15 created successfully)
+- ✅ **Login WORKING** - CSRF validation passing, proper redirect to main app (`/`)
+- ✅ **Login redirect configured** - CustomAuthDBView redirects to `/` instead of `/admin/`
+- ⚠️ **Database schema migration pending** - Need to add `user_id` columns to items/routines/chord_charts tables
+- ⏳ **Next**: Apply multi-tenant database migrations, create subscriptions table
 - See `~/.claude/handoffSummary.md` for full details
 
 When working on this codebase, keep in mind we're building for a multi-user hosted environment, not the original single-user local setup.
@@ -167,6 +169,24 @@ npm run watch           # Watch mode for development
 ```bash
 python run.py           # Start Flask server only (port 5000)
 ```
+
+### Playwright MCP Setup
+
+**MCP configuration is project-specific** - each project needs Playwright MCP configured independently.
+
+**Verify configuration:**
+```bash
+claude mcp list  # Check if playwright is listed and connected
+```
+
+**Add if missing:**
+```bash
+claude mcp add --transport stdio playwright -- npx @playwright/mcp@latest
+```
+
+**After adding:** Reload VS Code window (`Ctrl+Shift+P` → "Developer: Reload Window") to activate the MCP server.
+
+**Works for:** Both local development (`http://localhost:5000`) and production URLs (`https://guitarpracticeroutine.net`).
 
 ### Test Content for Playwright MCP Testing
 
