@@ -2,6 +2,7 @@ from typing import List, Optional, Dict, Any, Type
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 from app.database import SessionLocal
+from app.middleware.rls import set_user_id_on_create
 
 class BaseRepository:
     def __init__(self, model_class: Type, db_session: Optional[Session] = None):
@@ -28,6 +29,9 @@ class BaseRepository:
         return query.all()
         
     def create(self, **kwargs) -> Any:
+        # Automatically set user_id from current session context
+        kwargs = set_user_id_on_create(kwargs)
+
         instance = self.model_class(**kwargs)
         self.db.add(instance)
         self.db.commit()
