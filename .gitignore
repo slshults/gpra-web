@@ -55,3 +55,6 @@ Thumbs.db
 *2025*
 CLAUDE.md~
 *.backup
+
+# Migration documentation (local reference only)
+MIGRATION_COMPLETED.md
