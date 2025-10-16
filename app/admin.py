@@ -7,8 +7,8 @@ from flask_appbuilder.models.sqla.interface import SQLAInterface
 from flask_appbuilder import ModelView
 from flask_sqlalchemy import SQLAlchemy
 
-# Import our existing models
-from app.models import Item, Routine, RoutineItem, ChordChart, CommonChord, ActiveRoutine, Subscription
+# Import our existing models AND Base
+from app.models import Item, Routine, RoutineItem, ChordChart, CommonChord, ActiveRoutine, Subscription, Base
 
 # Import custom security manager
 from app.security import CustomSecurityManager, CustomAuthDBView
@@ -35,7 +35,8 @@ def init_admin(app: Flask, db_session):
         '82a393ed5a3dbe58b0e03785215cfcb757f7d393ecde90d4ef25d6b46b28d819')
 
     # Flask-AppBuilder requires its own SQLAlchemy instance
-    db = SQLAlchemy(app)
+    # CRITICAL: Use our existing Base so FAB's ab_user table shares metadata with our models
+    db = SQLAlchemy(app, model_class=Base)
 
     # Mount admin interface at /admin/ with custom security manager
     appbuilder = AppBuilder(
