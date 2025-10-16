@@ -1,11 +1,17 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Index, JSON, Numeric
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
 import json
 
-Base = declarative_base()
+# CRITICAL: Use Flask-AppBuilder's Base to ensure ab_user foreign keys work
+# This must be imported before defining any models
+try:
+    from flask_appbuilder.security.sqla.models import Base
+except ImportError:
+    # Fallback for local development/testing without Flask-AppBuilder
+    from sqlalchemy.ext.declarative import declarative_base
+    Base = declarative_base()
 
 class Item(Base):
     __tablename__ = 'items'

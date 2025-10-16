@@ -35,8 +35,8 @@ def init_admin(app: Flask, db_session):
         '82a393ed5a3dbe58b0e03785215cfcb757f7d393ecde90d4ef25d6b46b28d819')
 
     # Flask-AppBuilder requires its own SQLAlchemy instance
-    # CRITICAL: Use our existing Base so FAB's ab_user table shares metadata with our models
-    db = SQLAlchemy(app, model_class=Base)
+    # CRITICAL: Our models.py now imports FAB's Base, so foreign keys to ab_user work
+    db = SQLAlchemy(app)
 
     # Mount admin interface at /admin/ with custom security manager
     appbuilder = AppBuilder(
