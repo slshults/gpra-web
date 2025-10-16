@@ -2,6 +2,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy import func, and_
 from app.models import Item, ChordChart
 from app.repositories.base import BaseRepository
+from app.middleware.rls import filter_by_user
 
 class ItemRepository(BaseRepository):
     def __init__(self, db_session=None):
@@ -9,11 +10,15 @@ class ItemRepository(BaseRepository):
     
     def get_all_ordered(self) -> List[Item]:
         """Get all items ordered by order column, then title."""
-        return self.db.query(Item).order_by(Item.order, Item.title).all()
+        query = self.db.query(Item)
+        query = filter_by_user(query, Item)
+        return query.order_by(Item.order, Item.title).all()
     
     def get_lightweight(self) -> List[Dict[str, Any]]:
         """Get minimal item data for list views (mimics Sheets format)."""
-        items = self.db.query(Item.id, Item.title).order_by(Item.order, Item.title).all()
+        query = self.db.query(Item.id, Item.title)
+        query = filter_by_user(query, Item)
+        items = query.order_by(Item.order, Item.title).all()
         return [{'A': str(item.id), 'C': item.title} for item in items]
     
     def get_sheets_format(self) -> List[Dict[str, Any]]:
@@ -58,9 +63,9 @@ class ItemRepository(BaseRepository):
                 # Column A contains the Google Sheets ItemID, not the database primary key
                 sheets_item_id = str(item_data['A'])
                 new_order = int(item_data.get('G', 0)) if item_data.get('G') else 0
-                self.db.query(Item).filter(Item.item_id == sheets_item_id).update({
-                    Item.order: new_order
-                })
+                query = self.db.query(Item).filter(Item.item_id == sheets_item_id)
+                query = filter_by_user(query, Item)
+                query.update({Item.order: new_order})
             self.db.commit()
             return True
         except Exception:
@@ -69,17 +74,23 @@ class ItemRepository(BaseRepository):
     
     def search_by_title(self, search_term: str) -> List[Item]:
         """Search items by title (case-insensitive)."""
-        return self.db.query(Item).filter(
+        query = self.db.query(Item)
+        query = filter_by_user(query, Item)
+        return query.filter(
             Item.title.ilike(f'%{search_term}%')
         ).order_by(Item.title).all()
     
     def get_by_tuning(self, tuning: str) -> List[Item]:
         """Get items filtered by tuning."""
-        return self.db.query(Item).filter(Item.tuning == tuning).order_by(Item.title).all()
+        query = self.db.query(Item)
+        query = filter_by_user(query, Item)
+        return query.filter(Item.tuning == tuning).order_by(Item.title).all()
     
     def get_with_chord_charts(self, item_id: int) -> Optional[Item]:
         """Get item with chord charts eagerly loaded."""
-        return self.db.query(Item).filter(Item.id == item_id).first()
+        query = self.db.query(Item)
+        query = filter_by_user(query, Item)
+        return query.filter(Item.id == item_id).first()
     
     # Format conversion helpers
     def _to_sheets_format(self, item: Item) -> Dict[str, Any]:

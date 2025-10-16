@@ -3,6 +3,7 @@ from sqlalchemy import and_, func
 from sqlalchemy.orm import joinedload
 from app.models import ChordChart, Item
 from app.repositories.base import BaseRepository
+from app.middleware.rls import filter_by_user
 import json
 import logging
 
@@ -12,7 +13,9 @@ class ChordChartRepository(BaseRepository):
     
     def get_by_id(self, id: int) -> Optional[ChordChart]:
         """Override to use chord_id instead of id."""
-        return self.db.query(ChordChart).filter(ChordChart.chord_id == id).first()
+        query = self.db.query(ChordChart).filter(ChordChart.chord_id == id)
+        query = filter_by_user(query, ChordChart)
+        return query.first()
     
     def delete(self, id: int) -> bool:
         """Override to use chord_id instead of id."""
@@ -29,14 +32,16 @@ class ChordChartRepository(BaseRepository):
         from sqlalchemy import or_, and_
         item_id_str = str(item_id)
 
-        return self.db.query(ChordChart).filter(
+        query = self.db.query(ChordChart).filter(
             or_(
                 ChordChart.item_id == item_id_str,                    # Exact match: "92"
                 ChordChart.item_id.like(f'{item_id_str},%'),         # Starts with: "92, 100"
                 ChordChart.item_id.like(f'%, {item_id_str}'),        # Ends with: "100, 92"
                 ChordChart.item_id.like(f'%, {item_id_str},%')       # Middle: "100, 92, 45"
             )
-        ).order_by(ChordChart.order_col).all()
+        )
+        query = filter_by_user(query, ChordChart)
+        return query.order_by(ChordChart.order_col).all()
     
     def get_for_item_sheets_format(self, item_id: str) -> List[Dict[str, Any]]:
         """Get chord charts in Google Sheets format for API compatibility."""
@@ -119,12 +124,14 @@ class ChordChartRepository(BaseRepository):
         """Update chord chart ordering for an item."""
         try:
             order_map = {chart['id']: i for i, chart in enumerate(chord_charts)}
-            
+
             for chart_id, new_order in order_map.items():
-                self.db.query(ChordChart).filter(
+                query = self.db.query(ChordChart).filter(
                     and_(ChordChart.chord_id == chart_id, ChordChart.item_id == item_id)
-                ).update({ChordChart.order_col: new_order})
-                
+                )
+                query = filter_by_user(query, ChordChart)
+                query.update({ChordChart.order_col: new_order})
+
             self.db.commit()
             return True
         except Exception:
@@ -151,15 +158,19 @@ class ChordChartRepository(BaseRepository):
     
     def batch_delete(self, chord_ids: List[int]) -> int:
         """Delete multiple chord charts and return count of deleted charts."""
-        count = self.db.query(ChordChart).filter(ChordChart.chord_id.in_(chord_ids)).count()
-        self.db.query(ChordChart).filter(ChordChart.chord_id.in_(chord_ids)).delete()
+        query = self.db.query(ChordChart).filter(ChordChart.chord_id.in_(chord_ids))
+        query = filter_by_user(query, ChordChart)
+        count = query.count()
+        query.delete(synchronize_session=False)
         self.db.commit()
         return count
     
     def delete_all_for_item(self, item_id: str) -> int:
         """Delete all chord charts for an item."""
-        count = self.db.query(ChordChart).filter(ChordChart.item_id == item_id).count()
-        self.db.query(ChordChart).filter(ChordChart.item_id == item_id).delete()
+        query = self.db.query(ChordChart).filter(ChordChart.item_id == item_id)
+        query = filter_by_user(query, ChordChart)
+        count = query.count()
+        query.delete(synchronize_session=False)
         self.db.commit()
         return count
     
