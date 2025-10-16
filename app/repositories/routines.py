@@ -3,6 +3,7 @@ from sqlalchemy import func, and_
 from sqlalchemy.orm import joinedload
 from app.models import Routine, RoutineItem, Item, ActiveRoutine
 from app.repositories.base import BaseRepository
+from app.middleware.rls import filter_by_user
 import logging
 
 class RoutineRepository(BaseRepository):
@@ -13,7 +14,9 @@ class RoutineRepository(BaseRepository):
         """Get all routines in physical insertion order (preserving Google Sheets sequence)."""
         # CRITICAL: Do NOT sort by order column - preserve physical insertion order from sheets migration
         # The order column contains drag-and-drop values with gaps and is for display logic only
-        return self.db.query(Routine).order_by(Routine.id).all()
+        query = self.db.query(Routine)
+        query = filter_by_user(query, Routine)
+        return query.order_by(Routine.id).all()
     
     def get_sheets_format(self) -> List[Dict[str, Any]]:
         """Get all routines in Google Sheets format for API compatibility."""
@@ -44,17 +47,19 @@ class RoutineRepository(BaseRepository):
     def get_with_items(self, routine_id: int) -> Optional[Routine]:
         """Get routine with routine items eagerly loaded, preserving physical insertion order."""
         # Get routine and manually load ordered routine_items to preserve insertion order
-        routine = self.db.query(Routine).filter(Routine.id == routine_id).first()
+        query = self.db.query(Routine).filter(Routine.id == routine_id)
+        query = filter_by_user(query, Routine)
+        routine = query.first()
         if routine:
             # Manually load routine_items with explicit ordering by ID (insertion order)
             # This ensures we get the same order as the original Google Sheets physical rows
             ordered_routine_items = self.db.query(RoutineItem).options(
                 joinedload(RoutineItem.item)
             ).filter(RoutineItem.routine_id == routine_id).order_by(RoutineItem.id).all()
-            
+
             # Replace the lazy-loaded relationship with our ordered items
             routine.routine_items = ordered_routine_items
-        
+
         return routine
     
     def get_routine_items_sheets_format(self, routine_id: int) -> List[Dict[str, Any]]:
@@ -71,10 +76,12 @@ class RoutineRepository(BaseRepository):
         """Add an item to a routine."""
         # CRITICAL: item_id parameter is actually a Google Sheets ItemID (string like "139")
         # We need to convert it to the database primary key
-        item = self.db.query(Item).filter(Item.item_id == str(item_id)).first()
+        query = self.db.query(Item).filter(Item.item_id == str(item_id))
+        query = filter_by_user(query, Item)
+        item = query.first()
         if not item:
             raise ValueError(f"Item with ItemID '{item_id}' not found")
-        
+
         # Use the database primary key for the foreign key relationship
         db_item_id = item.id
         
@@ -100,10 +107,12 @@ class RoutineRepository(BaseRepository):
         """Remove an item from a routine."""
         # CRITICAL: item_id parameter is actually a Google Sheets ItemID (string like "139")
         # We need to convert it to the database primary key
-        item = self.db.query(Item).filter(Item.item_id == str(item_id)).first()
+        query = self.db.query(Item).filter(Item.item_id == str(item_id))
+        query = filter_by_user(query, Item)
+        item = query.first()
         if not item:
             return False  # Item not found
-        
+
         # Use the database primary key for the query
         db_item_id = item.id
         
@@ -162,9 +171,9 @@ class RoutineRepository(BaseRepository):
                 new_order = routine_data.get('D', 0)  # Order (Column D)
 
                 if routine_id:
-                    result = self.db.query(Routine).filter(
-                        Routine.id == int(routine_id)
-                    ).update({Routine.order: int(new_order)})
+                    query = self.db.query(Routine).filter(Routine.id == int(routine_id))
+                    query = filter_by_user(query, Routine)
+                    result = query.update({Routine.order: int(new_order)})
                     updated_count += result
                     logging.debug(f"Updated routine {routine_id} order to {new_order}: {result} rows affected")
 
@@ -253,7 +262,9 @@ class RoutineRepository(BaseRepository):
         # NOT the database primary key (routine_items.item_id)
 
         # Get the actual ItemID string from the Items table
-        item = self.db.query(Item).filter(Item.id == routine_item.item_id).first()
+        query = self.db.query(Item).filter(Item.id == routine_item.item_id)
+        query = filter_by_user(query, Item)
+        item = query.first()
         item_id_str = item.item_id if item and item.item_id else str(routine_item.item_id)
 
         return {
@@ -271,7 +282,9 @@ class ActiveRoutineRepository(BaseRepository):
         """Get the currently active routine."""
         active = self.db.query(ActiveRoutine).first()
         if active and active.routine_id:
-            routine = self.db.query(Routine).filter(Routine.id == active.routine_id).first()
+            query = self.db.query(Routine).filter(Routine.id == active.routine_id)
+            query = filter_by_user(query, Routine)
+            routine = query.first()
             if routine:
                 return {
                     'A': str(routine.id),
