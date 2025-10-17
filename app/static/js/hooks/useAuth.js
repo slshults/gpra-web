@@ -40,7 +40,8 @@ export const useAuth = () => {
   };
 
   const handleLogout = () => {
-    window.location.href = '/logout';
+    // Flask-AppBuilder's logout endpoint
+    window.location.href = '/logout/';
   };
 
   return {
