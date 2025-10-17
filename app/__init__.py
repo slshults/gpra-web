@@ -47,6 +47,9 @@ app.config['AUTH_TYPE'] = 1  # 1 = Database authentication (email/password + OAu
 app.config['AUTH_ROLE_ADMIN'] = 'Admin'
 app.config['AUTH_ROLE_PUBLIC'] = 'Public'
 
+# Flask-AppBuilder UI Theme
+app.config['APP_THEME'] = 'slate.css'  # Dark theme (other options: 'superhero.css', 'darkly.css', 'cyborg.css')
+
 # Enable user self-registration
 app.config['AUTH_USER_REGISTRATION'] = True
 app.config['AUTH_USER_REGISTRATION_ROLE'] = 'Public'  # Default role for new users
