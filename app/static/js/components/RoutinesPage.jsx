@@ -339,9 +339,18 @@ const RoutinesPage = () => {
   }, [activeRoutineItems, fetchItemsIfNeeded]);
 
   const handleRoutineChange = useCallback(async () => {
-    await fetchRoutines();
-    // Call fetchActiveRoutineItems directly without dependency to avoid circular reference
-    const activeRoutine = routines.find(r => r.active);
+    // Fetch fresh routines list
+    const response = await fetch('/api/routines');
+    if (!response.ok) {
+      console.error('Failed to fetch routines');
+      return;
+    }
+
+    const freshRoutines = await response.json();
+    setRoutines(freshRoutines);
+
+    // Use fresh data to find active routine
+    const activeRoutine = freshRoutines.find(r => r.active);
 
     if (!activeRoutine) {
       setActiveRoutineItems([]);
@@ -363,13 +372,18 @@ const RoutinesPage = () => {
 
       setActiveRoutineItems(sortedItems);
     }
-  }, [fetchRoutines, routines]);
+  }, []);
 
   const fetchActiveRoutineItems = useCallback(async () => {
     try {
-      // Get active routine ID from the routines list instead of making a separate call
-      const activeRoutine = routines.find(r => r.active);
-      
+      // Fetch fresh routines to avoid stale closure
+      const routinesResponse = await fetch('/api/routines');
+      if (!routinesResponse.ok) throw new Error('Failed to fetch routines');
+      const freshRoutines = await routinesResponse.json();
+
+      // Get active routine from fresh data
+      const activeRoutine = freshRoutines.find(r => r.active);
+
       if (!activeRoutine) {
         setActiveRoutineItems([]);
         return;
@@ -379,7 +393,7 @@ const RoutinesPage = () => {
       const routineResponse = await fetch(`/api/routines/${activeRoutine.ID}`);
       if (!routineResponse.ok) throw new Error('Failed to fetch routine details');
       const routineData = await routineResponse.json();
-      
+
       // Sort items by order (order is stored in routineEntry.C)
       const sortedItems = routineData.items
         .sort((a, b) => parseInt(a.routineEntry['C']) - parseInt(b.routineEntry['C']))
@@ -387,7 +401,7 @@ const RoutinesPage = () => {
           ...item,
           itemDetails: item.itemDetails || item
         }));
-      
+
       setActiveRoutineItems(sortedItems);
 
       // Log the loaded items structure
@@ -414,7 +428,7 @@ const RoutinesPage = () => {
       console.error('Error fetching routine items:', error);
       setError(error.message);
     }
-  }, [routines]);
+  }, []);
 
   useEffect(() => {
     fetchActiveRoutineItems();
