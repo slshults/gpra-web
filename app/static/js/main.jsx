@@ -8,6 +8,7 @@ import { PracticePage } from '@components/PracticePage';
 import NavMenu from '@components/NavMenu';
 import RoutinesPage from '@components/RoutinesPage';
 import ImportsPage from '@components/ImportsPage';
+import AccountSettings from '@components/AccountSettings';
 import { useLightweightItems } from '@hooks/useLightweightItems';
 
 const ItemsPage = () => {
@@ -17,7 +18,7 @@ const ItemsPage = () => {
 
 const PageContent = () => {
   const { activePage } = useNavigation();
-  
+
   switch (activePage) {
     case 'Practice':
       return <PracticePage />;
@@ -27,6 +28,8 @@ const PageContent = () => {
       return <ItemsPage />;
     case 'Imports':
       return <ImportsPage />;
+    case 'Account':
+      return <AccountSettings />;
     default:
       return <div>Page not implemented yet</div>;
   }

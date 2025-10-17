@@ -327,6 +327,76 @@ def extract_youtube_video_id(url):
 
     return None
 
+# Helper function for API key selection
+def _get_autocreate_api_key():
+    """
+    Get the appropriate Anthropic API key for autocreate.
+
+    Priority:
+    1. User's own API key (if configured) - "Bring Your Own Claude"
+    2. System API key (if user's tier includes autocreate)
+    3. None (if neither available)
+
+    Returns:
+        str: API key to use, or None if unavailable
+    """
+    if not current_user.is_authenticated:
+        return None
+
+    # First, try to get user's own API key
+    try:
+        from app.database import SessionLocal
+        from app.utils.encryption import decrypt_api_key
+        from sqlalchemy import text
+
+        db = SessionLocal()
+        try:
+            result = db.execute(text("""
+                SELECT encrypted_anthropic_api_key
+                FROM ab_user
+                WHERE id = :user_id
+            """), {'user_id': current_user.id}).fetchone()
+
+            if result and result[0]:
+                user_key = decrypt_api_key(result[0])
+                if user_key:
+                    app.logger.info(f"[AUTOCREATE] Using user's own API key (byoClaude)")
+                    return user_key
+        finally:
+            db.close()
+    except Exception as e:
+        app.logger.error(f"Error retrieving user API key: {e}")
+
+    # If no user key, check if user's subscription tier includes autocreate
+    try:
+        from app.database import SessionLocal
+        from app.subscription_tiers import is_feature_enabled
+        from sqlalchemy import text
+
+        db = SessionLocal()
+        try:
+            result = db.execute(text("""
+                SELECT s.tier
+                FROM subscriptions s
+                WHERE s.user_id = :user_id
+                AND s.status = 'active'
+            """), {'user_id': current_user.id}).fetchone()
+
+            if result:
+                tier = result[0]
+                if is_feature_enabled(tier, 'autocreate'):
+                    # Tier includes autocreate, use system key
+                    system_key = os.getenv('ANTHROPIC_API_KEY')
+                    if system_key:
+                        app.logger.info(f"[AUTOCREATE] Using system API key for {tier} tier user")
+                        return system_key
+        finally:
+            db.close()
+    except Exception as e:
+        app.logger.error(f"Error checking subscription tier: {e}")
+
+    return None
+
 # AI chord chart creation
 @app.route('/api/autocreate-chord-charts', methods=['POST'])
 def autocreate_chord_charts():
@@ -450,10 +520,34 @@ def autocreate_chord_charts():
         else:
             app.logger.info(f"[AUTOCREATE] No user choice provided, will use automatic detection")
             
-        # Get Anthropic API key from environment
-        api_key = os.getenv('ANTHROPIC_API_KEY')
+        # Get Anthropic API key (user's key if available, otherwise system key)
+        api_key = _get_autocreate_api_key()
         if not api_key:
-            return jsonify({'error': 'Anthropic API key not configured'}), 500
+            # Check subscription tier to give appropriate error message
+            from app.database import SessionLocal
+            from sqlalchemy import text
+
+            db = SessionLocal()
+            try:
+                result = db.execute(text("""
+                    SELECT s.tier
+                    FROM subscriptions s
+                    WHERE s.user_id = :user_id
+                    AND s.status = 'active'
+                """), {'user_id': current_user.id}).fetchone()
+
+                tier = result[0] if result else 'free'
+            finally:
+                db.close()
+
+            # Free/Basic users need their own key, Standard+ can use system key
+            if tier in ['free', 'basic']:
+                return jsonify({
+                    'error': 'Autocreate requires an API key. Please add your Anthropic API key in Account Settings.',
+                    'requires_api_key': True
+                }), 403
+            else:
+                return jsonify({'error': 'Anthropic API key not configured'}), 500
 
         # Initialize Anthropic client
         import anthropic
@@ -563,9 +657,198 @@ def auth_status():
             return jsonify({
                 "authenticated": False, 
                 "hasSpreadsheetAccess": False,
-                "auth_url": "/authorize", 
+                "auth_url": "/authorize",
                 "mode": "google_sheets"
             })
+
+# API Key Management Routes
+@app.route('/api/user/api-key', methods=['GET'])
+def get_user_api_key():
+    """
+    Get user's API key status (doesn't return the actual key for security).
+
+    Returns whether user has an API key configured and when it was last updated.
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from app.database import SessionLocal
+        from sqlalchemy import text
+
+        db = SessionLocal()
+        try:
+            result = db.execute(text("""
+                SELECT
+                    encrypted_anthropic_api_key IS NOT NULL as has_key,
+                    api_key_updated_at
+                FROM ab_user
+                WHERE id = :user_id
+            """), {'user_id': current_user.id}).fetchone()
+
+            if result:
+                return jsonify({
+                    "has_key": result[0],
+                    "updated_at": result[1].isoformat() if result[1] else None
+                })
+            else:
+                return jsonify({"error": "User not found"}), 404
+        finally:
+            db.close()
+    except Exception as e:
+        app.logger.error(f"Error fetching API key status: {e}")
+        return jsonify({"error": "Failed to fetch API key status"}), 500
+
+@app.route('/api/user/api-key', methods=['POST'])
+def save_user_api_key():
+    """
+    Save or update user's Anthropic API key (encrypted).
+
+    Validates the API key before saving.
+
+    Request body:
+        {
+            "api_key": "sk-ant-..."
+        }
+
+    Returns:
+        {
+            "success": true,
+            "message": "API key saved successfully"
+        }
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.json
+    api_key = data.get('api_key', '').strip()
+
+    if not api_key:
+        return jsonify({"error": "API key is required"}), 400
+
+    # Validate the API key
+    from app.utils.encryption import validate_anthropic_api_key, encrypt_api_key
+
+    is_valid, error_message = validate_anthropic_api_key(api_key)
+    if not is_valid:
+        app.logger.warning(f"Invalid API key provided by user {current_user.id}: {error_message}")
+        return jsonify({"error": error_message}), 400
+
+    # Encrypt and save the key
+    try:
+        encrypted_key = encrypt_api_key(api_key)
+
+        from app.database import SessionLocal
+        from sqlalchemy import text
+        from datetime import datetime
+
+        db = SessionLocal()
+        try:
+            db.execute(text("""
+                UPDATE ab_user
+                SET encrypted_anthropic_api_key = :encrypted_key,
+                    api_key_updated_at = :updated_at
+                WHERE id = :user_id
+            """), {
+                'encrypted_key': encrypted_key,
+                'updated_at': datetime.utcnow(),
+                'user_id': current_user.id
+            })
+            db.commit()
+
+            app.logger.info(f"API key saved successfully for user {current_user.id}")
+            return jsonify({
+                "success": True,
+                "message": "API key saved successfully"
+            })
+        finally:
+            db.close()
+    except Exception as e:
+        app.logger.error(f"Error saving API key for user {current_user.id}: {e}")
+        return jsonify({"error": "Failed to save API key"}), 500
+
+@app.route('/api/user/api-key', methods=['DELETE'])
+def delete_user_api_key():
+    """
+    Delete user's stored API key.
+
+    Returns:
+        {
+            "success": true,
+            "message": "API key deleted successfully"
+        }
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from app.database import SessionLocal
+        from sqlalchemy import text
+
+        db = SessionLocal()
+        try:
+            db.execute(text("""
+                UPDATE ab_user
+                SET encrypted_anthropic_api_key = NULL,
+                    api_key_updated_at = NULL
+                WHERE id = :user_id
+            """), {'user_id': current_user.id})
+            db.commit()
+
+            app.logger.info(f"API key deleted for user {current_user.id}")
+            return jsonify({
+                "success": True,
+                "message": "API key deleted successfully"
+            })
+        finally:
+            db.close()
+    except Exception as e:
+        app.logger.error(f"Error deleting API key for user {current_user.id}: {e}")
+        return jsonify({"error": "Failed to delete API key"}), 500
+
+@app.route('/api/user/api-key/validate', methods=['POST'])
+def validate_user_api_key():
+    """
+    Validate an API key without saving it.
+
+    Request body:
+        {
+            "api_key": "sk-ant-..."
+        }
+
+    Returns:
+        {
+            "valid": true
+        }
+        or
+        {
+            "valid": false,
+            "error": "error message"
+        }
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.json
+    api_key = data.get('api_key', '').strip()
+
+    if not api_key:
+        return jsonify({"valid": False, "error": "API key is required"}), 400
+
+    from app.utils.encryption import validate_anthropic_api_key
+
+    is_valid, error_message = validate_anthropic_api_key(api_key)
+
+    if is_valid:
+        return jsonify({"valid": True})
+    else:
+        return jsonify({"valid": False, "error": error_message})
 
 @app.route('/authorize')
 def authorize():
