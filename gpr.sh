@@ -151,6 +151,19 @@ npm run build || handle_error "Failed to build assets"
 # Ensure PostgreSQL is ready before starting Flask
 ensure_postgres_ready
 
+# Start Redis server (required for Flask-Session)
+echo -e "${BLUE}Starting Redis server...${NC}"
+if pgrep -x redis-server > /dev/null; then
+    echo -e "${GREEN}Redis is already running${NC}"
+else
+    redis-server --daemonize yes
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Redis started successfully${NC}"
+    else
+        handle_error "Failed to start Redis server"
+    fi
+fi
+
 # Start Flask with auto-reloader (but in prod mode)
 echo -e "${GREEN}Starting Flask server...${NC}"
 FLASK_ENV=production FLASK_DEBUG=1 FLASK_APP=run.py flask run --host=0.0.0.0 --port=5000 &
