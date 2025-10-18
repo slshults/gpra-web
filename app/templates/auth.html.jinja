@@ -1,0 +1,9 @@
+{% extends "base.html.jinja" %}
+
+{% block content %}
+<div id="auth-root" data-page="{{ page }}"></div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', filename='js/auth.js') }}"></script>
+{% endblock %}

@@ -21,19 +21,34 @@ def index():
     """
     Main app route - requires authentication.
 
-    If user is not logged in, redirect to Flask-AppBuilder login page.
-    After login, Flask-AppBuilder redirects to /admin/ by default,
-    but we'll handle that redirect in the admin interface.
+    If user is not logged in, redirect to custom login page.
     """
     # Check if user is authenticated via Flask-AppBuilder
     if not current_user.is_authenticated:
         app.logger.info("User not authenticated, redirecting to login")
-        # Redirect to Flask-AppBuilder login with next parameter
-        return redirect('/login/?next=/')
+        # Redirect to custom React login page
+        return redirect('/login')
 
     app.logger.info(f"Authenticated user accessing main app: {current_user.username}")
     posthog_key = os.getenv('POSTHOG_API_KEY', '')
     return render_template('index.html.jinja', posthog_key=posthog_key)
+
+# Custom auth page routes (serve React pages)
+@app.route('/login')
+def login_page():
+    """Custom React login page"""
+    # If already authenticated, redirect to main app
+    if current_user.is_authenticated:
+        return redirect('/')
+    return render_template('auth.html.jinja', page='login')
+
+@app.route('/register')
+def register_page():
+    """Custom React register page"""
+    # If already authenticated, redirect to main app
+    if current_user.is_authenticated:
+        return redirect('/')
+    return render_template('auth.html.jinja', page='register')
 
 # Items API - Updated to use data layer
 @app.route('/api/items', methods=['GET', 'POST'])
@@ -629,38 +644,185 @@ def health_check():
 # Authentication routes
 @app.route('/api/auth/status', methods=['GET'])
 def auth_status():
-    """Check authentication status"""
-    if data_layer.mode == 'postgres':
-        # For PostgreSQL mode, no authentication needed (single user app)
+    """Check authentication status - now uses Flask-AppBuilder auth"""
+    # Check if user is authenticated via Flask-AppBuilder
+    if current_user.is_authenticated:
         return jsonify({
-            "authenticated": True, 
-            "hasSpreadsheetAccess": True,  # PostgreSQL always has "database access"
-            "user": "local_user", 
-            "mode": "postgresql"
+            "authenticated": True,
+            "hasSpreadsheetAccess": True,  # Always true for authenticated users
+            "user": current_user.username,
+            "email": current_user.email,
+            "mode": "flask-appbuilder"
         })
     else:
-        # For Sheets mode, check if we have valid credentials
+        return jsonify({
+            "authenticated": False,
+            "hasSpreadsheetAccess": False,
+            "mode": "flask-appbuilder"
+        })
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_login():
+    """
+    API login endpoint for custom React login page.
+
+    Authenticates user with Flask-AppBuilder's security manager.
+
+    Request body:
+        {
+            "email": "user@example.com",
+            "password": "password123"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "message": "Login successful",
+            "user": {
+                "username": "username",
+                "email": "user@example.com"
+            }
+        }
+    """
+    from flask_login import login_user
+    from app import appbuilder
+
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.json
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    # Authenticate user with Flask-AppBuilder
+    # FAB's auth_user_db expects username, but we want to login with email
+    # So we need to find the user by email first
+    user = appbuilder.sm.find_user(email=email)
+
+    if not user:
+        app.logger.warning(f"Login attempt for non-existent email: {email}")
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    # Check password using Flask-AppBuilder's security manager
+    # check_password expects (hashed_password, plaintext_password)
+    from werkzeug.security import check_password_hash
+    if not check_password_hash(user.password, password):
+        app.logger.warning(f"Invalid password for user: {email}")
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    # Login successful - create Flask-Login session
+    login_user(user, remember=False)
+    app.logger.info(f"User logged in via API: {user.username} ({user.email})")
+
+    return jsonify({
+        "success": True,
+        "message": "Login successful",
+        "user": {
+            "username": user.username,
+            "email": user.email
+        }
+    })
+
+@app.route('/api/auth/register', methods=['POST'])
+def api_register():
+    """
+    API registration endpoint for custom React register page.
+
+    Creates new user with Flask-AppBuilder's security manager.
+
+    Request body:
+        {
+            "username": "johndoe",
+            "email": "john@example.com",
+            "password": "SecurePass123!"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "message": "User registered successfully"
+        }
+    """
+    from app import appbuilder
+
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.json
+    username = data.get('username', '').strip()
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+
+    # Validate inputs
+    if not username or not email or not password:
+        return jsonify({"error": "Username, email, and password are required"}), 400
+
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters long"}), 400
+
+    # Check if user already exists
+    if appbuilder.sm.find_user(username=username):
+        return jsonify({"error": "Username already exists"}), 409
+
+    if appbuilder.sm.find_user(email=email):
+        return jsonify({"error": "Email already registered"}), 409
+
+    # Get the Public role for new users
+    role = appbuilder.sm.find_role(appbuilder.sm.auth_user_registration_role)
+
+    if not role:
+        app.logger.error("Public role not found - cannot register user")
+        return jsonify({"error": "Registration not available"}), 500
+
+    # Create user with Flask-AppBuilder
+    try:
+        user = appbuilder.sm.add_user(
+            username=username,
+            first_name=username,  # Use username as first name if not provided
+            last_name='',
+            email=email,
+            role=role,
+            password=password  # Will be hashed by add_user()
+        )
+
+        if not user:
+            app.logger.error(f"Failed to create user: {username}")
+            return jsonify({"error": "Registration failed"}), 500
+
+        app.logger.info(f"User registered via API: {user.username} ({user.email}, id={user.id})")
+
+        # Create free subscription for new user
         try:
-            from app import sheets
-            creds, _ = sheets.get_credentials()
-            if not creds or not creds.valid:
-                return jsonify({"authenticated": False, "hasSpreadsheetAccess": False})
-            
-            # Test spreadsheet access
-            test_result = sheets.test_sheets_connection()
-            return jsonify({
-                "authenticated": True,
-                "hasSpreadsheetAccess": test_result.get("success", False),
-                "user": "sheets_user", 
-                "mode": "google_sheets"
-            })
-        except Exception:
-            return jsonify({
-                "authenticated": False, 
-                "hasSpreadsheetAccess": False,
-                "auth_url": "/authorize",
-                "mode": "google_sheets"
-            })
+            from sqlalchemy import text
+            from app.database import SessionLocal
+
+            db = SessionLocal()
+            try:
+                db.execute(text("""
+                    INSERT INTO subscriptions (user_id, tier, status, mrr, created_at, updated_at)
+                    VALUES (:user_id, 'free', 'active', 0.00, NOW(), NOW())
+                """), {'user_id': user.id})
+                db.commit()
+                app.logger.info(f"Created free subscription for user {user.id}")
+            finally:
+                db.close()
+        except Exception as e:
+            app.logger.error(f"Failed to create subscription for user {user.id}: {e}")
+            # Don't fail registration if subscription creation fails
+
+        return jsonify({
+            "success": True,
+            "message": "User registered successfully"
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error during registration: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": f"Registration failed: {str(e)}"}), 500
 
 # API Key Management Routes
 @app.route('/api/user/api-key', methods=['GET'])
