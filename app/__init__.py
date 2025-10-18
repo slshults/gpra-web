@@ -32,7 +32,8 @@ app.config['SESSION_REDIS'] = redis.from_url(
 Session(app)
 
 # Session Cookie Configuration
-app.config['SESSION_COOKIE_SECURE'] = True  # Use secure cookies in production (HTTPS)
+# Set SECURE to False for local development (HTTP), True for production (HTTPS)
+app.config['SESSION_COOKIE_SECURE'] = False  # Allow cookies over HTTP for local dev
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access to cookies
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
