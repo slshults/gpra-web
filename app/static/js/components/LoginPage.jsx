@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@ui/alert';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('');
+  const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -15,8 +15,8 @@ const LoginPage = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
 
-    if (!email.trim() || !password.trim()) {
-      setError('Please enter both email and password');
+    if (!emailOrUsername.trim() || !password.trim()) {
+      setError('Please enter both email/username and password');
       return;
     }
 
@@ -27,7 +27,7 @@ const LoginPage = () => {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ emailOrUsername, password }),
       });
 
       const data = await response.json();
@@ -59,7 +59,7 @@ const LoginPage = () => {
           <CardHeader>
             <CardTitle className="text-gray-100">Login</CardTitle>
             <CardDescription className="text-gray-400">
-              Enter your email and password to access your account
+              Enter your email or username and password to access your account
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -72,15 +72,15 @@ const LoginPage = () => {
                 </Alert>
               )}
 
-              {/* Email Input */}
+              {/* Email or Username Input */}
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-200">Email</Label>
+                <Label htmlFor="emailOrUsername" className="text-gray-200">Email or Username</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  id="emailOrUsername"
+                  type="text"
+                  value={emailOrUsername}
+                  onChange={(e) => setEmailOrUsername(e.target.value)}
+                  placeholder="you@example.com or username"
                   className="bg-gray-900 border-gray-600 text-gray-100"
                   disabled={loading}
                   required
