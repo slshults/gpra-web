@@ -440,15 +440,16 @@ def autocreate_chord_charts():
             if file_size > 5 * 1024 * 1024:  # 5MB
                 return {'error': f'File {filename} is too large (max 5MB)'}
 
-            # Reject suspiciously small files (likely corrupt)
-            if file_size < 50:  # Less than 50 bytes is suspicious
-                return {'error': f'File {filename} is too small to be valid'}
-
             # Read file content
             file_data = file.read()
 
             # Determine file type from extension
             file_ext = filename.lower().split('.')[-1] if '.' in filename else ''
+
+            # Reject suspiciously small files (likely corrupt) - but allow short text files for manual chord input
+            is_text_file = file_ext in ['txt'] or filename in ['youtube_transcript.txt', 'manual-input.txt']
+            if file_size < 50 and not is_text_file:  # Less than 50 bytes is suspicious for PDFs/images
+                return {'error': f'File {filename} is too small to be valid'}
 
             # Verify file type with magic number (file signature) to prevent extension spoofing
             try:
