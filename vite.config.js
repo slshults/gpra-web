@@ -13,7 +13,8 @@ export default defineConfig({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       input: {
-        main: path.resolve(__dirname, 'app/static/js/main.jsx')
+        main: path.resolve(__dirname, 'app/static/js/main.jsx'),
+        auth: path.resolve(__dirname, 'app/static/js/auth.jsx')
       },
       output: {
         format: 'es',
