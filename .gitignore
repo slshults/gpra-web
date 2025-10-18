@@ -16,6 +16,7 @@ ENV/
 token.json
 client_secret.json
 credentials.json
+sudoers.d.gpra
 
 # IDE and editor files
 .vscode/

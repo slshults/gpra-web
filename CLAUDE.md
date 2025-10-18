@@ -6,12 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Important Context**: This codebase is a COPY of the original single-user local PostgreSQL version, which we are converting into a hosted multi-tenant SaaS application.
 
-**IMPORTANT - Flask-AppBuilder Usage**: When working with authentication, security, or admin features, ALWAYS review the relevant Flask-AppBuilder documentation first:
-- Security & Auth: https://flask-appbuilder.readthedocs.io/en/latest/security.html
-- User Registration: https://flask-appbuilder.readthedocs.io/en/latest/security.html#authentication-methods
-- OAuth: https://flask-appbuilder.readthedocs.io/en/latest/security.html#oauth-authentication
-- API Reference: https://flask-appbuilder.readthedocs.io/en/latest/api.html
-**Never roll your own solution if Flask-AppBuilder provides it built-in.**
+**IMPORTANT - Flask-AppBuilder Usage**: When working with authentication, security, OAuth, user management, or subscription features, **use the `flask-appbuilder` skill** located at `~/.claude/skills/flask-appbuilder/`. This skill contains comprehensive Flask-AppBuilder patterns, our current auth architecture, OAuth setup guides, subscription integration patterns, and links to official FAB documentation. **Never roll your own solution if Flask-AppBuilder provides it built-in.**
 
 **Original Version**: [guitar-practice-routine-app_postgresql](https://github.com/slshults/guitar-practice-routine-app_postgresql) - Single user, local-only, no authentication
 **This Version**: `gpra-web` - Multi-tenant hosted version with user accounts, subscriptions, and security
@@ -166,244 +161,19 @@ npm run watch           # Watch mode for development
 python run.py           # Start Flask server only (port 5000)
 ```
 
-### Playwright MCP Setup
+### Playwright MCP Testing
 
-**MCP configuration is project-specific** - each project needs Playwright MCP configured independently.
+**When testing GPRA UI features**, use the **`playwright-gpra-testing` skill** located at `~/.claude/skills/playwright-gpra-testing/`. This skill contains:
 
-**Verify configuration:**
-```bash
-claude mcp list  # Check if playwright is listed and connected
-```
+- **Token efficiency rules** (CRITICAL: snapshots = 5k-15k tokens each, use screenshots instead)
+- **Post-change testing protocol** (ALWAYS test affected UI before marking complete)
+- **GPRA-specific navigation patterns** (collapsible items, expand chevrons, chord chart sections)
+- **Test data** (WSL2 file paths, YouTube URLs, manual entry test inputs, non-song test items)
+- **Common workflows** (file upload, manual entry, replace charts, console monitoring)
+- **Troubleshooting guide** (UI elements, file uploads, processing issues)
+- **Setup instructions** (MCP configuration, browser installation, permissions)
 
-**Add if missing:**
-```bash
-claude mcp add --transport stdio playwright -- npx @playwright/mcp@latest
-```
-
-**After adding:** Reload VS Code window (`Ctrl+Shift+P` → "Developer: Reload Window") to activate the MCP server.
-
-**Works for:** Both local development (`http://localhost:5000`) and production URLs (`https://guitarpracticeroutine.net`).
-
-### Test Content for Playwright MCP Testing
-
-#### Test items for chord charts
-When testing chord chart generation or editing, please select items which are not song titles. Examples of good test items are "Remember to stretch", "Basic warm up and down", "Take five", etc. (This will prevent us from accidentally deleting chord charts that I actually use during practice, which are on song items.)
-
-#### File Upload Testing
-When testing file upload features with Playwright, use these sample files (translate Windows paths to WSL2 paths):
-
-- **Lyrics with chord names**: `D:\Users\Steven\Documents\Guitar\Songbook\AngelFromMontgomery\angel_from_montgomery-chords.pdf`
-  - WSL2 path: `/mnt/d/Users/Steven/Documents/Guitar/Songbook/AngelFromMontgomery/angel_from_montgomery-chords.pdf`
-
-- **Chord charts (standard tuning)**: `D:\Users\Steven\Documents\Guitar\Songbook\DontDreamItsOver\DontDreamItsOver-ChordCharts.pdf`
-  - WSL2 path: `/mnt/d/Users/Steven/Documents/Guitar/Songbook/DontDreamItsOver/DontDreamItsOver-ChordCharts.pdf`
-
-- **Chord charts (alternate tuning)**: `D:\Users\Steven\Documents\Guitar\Songbook\AlmostCutMyHair\AlmostCutMyHair-Chords.pdf`
-  - WSL2 path: `/mnt/d/Users/Steven/Documents/Guitar/Songbook/AlmostCutMyHair/AlmostCutMyHair-Chords.pdf`
-
-- **Mixed content (charts + lyrics)**: `D:\Users\Steven\Documents\Guitar\Songbook\BackInBlack\BackInBlack-Chords.pdf`
-  - WSL2 path: `/mnt/d/Users/Steven/Documents/Guitar/Songbook/BackInBlack/BackInBlack-Chords.pdf`
-  - Use this to test prompting user to choose which content type to process
-
-#### YouTube Transcript Testing
-For testing YouTube transcript generation:
-- URL: `https://youtu.be/-IFmtOHecOg?si=KGJiRR7gV8u-hx_D`
-
-#### Manual Entry Testing
-For testing manual chord chart entry:
-```
-Verse
-Ebsus2 Csus2 Ab G Gsus4
-Chorus
-Ab Bm Ebsus2 Cmin
-```
-
-### Playwright MCP Testing Guide
-
-**Testing Philosophy**: When adding new functionality or fixing bugs, use Playwright MCP to test changes. Test after each testable change, because it's easier to fix bugs as we go than it is to find and fix bugs after a large number of changes.
-
-#### Post-Change Testing Protocol
-
-**CRITICAL**: After editing React components, ALWAYS test affected UI before marking task complete.
-
-**Process**:
-1. **Analyze**: Which pages/modals import this component? (Practice page, Items modal, Routines modal, etc.)
-2. **Delegate**: Use Task tool + Playwright MCP (avoid token bloat in main conversation)
-3. **Target**: Test only the functionality affected by your changes, not entire app
-4. **Report**: Confirm working or identify specific issues found
-
-**Example**: After editing `ChordChartEditor.jsx`:
-- Affected areas: Practice page chord charts, Items modal, Routines modal
-- Test focus: Chord editing, section management, autofill behavior
-- Delegate: "Test chord editing on Practice page - verify [specific change] works correctly"
-
-**Never mark a todo complete until UI testing confirms the change works.**
-
-#### Token Efficiency Best Practices
-
-**CRITICAL**: Playwright MCP snapshots consume 5k-15k tokens each. Pattern: Screenshot → ALL actions → ONE screenshot (verify). If the first screenshot doesn't reveal enough for navigation, then take ONE snapshot and repeat the pattern with only screenshots from there.
-
-Delegate multi-step tests (3+ actions) to Task tool with general-purpose agent to preserve main conversation context window remaining.
-
-#### Wait Time Expectations
-
-- **UI updates** (button clicks, form inputs, navigation): Usually <100ms, no explicit waits needed
-- **API responses** (autocreate, file upload, transcript fetch): 5-30 seconds depending on complexity
-- Use `browser_wait_for` with `time` parameter only for API operations
-- For UI verification after actions, take a screenshot - don't use additional snapshots
-
-#### Environment Setup
-- **WSLg**: WSL2 includes WSLg (WSL GUI support) which allows Chrome to display in a GUI window during testing
-- **Browser Installation**: Run `npx playwright install chrome` to install Chrome browser binaries
-- **System Dependencies**: Run `npx playwright install-deps` to install required system packages
-- **Approval Configuration**:
-  - Add `"mcp__playwright__*"` to the `permissions.allow` array in `.claude/settings.local.json` (project-level)
-  - Alternatively, add to `~/.claude/settings.json` (user-level, applies to all projects)
-  - Format: `"permissions": { "allow": ["mcp__playwright__*"], "deny": [] }`
-  - Click "Always allow this tool" on first approval - subsequent actions run without prompts
-
-#### Navigation Patterns
-
-**Opening the App:**
-1. Navigate to `http://localhost:5000`
-2. Take snapshot to see current page state
-3. Look for "Practice" link in navigation to access practice page
-
-**Accessing Practice Items:**
-1. On Practice page, items are collapsed by default
-2. Look for expand chevrons (▸) next to item titles
-3. Click chevron refs to expand items and reveal chord chart sections
-4. Take screenshots to verify expanded state
-
-**Collapsible Sections:**
-- Items have multiple collapsible sections (Notes, Description, Chord Charts)
-- Each section has its own expand/collapse button
-- Use `browser_snapshot` to identify section refs before clicking
-
-#### File Upload Testing
-
-**Workflow:**
-1. Expand a practice item that doesn't have chord charts yet
-2. Look for "Autocreate from Files" or similar upload button
-3. Click to open file upload dialog
-4. Use `browser_file_upload` tool with WSL2 paths (e.g., `/mnt/d/Users/Steven/...`)
-5. Wait for processing (may take 10-30 seconds depending on file complexity)
-6. Take screenshot to verify chord charts were created
-
-**Common Issues:**
-- File upload requires exact WSL2 paths, not Windows paths
-- Processing time varies by content type (chord diagrams take longer than lyrics)
-- Check browser console for processing status messages
-
-#### Manual Chord Entry Testing
-
-**Workflow:**
-1. Expand practice item's chord chart section
-2. Look for "Add Chord Manually" or "Show me" button to open editor
-3. Enter section label (e.g., "Verse", "Chorus")
-4. Type chord progression in text area
-5. Click "Create Chord Charts" or similar button
-6. Wait for AI processing (~5-10 seconds)
-7. Verify chord charts appear in the section
-
-**Test Input Format:**
-```
-Verse
-Ebsus2 Csus2 Ab G Gsus4
-Chorus
-Ab Bm Ebsus2 Cmin
-```
-
-#### Element Selection Tips
-
-**Common Ref Patterns:**
-- Buttons: Look for `button` elements with accessible names
-- Expand/collapse: Look for chevron symbols (▸, ▾) or expand icons
-- Sections: Look for headings like "Chord Charts", "Notes", "Description"
-- Forms: Look for `textbox`, `combobox`, `button` roles
-
-**Navigation Strategy:**
-1. Always take snapshot first to see available elements
-2. Use accessible names and roles for reliable element selection
-3. Verify action results with screenshots
-4. Check console logs for API responses and errors
-
-#### Console Monitoring
-
-**Key Log Patterns:**
-- `[AUTOCREATE]`: Processing file uploads via AI
-- `[MANUAL]`: Processing manual chord entry
-- API responses show success/failure of backend operations
-- Error messages help diagnose issues
-
-**Accessing Console:**
-```
-# View console messages
-mcp__playwright__browser_console_messages
-
-# View only errors
-mcp__playwright__browser_console_messages(onlyErrors=true)
-```
-
-#### Screenshot Best Practices
-
-**When to Capture:**
-- After navigation to verify correct page loaded
-- Before clicking elements to document UI state
-- After operations complete to verify results
-- When debugging to understand what went wrong
-
-**Screenshot Tools:**
-- `browser_take_screenshot`: Captures current viewport or specific elements, much lower token use so prefer screenshots to snapshots
-- `browser_snapshot`: Better for identifying interactive elements (includes accessibility tree). Massive token use, so use only when neccessary 
-- Remember to delete screenshots and snapshots when you're done with them
-
-#### Common Testing Scenarios
-
-**Scenario 1: Test File Upload End-to-End**
-1. Navigate to Practice page
-2. Expand an item without chord charts
-3. Click autocreate button
-4. Upload test PDF file
-5. Wait for processing
-6. Verify chord charts appear
-7. Verify tuning and section labels are correct
-
-**Scenario 2: Test Manual Entry Workflow**
-1. Navigate to Practice page
-2. Expand item chord chart section
-3. Open manual entry editor
-4. Enter section + chord progression
-5. Submit for processing
-6. Verify AI-generated chord charts match input
-
-**Scenario 3: Replace Existing Chord Charts**
-1. Navigate to item that already has charts
-2. Click "Replace" button
-3. Choose file upload or manual entry
-4. Complete workflow
-5. Verify old charts replaced with new ones
-
-#### Leave Browswer Open When Done
-- Please leave the browser open when you're done testing (in case I want to review console logs, history, etc.)
-
-#### Troubleshooting
-
-**UI Element Not Found:**
-- Take fresh snapshot to see current state
-- Check if section needs to be expanded first
-- Verify page loaded completely (check for loading spinners)
-
-**File Upload Fails:**
-- Verify WSL2 path format (`/mnt/d/...` not `D:\...`)
-- Check file exists at specified path
-- Ensure ANTHROPIC_API_KEY is set in backend `.env`
-
-**Chord Charts Don't Appear:**
-- Check console logs for API errors
-- Verify processing completed (no loading state)
-- Take screenshot to see if error message displayed
-- Check browser network requests for failed API calls
+**Quick setup check**: `claude mcp list` should show `playwright` connected. If missing, see skill's `setup.md`.
 
 
 ## Architecture
@@ -540,51 +310,19 @@ Here's a map of the columns for our Items sheet and routine sheets.  This is wha
 
   - So, we're using an ID too look up the sheet, but that ID is actually a sheet name as well. Let me know of any questions.  We still have many changes to make for this, but I've found we're more effective if we fix it as we go, so we can test each change and keep things under control.
 
-## SVGuitar Chord Chart Sizing
+## SVGuitar Chord Charts
 
-**Critical**: Three-part sizing system must stay synchronized or charts will be clipped/distorted:
-1. **SVGuitar Config** (`defaultChartConfig` in ChordChartEditor.jsx): width/height (Current: 220x310)
-2. **CSS Containers**: Chart containers `w-52 h-80` (208px x 320px)
-3. **Post-Processing** (`updateCharts`): maxWidth/maxHeight (208px x 320px)
+**When working with chord chart features**, use the **`svguitar-chord-charts` skill** located at `~/.claude/skills/svguitar-chord-charts/`. This skill contains:
 
-**To resize**: Update all three proportionally. CSS container should be slightly smaller than SVGuitar config for proper scaling.
+- **3-part sizing system** (CRITICAL: SVGuitar config + CSS containers + post-processing must stay synchronized)
+- **Visual analysis rules** (chord diagram anatomy, fret counting, position markers to IGNORE)
+- **Autocreate architecture** (3-path system: chord_charts, chord_names, tablature)
+- **OCR optimization** (80% power savings strategy with tesseract)
+- **Database schema** (ChordCharts table, API endpoints, section metadata)
+- **UI patterns** (force refresh after operations, rate limiting prevention)
+- **Troubleshooting guide** (clipping, wrong fret positions, missing sections, UI refresh issues)
 
-## Chord Chart System (NEW)
-
-### Overview
-The application includes a comprehensive chord chart management system with **section organization** for chord progressions. Users can create labeled sections (Verse, Chorus, etc.) with repeat counts and save chord diagrams within each section.
-
-### Autocreate System Architecture (Updated)
-The autocreate chord charts feature uses a **3-path architecture** for optimal processing:
-
-1. **`chord_charts`** - Visual chord diagrams (processed by Opus 4.1)
-   - Hand-drawn or printed chord reference sheets
-   - Uses visual analysis to extract exact finger positions
-   
-2. **`chord_names`** - Chord symbols above lyrics (processed by Sonnet 4)  
-   - Lyrics with chord names like G, C, Am, F7, etc.
-   - Uses CommonChords database lookup for standard tuning (EADGBE)
-   - Preserves actual chord names and song section structure
-   
-3. **`tablature`** - Actual guitar tablature notation (processed by Sonnet 4)
-   - Fret numbers on horizontal string lines (e.g., E|--0--3--0--|)
-   - Creates generic "Chord1", "Chord2" names when chord names unavailable
-
-**Key Design Principles:**
-- **Cost efficiency**: Strategic Opus/Sonnet usage prevents rate limiting
-- **Complete file processing**: Reads entire file, doesn't stop after finding chord charts
-- **Tuning awareness**: CommonChords for standard, direct patterns for alternate tunings
-
-### Chord Chart Database Schema (PostgreSQL)
-**ChordCharts Table** (mirrors Google Sheets structure for compatibility):
-- ChordID, ItemID (string), Title, ChordData (JSON with section metadata), CreatedAt, Order
-- Section metadata in JSON: sectionId, sectionLabel (e.g., "Verse"), sectionRepeatCount (e.g., "x4")
-
-**Key Components**: `ChordChartEditor.jsx`, `PracticePage.jsx`, API endpoints in `routes.py`
-
-**Features**: Real-time editing with 500ms debounce, automatic section grouping, 4-per-row grid display
-
-**Note**: Database structure based on Google Sheets schema - refer to sheets version in `../gpr` for debugging reference
+**Most common issues**: Chord chart clipping (sizing sync), wrong fret positions (visual analysis rules), sections missing (OCR raw_text)
 
 ## Development Tools
 
@@ -647,63 +385,6 @@ setChordSections(prev => ({
 - Delete operations
 - Manual chord creation
 
-### Autocreate System Optimizations
-
-#### Rate Limiting Prevention:
-1. **Pre-load CommonChords**: Single API call at start
-2. **Batch Creation**: All chords created in one operation
-3. **Smart Blocking**: Prevent autocreate when charts already exist
-
-#### User Experience:
-- Clear warning when trying autocreate on items with existing charts
-- Progress messages with rotating content during processing
-- Immediate UI refresh after completion
-
-#### OCR Power Optimization (NEW)
-**80% Power Reduction Strategy**: Use local OCR extraction + lightweight Sonnet processing instead of heavy visual analysis.
-
-**Implementation Pattern**:
-```python
-# 1. Try OCR first for PDFs/images in process_chord_names_with_lyrics()
-from app.utils.chord_ocr import extract_chords_from_file, should_use_ocr_result
-
-# 2. If OCR finds 2+ chords, pass complete raw text to preserve sectional structure
-if ocr_result and should_use_ocr_result(ocr_result, minimum_chords=2):
-    file_data['data'] = ocr_result['raw_text']  # CRITICAL: Use raw_text, not chord names
-    file_data['type'] = 'chord_names'
-    # Continue to existing Sonnet processing with full sectional context
-
-# 3. Fallback to full LLM analysis if OCR insufficient
-```
-
-**Critical Fix Applied**: Previously sent only extracted chord names, losing sectional structure (Verse, Chorus, Bridge). Now sends complete OCR raw text to preserve song organization.
-
-**Dependencies**:
-- System: `sudo apt-get install tesseract-ocr poppler-utils`
-- Python: `pip install pytesseract pdf2image pillow`
-
-**Performance**:
-- **Clean chord charts**: ~80% power savings (~4 seconds vs ~30 seconds)
-- **Complex files**: Graceful fallback to full LLM processing
-- **Quality**: Same output using proven Sonnet + CommonChords path
-
-#### Visual Analysis Debugging Process (NEW)
-**CRITICAL: Chord Diagram Reading Rules for Autocreate Feature**
-- **Chord diagram anatomy**: Dots are positioned BETWEEN fret lines, not ON fret lines
-- **Fret terminology**: "Fret 1" means the space between the top horizontal line (nut) and the 2nd horizontal line from the top
-- **IGNORE position markers completely**: Position markers like "5fr", "3fr", etc. are completely irrelevant when recreating chord charts. They are just position indicators for guitarists and must be ignored during visual analysis
-- **Fret counting**: ALWAYS count from the top - fret 1 = space between top line and 2nd line, fret 2 = space between 2nd and 3rd lines, etc.
-- **Reference-first approach**: When reference files exist, recreate exactly as shown - ignore complex tablature integration, use tablature only for repeat counts
-- **Exact recreation principle**: Preserve exact order (left-to-right, top-to-bottom), line breaks, and chord names from reference file
-- **CRITICAL PROMPT FIX**: Visual analysis prompt must NOT assume alternate tuning - let Claude determine tuning naturally
-- **Anti-knowledge instruction**: Explicitly tell Claude "NEVER use your knowledge of chord shapes - only extract what you visually observe"
-
-#### Model Architecture (UPDATED)
-**Unified Sonnet 4.5 approach** for all autocreate processing:
-- **Sonnet 4.5**: Used for all visual analysis, chord chart processing, and text analysis
-- **Superior vision**: Sonnet 4.5's improved vision capabilities handle all chord diagram analysis
-- **Cost efficiency**: Single model for all processing paths simplifies architecture
-- **Performance**: Faster and more cost-effective than previous multi-model approach
 
 ## PostgreSQL Migration Troubleshooting Patterns
 
