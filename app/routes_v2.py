@@ -670,7 +670,7 @@ def api_login():
 
     Request body:
         {
-            "email": "user@example.com",
+            "emailOrUsername": "user@example.com or username",
             "password": "password123"
         }
 
@@ -691,27 +691,29 @@ def api_login():
         return jsonify({"error": "Request must be JSON"}), 400
 
     data = request.json
-    email = data.get('email', '').strip()
+    email_or_username = data.get('emailOrUsername', '').strip()
     password = data.get('password', '')
 
-    if not email or not password:
-        return jsonify({"error": "Email and password are required"}), 400
+    if not email_or_username or not password:
+        return jsonify({"error": "Email/username and password are required"}), 400
 
-    # Authenticate user with Flask-AppBuilder
-    # FAB's auth_user_db expects username, but we want to login with email
-    # So we need to find the user by email first
-    user = appbuilder.sm.find_user(email=email)
+    # Try to find user by email first, then by username
+    user = appbuilder.sm.find_user(email=email_or_username)
 
     if not user:
-        app.logger.warning(f"Login attempt for non-existent email: {email}")
-        return jsonify({"error": "Invalid email or password"}), 401
+        # Try finding by username
+        user = appbuilder.sm.find_user(username=email_or_username)
+
+    if not user:
+        app.logger.warning(f"Login attempt for non-existent user: {email_or_username}")
+        return jsonify({"error": "Invalid email/username or password"}), 401
 
     # Check password using Flask-AppBuilder's security manager
     # check_password expects (hashed_password, plaintext_password)
     from werkzeug.security import check_password_hash
     if not check_password_hash(user.password, password):
-        app.logger.warning(f"Invalid password for user: {email}")
-        return jsonify({"error": "Invalid email or password"}), 401
+        app.logger.warning(f"Invalid password for user: {email_or_username}")
+        return jsonify({"error": "Invalid email/username or password"}), 401
 
     # Login successful - create Flask-Login session
     login_user(user, remember=False)
