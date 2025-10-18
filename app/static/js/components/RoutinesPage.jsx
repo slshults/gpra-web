@@ -233,14 +233,36 @@ const RoutinesPage = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: true })
       });
-  
+
       if (!response.ok) throw new Error('Failed to activate routine');
-      await fetchRoutines();
+
+      // Fetch fresh routines list
+      const routinesResponse = await fetch('/api/routines');
+      if (routinesResponse.ok) {
+        const freshRoutines = await routinesResponse.json();
+        setRoutines(freshRoutines);
+
+        // Fetch active routine items
+        const activeRoutine = freshRoutines.find(r => r.active);
+        if (activeRoutine) {
+          const routineResponse = await fetch(`/api/routines/${activeRoutine.ID}`);
+          if (routineResponse.ok) {
+            const routineData = await routineResponse.json();
+            const sortedItems = routineData.items
+              .sort((a, b) => parseInt(a.routineEntry['C']) - parseInt(b.routineEntry['C']))
+              .map(item => ({
+                ...item,
+                itemDetails: item.itemDetails || item
+              }));
+            setActiveRoutineItems(sortedItems);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error:', error);
       setError(error.message);
     }
-  }, [fetchRoutines]);
+  }, []);
 
   const handleDeactivateRoutine = useCallback(async (routineId) => {
     try {
@@ -251,12 +273,19 @@ const RoutinesPage = () => {
       });
 
       if (!response.ok) throw new Error('Failed to deactivate routine');
-      await fetchRoutines();
+
+      // Fetch fresh routines list
+      const routinesResponse = await fetch('/api/routines');
+      if (routinesResponse.ok) {
+        const freshRoutines = await routinesResponse.json();
+        setRoutines(freshRoutines);
+        setActiveRoutineItems([]); // Clear items when deactivating
+      }
     } catch (error) {
       console.error('Error:', error);
       setError(error.message);
     }
-  }, [fetchRoutines]);
+  }, []);
 
   const handleDeleteClick = useCallback((routineId) => {
     setRoutineToDelete(routines.find(r => r.ID === routineId));

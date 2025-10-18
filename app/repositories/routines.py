@@ -251,10 +251,16 @@ class RoutineRepository(BaseRepository):
     
     def _from_sheets_format(self, sheets_data: Dict[str, Any]) -> Dict[str, Any]:
         """Convert Sheets API format to SQLAlchemy format."""
-        return {
+        result = {
             'name': sheets_data.get('B', ''),
             'order': int(sheets_data.get('D', 0)) if sheets_data.get('D') else 0
         }
+
+        # Preserve user_id if set by RLS middleware
+        if 'user_id' in sheets_data:
+            result['user_id'] = sheets_data['user_id']
+
+        return result
     
     def _routine_item_to_sheets_format(self, routine_item: RoutineItem) -> Dict[str, Any]:
         """Convert SQLAlchemy RoutineItem to Sheets API format."""
