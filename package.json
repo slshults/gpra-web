@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "vite build",
-    "watch": "nodemon --watch app/static/js --ignore app/static/js/main.js --ignore 'app/static/js/*-*.js' --ext js,jsx,css --exec \"vite build\""
+    "watch": "nodemon"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
