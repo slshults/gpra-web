@@ -1093,11 +1093,24 @@ def oauth2callback():
             return f"OAuth callback error: {str(e)}", 500
 
 @app.route('/logout')
-def logout():
-    """Logout endpoint"""
+def logout_route():
+    """Logout endpoint - logs out user and redirects to login page"""
+    logging.info("[LOGOUT] Logout route called")
     if data_layer.mode == 'postgres':
-        # For PostgreSQL mode, just redirect to home
-        return redirect('/')
+        # For PostgreSQL mode with Flask-AppBuilder auth
+        from flask_login import logout_user
+        from flask import session
+
+        logging.info(f"[LOGOUT] Logging out user, mode={data_layer.mode}")
+
+        # Clear Flask-Login session
+        logout_user()
+
+        # Clear Flask session completely
+        session.clear()
+
+        logging.info("[LOGOUT] User logged out, redirecting to /login")
+        return redirect('/login')
     else:
         # For Sheets mode, remove token file
         try:
@@ -1144,6 +1157,42 @@ def routines():
                 return jsonify({"error": "Routine name is required"}), 400
 
             app.logger.info(f"Creating routine with name: {routine_name}")
+
+            # Check subscription tier limits
+            from app.database import SessionLocal
+            db = SessionLocal()
+            try:
+                # Get user's subscription tier
+                subscription = db.execute(text("""
+                    SELECT tier FROM subscriptions WHERE user_id = :user_id
+                """), {'user_id': current_user.id}).fetchone()
+
+                if subscription:
+                    tier = subscription[0]
+                    app.logger.info(f"User {current_user.id} has subscription tier: {tier}")
+
+                    # Free tier is limited to 1 routine
+                    if tier == 'free':
+                        # Count existing routines for this user
+                        routine_count = db.execute(text("""
+                            SELECT COUNT(*) FROM routines WHERE user_id = :user_id
+                        """), {'user_id': current_user.id}).fetchone()[0]
+
+                        app.logger.info(f"User {current_user.id} has {routine_count} routines (free tier limit: 1)")
+
+                        if routine_count >= 1:
+                            app.logger.warning(f"Free tier user {current_user.id} attempted to create routine #{routine_count + 1}")
+                            return jsonify({
+                                "error": "Free tier limit reached",
+                                "message": "Free tier is limited to 1 routine. Please upgrade to create more routines.",
+                                "tier": "free",
+                                "limit": 1,
+                                "current": routine_count
+                            }), 403
+                else:
+                    app.logger.warning(f"No subscription found for user {current_user.id}")
+            finally:
+                db.close()
 
             # Transform to sheets format for data layer
             # Note: No 'A' field (ID) for new routines - let database auto-generate

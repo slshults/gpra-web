@@ -152,6 +152,7 @@ class CustomAuthDBView(AuthDBView):
 
     Extends Flask-AppBuilder's default auth views.
     Redirects to main app (/) after login instead of admin interface (/admin/).
+    Redirects to /login after logout instead of /admin/.
     """
 
     @expose('/login/', methods=['GET', 'POST'])
@@ -202,6 +203,17 @@ class CustomAuthDBView(AuthDBView):
             form=form,
             appbuilder=self.appbuilder
         )
+
+    @expose('/logout/')
+    def logout(self):
+        """
+        Override logout to redirect to /login instead of /admin/.
+        """
+        from flask_login import logout_user
+
+        logout_user()
+        flash(as_unicode('You have been logged out.'), 'info')
+        return redirect('/login')
 
 
 class CustomRegisterUserDBView_OLD(AuthDBView):

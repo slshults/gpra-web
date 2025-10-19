@@ -125,6 +125,9 @@ const RegisterPage = () => {
             <CardDescription className="text-gray-400">
               Enter your details to create a new account
             </CardDescription>
+            <div className="text-xs text-gray-500 mt-2">
+              (We won't spam you or sell your info to spammers.)
+            </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleRegister} className="space-y-4">

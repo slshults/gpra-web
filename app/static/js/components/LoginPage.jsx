@@ -124,6 +124,9 @@ const LoginPage = () => {
                 <a href="/register" className="text-orange-500 hover:text-orange-400 font-medium">
                   Sign up
                 </a>
+                <div className="text-xs text-gray-500 mt-1">
+                  (Free for 1 routine)
+                </div>
               </div>
             </form>
           </CardContent>

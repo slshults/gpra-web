@@ -28,11 +28,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ⏳ Frontend: Account management (partial), billing UI (pending)
 - ✅ Infrastructure: Production configs, proper secrets management
 
-**Current Deployment Status** (as of Oct 18, 2025 - Session 12):
+**Current Deployment Status** (as of Oct 19, 2025 - Session 14):
 - ✅ **FULLY DEPLOYED & TESTED IN PRODUCTION** - All core features working! 🎉
 - ✅ **MULTI-TENANT SYSTEM COMPLETE** - Full data isolation verified in production
-- ✅ **CUSTOM AUTH PAGES COMPLETE** - Login/register pages match GPRA styling (Session 12)
-- ✅ **ROUTINE CREATION FIXED** - RLS user_id preservation working correctly (Session 12)
+- ✅ **CUSTOM AUTH PAGES COMPLETE** - Login/register pages match GPRA styling
+- ✅ **FREE TIER RESTRICTIONS IMPLEMENTED** - 1 routine max for free tier, enforced backend + frontend (Session 14)
+- ✅ **ADMIN INTERFACE ENHANCED** - User filtering on Items/Routines/ChordCharts, username columns visible (Session 14)
+- ✅ **UI POLISH COMPLETE** - Privacy notice on register page, free tier info on login page (Session 14)
+- ✅ **ROUTINE CREATION FIXED** - RLS user_id preservation working correctly
 - ✅ **API KEY MANAGEMENT TESTED** - byoClaude feature fully functional with encryption
 - ✅ **ROUTINE MANAGEMENT TESTED** - Complete CRUD operations working end-to-end
 - ✅ DreamCompute instance: `gpra-web-prod` at `208.113.200.79` (2GB RAM, 1 vCPU)
@@ -46,7 +49,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **React stale closure bugs fixed**: RoutinesPage now fetches fresh data directly from API
 - ✅ **Production dependencies installed**: cryptography package for API key encryption
 - ✅ **Playwright MCP auto-approve**: Configured in `~/.claude/settings.json` for autonomous testing
-- ⏳ **Next**: OAuth integration (Google, SoundCloud), Stripe subscription tiers
+- ⏳ **Next**: OAuth integration (Google, SoundCloud), remaining Stripe subscription tier limits (basic/standard/pro/unlimited)
 - See `~/.claude/handoffSummary.md` for detailed session notes
 
 When working on this codebase, keep in mind we're building for a multi-user hosted environment, not the original single-user local setup.
