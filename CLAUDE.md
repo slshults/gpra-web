@@ -18,17 +18,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Security hardening for public hosting
 - Deploy to DreamCompute with multiple domains
 
-**Key Architecture Changes in Progress**:
-- Database: Row-Level Security (RLS) with `user_id` on Items/Routines/ChordCharts, new `subscriptions` table, extending Flask-AppBuilder's `ab_user` table
-- Authentication: Flask-AppBuilder auth + OAuth (Google, SoundCloud), email/password signup
-- Subscriptions: 5 Stripe tiers (free/basic/standard/pro/unlimited), limits enforcement
-- Backend: Session management, tier-based feature gating, RLS middleware
-- Frontend: Login/signup, account management, billing UI (future)
-- Infrastructure: Production configs, proper secrets management (complete), Stripe integration (pending)
+**Key Architecture Changes**:
+- ✅ Database: Row-Level Security (RLS) with `user_id` on Items/Routines/ChordCharts, `subscriptions` table, Flask-AppBuilder's `ab_user` table
+- ✅ Authentication: Custom login/register pages (React) + Flask-AppBuilder backend, supports email OR username login
+- ⏳ OAuth: Google/SoundCloud OAuth (credentials configured, UI integration pending)
+- ⏳ Subscriptions: 5 Stripe tiers (free/basic/standard/pro/unlimited), limits enforcement
+- ✅ Backend: Session management, tier-based feature gating, RLS middleware
+- ✅ Frontend: Custom login/signup pages matching GPRA styling
+- ⏳ Frontend: Account management (partial), billing UI (pending)
+- ✅ Infrastructure: Production configs, proper secrets management
 
-**Current Deployment Status** (as of Oct 17, 2025 - Session 10):
+**Current Deployment Status** (as of Oct 18, 2025 - Session 12):
 - ✅ **FULLY DEPLOYED & TESTED IN PRODUCTION** - All core features working! 🎉
 - ✅ **MULTI-TENANT SYSTEM COMPLETE** - Full data isolation verified in production
+- ✅ **CUSTOM AUTH PAGES COMPLETE** - Login/register pages match GPRA styling (Session 12)
+- ✅ **ROUTINE CREATION FIXED** - RLS user_id preservation working correctly (Session 12)
 - ✅ **API KEY MANAGEMENT TESTED** - byoClaude feature fully functional with encryption
 - ✅ **ROUTINE MANAGEMENT TESTED** - Complete CRUD operations working end-to-end
 - ✅ DreamCompute instance: `gpra-web-prod` at `208.113.200.79` (2GB RAM, 1 vCPU)
@@ -41,6 +45,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **RLS middleware active**: Application-level filtering by user_id on all queries
 - ✅ **React stale closure bugs fixed**: RoutinesPage now fetches fresh data directly from API
 - ✅ **Production dependencies installed**: cryptography package for API key encryption
+- ✅ **Playwright MCP auto-approve**: Configured in `~/.claude/settings.json` for autonomous testing
 - ⏳ **Next**: OAuth integration (Google, SoundCloud), Stripe subscription tiers
 - See `~/.claude/handoffSummary.md` for detailed session notes
 

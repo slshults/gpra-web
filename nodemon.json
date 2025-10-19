@@ -1,0 +1,21 @@
+{
+  "watch": [
+    "app/static/js/components",
+    "app/static/js/contexts",
+    "app/static/js/hooks",
+    "app/static/js/lib",
+    "app/static/js/main.jsx",
+    "app/static/js/auth.jsx",
+    "app/static/css/input.css"
+  ],
+  "ignore": [
+    "app/static/js/main.js",
+    "app/static/js/auth.js",
+    "app/static/js/*.map",
+    "app/static/js/*-*.js",
+    "app/static/css/main.css",
+    "app/static/css/alert.css"
+  ],
+  "ext": "js,jsx,css",
+  "exec": "vite build"
+}
