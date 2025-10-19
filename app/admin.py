@@ -52,18 +52,26 @@ def init_admin(app: Flask, db_session):
     class ItemModelView(ModelView):
         datamodel = SQLAInterface(Item)
         route_base = '/admin/items'
-        list_columns = ['id', 'item_id', 'title', 'duration', 'tuning', 'created_at']
+        list_columns = ['id', 'item_id', 'title', 'duration', 'tuning', 'user_id', 'username', 'created_at']
         show_columns = ['id', 'item_id', 'title', 'notes', 'duration',
                        'description', 'order', 'tuning', 'songbook',
-                       'created_at', 'updated_at']
-        search_columns = ['title', 'item_id', 'notes', 'description']
+                       'user_id', 'username', 'created_at', 'updated_at']
+        search_columns = ['title', 'item_id', 'notes', 'description', 'user_id']
+        label_columns = {
+            'username': 'Username',
+            'user_id': 'User ID'
+        }
 
     class RoutineModelView(ModelView):
         datamodel = SQLAInterface(Routine)
         route_base = '/admin/routines'
-        list_columns = ['id', 'name', 'created_at', 'order']
-        show_columns = ['id', 'name', 'created_at', 'order']
-        search_columns = ['name']
+        list_columns = ['id', 'name', 'user_id', 'username', 'created_at', 'order']
+        show_columns = ['id', 'name', 'user_id', 'username', 'created_at', 'order']
+        search_columns = ['name', 'user_id']
+        label_columns = {
+            'username': 'Username',
+            'user_id': 'User ID'
+        }
 
     class RoutineItemModelView(ModelView):
         datamodel = SQLAInterface(RoutineItem)
@@ -74,10 +82,14 @@ def init_admin(app: Flask, db_session):
     class ChordChartModelView(ModelView):
         datamodel = SQLAInterface(ChordChart)
         route_base = '/admin/chordcharts'
-        list_columns = ['chord_id', 'item_id', 'title', 'section_label', 'created_at']
-        show_columns = ['chord_id', 'item_id', 'title', 'chord_data',
-                       'created_at', 'order_col']
-        search_columns = ['title', 'item_id']
+        list_columns = ['chord_id', 'item_id', 'title', 'section_label', 'user_id', 'username', 'created_at']
+        show_columns = ['chord_id', 'item_id', 'title', 'chord_data', 'user_id', 'username', 'created_at', 'order_col']
+        search_columns = ['title', 'item_id', 'user_id']
+        label_columns = {
+            'chord_data': 'Chord Data (JSON)',
+            'username': 'Username',
+            'user_id': 'User ID'
+        }
 
     class CommonChordModelView(ModelView):
         datamodel = SQLAInterface(CommonChord)
@@ -85,6 +97,9 @@ def init_admin(app: Flask, db_session):
         list_columns = ['id', 'name', 'type', 'created_at']
         show_columns = ['id', 'type', 'name', 'chord_data', 'created_at', 'order_col']
         search_columns = ['name', 'type']
+        label_columns = {
+            'chord_data': 'Chord Data (JSON)'
+        }
 
     class ActiveRoutineModelView(ModelView):
         datamodel = SQLAInterface(ActiveRoutine)
@@ -95,12 +110,17 @@ def init_admin(app: Flask, db_session):
     class SubscriptionModelView(ModelView):
         datamodel = SQLAInterface(Subscription)
         route_base = '/admin/subscriptions'
-        list_columns = ['id', 'user_id', 'tier', 'status', 'mrr', 'created_at']
-        show_columns = ['id', 'user_id', 'stripe_subscription_id', 'stripe_price_id',
+        list_columns = ['id', 'user_id', 'username', 'email', 'tier', 'status', 'mrr', 'created_at']
+        show_columns = ['id', 'user_id', 'username', 'email', 'stripe_subscription_id', 'stripe_price_id',
                        'tier', 'status', 'mrr', 'current_period_start',
                        'current_period_end', 'cancel_at_period_end',
                        'created_at', 'updated_at']
         search_columns = ['tier', 'status']
+        label_columns = {
+            'username': 'Username',
+            'email': 'Email'
+        }
+        base_order = ('id', 'desc')
 
     # Register views with AppBuilder
     appbuilder.add_view(

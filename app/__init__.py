@@ -48,6 +48,9 @@ app.config['AUTH_TYPE'] = 1  # 1 = Database authentication (email/password + OAu
 app.config['AUTH_ROLE_ADMIN'] = 'Admin'
 app.config['AUTH_ROLE_PUBLIC'] = 'Public'
 
+# Logout redirect URL (custom setting for our logout override)
+app.config['LOGOUT_REDIRECT_URL'] = '/login'
+
 # Flask-AppBuilder UI Theme
 app.config['APP_THEME'] = 'slate.css'  # Dark theme (other options: 'superhero.css', 'darkly.css', 'cyborg.css')
 

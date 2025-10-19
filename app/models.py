@@ -41,6 +41,19 @@ class Item(Base):
         Index('idx_items_user_id', 'user_id'),
     )
 
+    @property
+    def username(self):
+        """Fetch username from ab_user table for admin display"""
+        if not self.user_id:
+            return 'N/A'
+        try:
+            from flask_appbuilder.security.sqla.models import User
+            from flask import current_app
+            user = current_app.appbuilder.session.query(User).filter_by(id=self.user_id).first()
+            return user.username if user else 'Unknown'
+        except Exception:
+            return 'Error'
+
     def __repr__(self):
         return f"<Item {self.id}: {self.title}>"
 
@@ -63,6 +76,19 @@ class Routine(Base):
     __table_args__ = (
         Index('idx_routines_user_id', 'user_id'),
     )
+
+    @property
+    def username(self):
+        """Fetch username from ab_user table for admin display"""
+        if not self.user_id:
+            return 'N/A'
+        try:
+            from flask_appbuilder.security.sqla.models import User
+            from flask import current_app
+            user = current_app.appbuilder.session.query(User).filter_by(id=self.user_id).first()
+            return user.username if user else 'Unknown'
+        except Exception:
+            return 'Error'
 
     def __repr__(self):
         return f"<Routine {self.id}: {self.name}>"
@@ -119,6 +145,19 @@ class ChordChart(Base):
     @property
     def section_repeat_count(self):
         return self.chord_data.get('sectionRepeatCount') if self.chord_data else None
+
+    @property
+    def username(self):
+        """Fetch username from ab_user table for admin display"""
+        if not self.user_id:
+            return 'N/A'
+        try:
+            from flask_appbuilder.security.sqla.models import User
+            from flask import current_app
+            user = current_app.appbuilder.session.query(User).filter_by(id=self.user_id).first()
+            return user.username if user else 'Unknown'
+        except Exception:
+            return 'Error'
 
     __table_args__ = (
         Index('idx_chord_chart_item_order', 'item_id', 'order_col'),
@@ -179,6 +218,32 @@ class Subscription(Base):
         Index('idx_subscriptions_status', 'status'),
         Index('idx_subscriptions_tier', 'tier'),
     )
+
+    @property
+    def username(self):
+        """Fetch username from ab_user table for admin display"""
+        if not self.user_id:
+            return 'N/A'
+        try:
+            from flask_appbuilder.security.sqla.models import User
+            from flask import current_app
+            user = current_app.appbuilder.session.query(User).filter_by(id=self.user_id).first()
+            return user.username if user else 'Unknown'
+        except Exception:
+            return 'Error'
+
+    @property
+    def email(self):
+        """Fetch email from ab_user table for admin display"""
+        if not self.user_id:
+            return 'N/A'
+        try:
+            from flask_appbuilder.security.sqla.models import User
+            from flask import current_app
+            user = current_app.appbuilder.session.query(User).filter_by(id=self.user_id).first()
+            return user.email if user else 'Unknown'
+        except Exception:
+            return 'Error'
 
     def __repr__(self):
         return f"<Subscription user_id={self.user_id} tier={self.tier} status={self.status}>"

@@ -324,17 +324,18 @@ def add_routine_item(routine_id):
         return jsonify({"error": str(e)}), 500
 
 # OAuth and testing routes
-@app.route('/logout')
-def logout_and_redirect():
-    """Handle logout and redirect to home"""
-    try:
-        if os.path.exists('token.json'):
-            os.remove('token.json')
-        get_credentials.cache_clear()  # Clear the credentials cache
-        return redirect(url_for('index'))
-    except Exception as e:
-        logging.error(f"Error during logout: {str(e)}")
-        return redirect(url_for('index'))  # Redirect even if there's an error
+# NOTE: Logout route moved to routes_v2.py for PostgreSQL/Flask-AppBuilder auth
+# @app.route('/logout')
+# def logout_and_redirect():
+#     """Handle logout and redirect to home"""
+#     try:
+#         if os.path.exists('token.json'):
+#             os.remove('token.json')
+#         get_credentials.cache_clear()  # Clear the credentials cache
+#         return redirect(url_for('index'))
+#     except Exception as e:
+#         logging.error(f"Error during logout: {str(e)}")
+#         return redirect(url_for('index'))  # Redirect even if there's an error
 
 @app.route('/api/auth/status')
 def auth_status():

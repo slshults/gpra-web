@@ -321,7 +321,7 @@ const RoutinesPage = () => {
 
   const handleCreateRoutine = useCallback(async () => {
     if (!newRoutineName.trim()) return;
-    
+
     try {
       const response = await fetch('/api/routines', {
         method: 'POST',
@@ -330,12 +330,22 @@ const RoutinesPage = () => {
         },
         body: JSON.stringify({ routineName: newRoutineName.trim() }),
       });
-      
-      if (!response.ok) throw new Error('Failed to create routine');
-      
+
+      if (!response.ok) {
+        // Check if this is a free tier limit error
+        if (response.status === 403) {
+          const errorData = await response.json();
+          if (errorData.error === 'Free tier limit reached') {
+            setError(`${errorData.message} You currently have ${errorData.current} routine${errorData.current !== 1 ? 's' : ''}.`);
+            return;
+          }
+        }
+        throw new Error('Failed to create routine');
+      }
+
       // Track routine creation
       trackItemOperation('created', 'routine', newRoutineName.trim());
-      
+
       await fetchRoutines();
       setNewRoutineName('');
     } catch (error) {
