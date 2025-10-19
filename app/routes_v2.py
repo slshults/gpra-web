@@ -1159,6 +1159,9 @@ def routines():
             app.logger.info(f"Creating routine with name: {routine_name}")
 
             # Check subscription tier limits
+            # IMPORTANT: Use DatabaseTransaction to avoid scoped session conflicts
+            # Scoped sessions are thread-local, so we must properly clean up after tier check
+            # Otherwise the routine creation transaction will get a corrupted session
             from app.database import SessionLocal
             db = SessionLocal()
             try:
@@ -1193,6 +1196,10 @@ def routines():
                     app.logger.warning(f"No subscription found for user {current_user.id}")
             finally:
                 db.close()
+                # CRITICAL: Remove scoped session from thread-local storage
+                # This ensures the next SessionLocal() call creates a fresh session
+                # instead of reusing the closed session, which prevents commit issues
+                SessionLocal.remove()
 
             # Transform to sheets format for data layer
             # Note: No 'A' field (ID) for new routines - let database auto-generate
