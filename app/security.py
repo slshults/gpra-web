@@ -195,11 +195,11 @@ class CustomAuthOAuthView(AuthOAuthView):
         is_production = os.getenv('FLASK_ENV') == 'production'
 
         if is_production:
-            # Production: Let url_for auto-generate based on request domain
-            redirect_uri = url_for(
-                ".oauth_authorized", provider=provider, _external=True
-            )
-            logger.info(f"OAuth production mode: auto-generated redirect_uri = {redirect_uri}")
+            # Production: Force canonical domain to match Google Console whitelist
+            # We have 10 domains in nginx, but url_for() generates different redirect_uri
+            # for each domain, causing Google to reject non-primary domains
+            redirect_uri = f'https://guitarpracticeroutine.com/oauth-authorized/{provider}'
+            logger.info(f"OAuth production mode: forcing canonical redirect_uri = {redirect_uri}")
         else:
             # Development: Force localhost:5000 to match Google Console whitelist
             redirect_uri = f'http://localhost:5000/oauth-authorized/{provider}'
