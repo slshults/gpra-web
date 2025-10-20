@@ -151,7 +151,70 @@ class CustomAuthOAuthView(AuthOAuthView):
     Custom OAuth authentication view.
 
     Redirects to main app (/) after successful OAuth login instead of admin interface (/admin/).
+    Overrides login() to force correct redirect_uri in development mode.
     """
+
+    @expose('/login/<provider>')
+    def login(self, provider=None):
+        """
+        Override login to force correct redirect_uri in development mode.
+
+        Flask-AppBuilder's default login uses url_for() which generates redirect_uri
+        based on the incoming request. This causes issues when browsers strip the port
+        number, resulting in http://localhost/oauth-authorized/google instead of
+        http://localhost:5000/oauth-authorized/google.
+        """
+        from flask import g, session, request, url_for
+        from flask_appbuilder.security.views import generate_random_string
+        import jwt
+
+        # If already authenticated, redirect to main app
+        if g.user is not None and g.user.is_authenticated:
+            logger.debug(f"Already authenticated: {g.user}")
+            return redirect('/')
+
+        if provider is None:
+            # Show provider selection page
+            return self.render_template(
+                self.login_template,
+                providers=self.appbuilder.sm.oauth_providers,
+                title=self.title,
+                appbuilder=self.appbuilder,
+            )
+
+        logger.info(f"Initiating OAuth login with provider: {provider}")
+
+        # Generate state for CSRF protection
+        random_state = generate_random_string()
+        state = jwt.encode(
+            request.args.to_dict(flat=False), random_state, algorithm="HS256"
+        )
+        session["oauth_state"] = random_state
+
+        # Determine redirect_uri
+        is_production = os.getenv('FLASK_ENV') == 'production'
+
+        if is_production:
+            # Production: Let url_for auto-generate based on request domain
+            redirect_uri = url_for(
+                ".oauth_authorized", provider=provider, _external=True
+            )
+            logger.info(f"OAuth production mode: auto-generated redirect_uri = {redirect_uri}")
+        else:
+            # Development: Force localhost:5000 to match Google Console whitelist
+            redirect_uri = f'http://localhost:5000/oauth-authorized/{provider}'
+            logger.info(f"OAuth development mode: forcing redirect_uri = {redirect_uri}")
+
+        try:
+            # Call authorize_redirect with our explicit redirect_uri
+            return self.appbuilder.sm.oauth_remotes[provider].authorize_redirect(
+                redirect_uri=redirect_uri,
+                state=state.decode("ascii") if isinstance(state, bytes) else state,
+            )
+        except Exception as e:
+            logger.error(f"Error on OAuth authorize: {e}")
+            flash(as_unicode(self.invalid_login_message), "warning")
+            return redirect('/')
 
     @expose('/oauth-authorized/<provider>')
     def oauth_authorized(self, provider):

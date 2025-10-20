@@ -166,7 +166,7 @@ fi
 
 # Start Flask without auto-reloader (we have a custom Python watcher below)
 echo -e "${GREEN}Starting Flask server...${NC}"
-FLASK_ENV=production FLASK_APP=run.py flask run --host=0.0.0.0 --port=5000 --no-reload &
+FLASK_APP=run.py flask run --host=0.0.0.0 --port=5000 --no-reload &
 FLASK_PID=$!
 PIDS+=($FLASK_PID)
 
@@ -211,7 +211,7 @@ echo -e "${GREEN}Starting Python file watcher...${NC}"
             kill $FLASK_PID
             wait $FLASK_PID 2>/dev/null
         fi
-        FLASK_ENV=production FLASK_APP=run.py flask run --host=0.0.0.0 --port=5000 --no-reload &
+        FLASK_APP=run.py flask run --host=0.0.0.0 --port=5000 --no-reload &
         FLASK_PID=$!
         PIDS+=($FLASK_PID)
         sleep 2
