@@ -11,6 +11,18 @@ app = Flask(__name__,
            static_folder='static',  # Look directly in static directory
            static_url_path='/static')    # URL prefix for static files
 
+# Configure Flask to work behind reverse proxy (nginx)
+# This is needed for OAuth redirect URIs to use HTTPS in production
+flask_env = os.getenv('FLASK_ENV')
+IS_PRODUCTION = flask_env == 'production'
+print(f"DEBUG: FLASK_ENV = '{flask_env}', IS_PRODUCTION = {IS_PRODUCTION}")
+app.logger.info(f"Environment: FLASK_ENV = '{flask_env}', IS_PRODUCTION = {IS_PRODUCTION}")
+if IS_PRODUCTION:
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    # Trust X-Forwarded-* headers from nginx
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+    app.config['PREFERRED_URL_SCHEME'] = 'https'
+
 # Configure Flask app
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '***REMOVED***')
 app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://gpra:***REMOVED***@localhost:5432/gpra_dev')
@@ -35,9 +47,6 @@ app.config['SESSION_REDIS'] = redis.from_url(
 Session(app)
 
 # Session Cookie Configuration
-# Detect production environment
-IS_PRODUCTION = os.getenv('FLASK_ENV') == 'production'
-
 # Set SECURE to False for local development (HTTP), True for production (HTTPS)
 app.config['SESSION_COOKIE_SECURE'] = IS_PRODUCTION  # Require HTTPS in production
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access to cookies
@@ -73,22 +82,32 @@ app.config['RECAPTCHA_PRIVATE_KEY'] = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe'
 
 # OAuth configuration from environment variables
 # Flask-AppBuilder automatically generates redirect URIs as: /oauth-authorized/<provider_name>
-# NOTE: Don't hardcode redirect_uri - let authlib auto-generate it from the request domain
+# In production: Let authlib auto-generate redirect_uri from request domain (works with all domains)
+# In development: Use hardcoded localhost redirect_uri for consistency
+oauth_remote_app = {
+    'client_id': os.getenv('GOOGLE_CLIENT_ID'),
+    'client_secret': os.getenv('GOOGLE_CLIENT_SECRET'),
+    'api_base_url': 'https://www.googleapis.com/oauth2/v2/',
+    'client_kwargs': {
+        'scope': 'email profile'
+    },
+    'access_token_url': 'https://accounts.google.com/o/oauth2/token',
+    'authorize_url': 'https://accounts.google.com/o/oauth2/auth'
+}
+
+# Add hardcoded redirect_uri only for local development
+if not IS_PRODUCTION:
+    oauth_remote_app['redirect_uri'] = 'http://localhost:5000/oauth-authorized/google'
+    app.logger.info(f"OAuth development mode: using hardcoded redirect_uri = {oauth_remote_app['redirect_uri']}")
+else:
+    app.logger.info("OAuth production mode: authlib will auto-generate redirect_uri")
+
 app.config['OAUTH_PROVIDERS'] = [
     {
         'name': 'google',
         'icon': 'fa-google',
         'token_key': 'access_token',
-        'remote_app': {
-            'client_id': os.getenv('GOOGLE_CLIENT_ID'),
-            'client_secret': os.getenv('GOOGLE_CLIENT_SECRET'),
-            'api_base_url': 'https://www.googleapis.com/oauth2/v2/',
-            'client_kwargs': {
-                'scope': 'email profile'
-            },
-            'access_token_url': 'https://accounts.google.com/o/oauth2/token',
-            'authorize_url': 'https://accounts.google.com/o/oauth2/auth'
-        }
+        'remote_app': oauth_remote_app
     }
 ]
 
