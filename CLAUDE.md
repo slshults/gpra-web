@@ -21,7 +21,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Key Architecture Changes**:
 - ✅ Database: Row-Level Security (RLS) with `user_id` on Items/Routines/ChordCharts, `subscriptions` table, Flask-AppBuilder's `ab_user` table
 - ✅ Authentication: Custom login/register pages (React) + Flask-AppBuilder backend, supports email OR username login
-- 🔄 OAuth: Google OAuth (✅ working locally, ❌ broken in production - redirect_uri issue), Spotify OAuth planned
+- ✅ OAuth: Google OAuth & Tidal OAuth (both fully working in production)
+  - ❌ Spotify: Blocked (requires 250k MAU + established business entity)
+  - ❌ YouTube Music: No official API exists
 - ⏳ Subscriptions: 5 Stripe tiers (free/basic/standard/pro/unlimited), limits enforcement
 - ✅ Backend: Session management, tier-based feature gating, RLS middleware
 - ✅ Frontend: Custom login/signup pages matching GPRA styling
@@ -50,9 +52,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **React stale closure bugs fixed**: RoutinesPage now fetches fresh data directly from API
 - ✅ **Production dependencies installed**: cryptography package for API key encryption, authlib for OAuth
 - ✅ **Playwright MCP auto-approve**: Configured in `~/.claude/settings.json` for autonomous testing
-- ✅ **LOCAL OAUTH FULLY WORKING** - Google OAuth login works perfectly on localhost (Session 17)
-- ⏳ **PRODUCTION OAUTH BLOCKED** - redirect_uri_mismatch error despite correct config (Session 17)
-- ⏳ **Next**: Debug production OAuth with browser Network tab, test ProxyFix middleware, add Spotify OAuth
+- ✅ **GOOGLE OAUTH WORKING** - Production credentials added to .env, fully functional (Session 18)
+- ✅ **TIDAL OAUTH WORKING** - Uses user_id as username, placeholder email (Session 18)
+- ⏳ **Next**: First-run welcome experience for new OAuth users
 - ⏳ **Future**: Remaining Stripe subscription tier limits (basic/standard/pro/unlimited), billing UI
 - See `~/.claude/handoffSummary.md` for detailed session notes
 

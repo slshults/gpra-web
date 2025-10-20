@@ -601,72 +601,29 @@ class CustomSecurityManager(SecurityManager):
             }
         elif provider == 'tidal':
             # Tidal OAuth response structure (OAuth 2.1 with PKCE)
-            # First, log what we got in the token response
+            # Tidal provides user_id in the token response, but no email/profile endpoint
+            # We use user_id as the username and generate a placeholder email
             logger.info(f"Tidal token response keys: {response.keys() if hasattr(response, 'keys') else type(response)}")
-            logger.info(f"Tidal token response: {response}")
 
-            # Check if userinfo is already in the token response (OpenID Connect)
-            # Also check for id_token which might contain user claims
-            data = None
-            if hasattr(response, 'get'):
-                if response.get('userinfo'):
-                    data = response.get('userinfo')
-                    logger.info(f"Found userinfo in token response: {data}")
-                elif response.get('id_token'):
-                    # Decode id_token if present (OpenID Connect)
-                    try:
-                        import jwt
-                        data = jwt.decode(response.get('id_token'), options={"verify_signature": False})
-                        logger.info(f"Decoded id_token claims: {data}")
-                    except ImportError:
-                        logger.warning("PyJWT not installed, cannot decode id_token")
-                    except Exception as e:
-                        logger.warning(f"Failed to decode id_token: {e}")
+            # Get user_id from token response
+            user_id = response.get('user_id')
+            if not user_id:
+                logger.error("Tidal OAuth: No user_id in token response")
+                return None
 
-            if data is None:
-                # Try to fetch userinfo from an endpoint
-                # Try different possible endpoints
-                endpoints_to_try = [
-                    'v2/userinfo',
-                    'v1/userinfo',
-                    'userinfo',
-                    'v1/users/me',
-                    'users/me',
-                    'me'
-                ]
+            logger.info(f"Tidal OAuth user_id: {user_id}")
 
-                data = None
-                for endpoint in endpoints_to_try:
-                    try:
-                        logger.info(f"Trying Tidal endpoint: {endpoint}")
-                        me = self.appbuilder.sm.oauth_remotes[provider].get(endpoint)
-                        logger.info(f"Response status: {me.status_code}")
-                        logger.info(f"Response text: {me.text[:200]}")  # First 200 chars
+            # Use user_id as username (e.g., "tidal_185352085")
+            username = f"tidal_{user_id}"
 
-                        if me.status_code == 200 and me.text:
-                            data = me.json()
-                            logger.info(f"Success! User info from {endpoint}: {data}")
-                            break
-                    except Exception as e:
-                        logger.warning(f"Endpoint {endpoint} failed: {e}")
-                        continue
-
-                if data is None:
-                    logger.error("Could not retrieve user info from any Tidal endpoint")
-                    return {}
-
-            email = data.get('email', '')
-            logger.info(f"Tidal OAuth user info: {email}")
-
-            # Generate unique username from email prefix
-            base_username = email.split('@')[0] if email else 'user'
-            unique_username = self.generate_unique_username(base_username)
+            # Generate placeholder email (not a real email, just for database)
+            email = f"tidal_{user_id}@gpra.local"
 
             return {
                 'email': email,
-                'username': unique_username,
-                'first_name': data.get('firstName', ''),
-                'last_name': data.get('lastName', ''),
+                'username': username,
+                'first_name': 'Tidal',
+                'last_name': 'User',
             }
         # TODO: Additional OAuth providers can be added here
         return {}
