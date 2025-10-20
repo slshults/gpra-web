@@ -599,5 +599,22 @@ class CustomSecurityManager(SecurityManager):
                 'first_name': data.get('given_name', ''),
                 'last_name': data.get('family_name', ''),
             }
-        # TODO: SoundCloud OAuth coming soon
+        elif provider == 'tidal':
+            # Tidal OAuth response structure (OAuth 2.1 with PKCE)
+            me = self.appbuilder.sm.oauth_remotes[provider].get('v2/userinfo')
+            data = me.json()
+            email = data.get('email', '')
+            logger.info(f"Tidal OAuth user info: {email}")
+
+            # Generate unique username from email prefix
+            base_username = email.split('@')[0] if email else 'user'
+            unique_username = self.generate_unique_username(base_username)
+
+            return {
+                'email': email,
+                'username': unique_username,
+                'first_name': data.get('firstName', ''),
+                'last_name': data.get('lastName', ''),
+            }
+        # TODO: Additional OAuth providers can be added here
         return {}

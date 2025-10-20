@@ -158,6 +158,22 @@ const LoginPage = () => {
                     Sign in with Google
                   </Button>
                 </a>
+                <a href="/login/tidal" className="block">
+                  <Button
+                    type="button"
+                    className="w-full bg-black hover:bg-gray-900 text-white border border-gray-700"
+                    disabled={loading}
+                  >
+                    <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 0L8 4L12 8L16 4L12 0Z"/>
+                      <path d="M12 8L8 12L12 16L16 12L12 8Z"/>
+                      <path d="M4 8L0 12L4 16L8 12L4 8Z"/>
+                      <path d="M20 8L16 12L20 16L24 12L20 8Z"/>
+                      <path d="M12 16L8 20L12 24L16 20L12 16Z"/>
+                    </svg>
+                    Sign in with Tidal
+                  </Button>
+                </a>
               </div>
 
               {/* Register Link */}
