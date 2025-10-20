@@ -73,6 +73,7 @@ app.config['RECAPTCHA_PRIVATE_KEY'] = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe'
 
 # OAuth configuration from environment variables
 # Flask-AppBuilder automatically generates redirect URIs as: /oauth-authorized/<provider_name>
+# NOTE: Don't hardcode redirect_uri - let authlib auto-generate it from the request domain
 app.config['OAUTH_PROVIDERS'] = [
     {
         'name': 'google',
@@ -86,8 +87,7 @@ app.config['OAUTH_PROVIDERS'] = [
                 'scope': 'email profile'
             },
             'access_token_url': 'https://accounts.google.com/o/oauth2/token',
-            'authorize_url': 'https://accounts.google.com/o/oauth2/auth',
-            'redirect_uri': 'http://localhost:5000/oauth-authorized/google'
+            'authorize_url': 'https://accounts.google.com/o/oauth2/auth'
         }
     }
 ]
