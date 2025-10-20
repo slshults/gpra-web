@@ -601,8 +601,60 @@ class CustomSecurityManager(SecurityManager):
             }
         elif provider == 'tidal':
             # Tidal OAuth response structure (OAuth 2.1 with PKCE)
-            me = self.appbuilder.sm.oauth_remotes[provider].get('v2/userinfo')
-            data = me.json()
+            # First, log what we got in the token response
+            logger.info(f"Tidal token response keys: {response.keys() if hasattr(response, 'keys') else type(response)}")
+            logger.info(f"Tidal token response: {response}")
+
+            # Check if userinfo is already in the token response (OpenID Connect)
+            # Also check for id_token which might contain user claims
+            data = None
+            if hasattr(response, 'get'):
+                if response.get('userinfo'):
+                    data = response.get('userinfo')
+                    logger.info(f"Found userinfo in token response: {data}")
+                elif response.get('id_token'):
+                    # Decode id_token if present (OpenID Connect)
+                    try:
+                        import jwt
+                        data = jwt.decode(response.get('id_token'), options={"verify_signature": False})
+                        logger.info(f"Decoded id_token claims: {data}")
+                    except ImportError:
+                        logger.warning("PyJWT not installed, cannot decode id_token")
+                    except Exception as e:
+                        logger.warning(f"Failed to decode id_token: {e}")
+
+            if data is None:
+                # Try to fetch userinfo from an endpoint
+                # Try different possible endpoints
+                endpoints_to_try = [
+                    'v2/userinfo',
+                    'v1/userinfo',
+                    'userinfo',
+                    'v1/users/me',
+                    'users/me',
+                    'me'
+                ]
+
+                data = None
+                for endpoint in endpoints_to_try:
+                    try:
+                        logger.info(f"Trying Tidal endpoint: {endpoint}")
+                        me = self.appbuilder.sm.oauth_remotes[provider].get(endpoint)
+                        logger.info(f"Response status: {me.status_code}")
+                        logger.info(f"Response text: {me.text[:200]}")  # First 200 chars
+
+                        if me.status_code == 200 and me.text:
+                            data = me.json()
+                            logger.info(f"Success! User info from {endpoint}: {data}")
+                            break
+                    except Exception as e:
+                        logger.warning(f"Endpoint {endpoint} failed: {e}")
+                        continue
+
+                if data is None:
+                    logger.error("Could not retrieve user info from any Tidal endpoint")
+                    return {}
+
             email = data.get('email', '')
             logger.info(f"Tidal OAuth user info: {email}")
 
