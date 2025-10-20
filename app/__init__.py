@@ -102,12 +102,37 @@ if not IS_PRODUCTION:
 else:
     app.logger.info("OAuth production mode: authlib will auto-generate redirect_uri")
 
+# Build Tidal OAuth config
+tidal_remote_app = {
+    'client_id': os.getenv('TIDAL_CLIENT_ID'),
+    'client_secret': os.getenv('TIDAL_CLIENT_SECRET'),
+    'api_base_url': 'https://openapi.tidal.com/',
+    'client_kwargs': {
+        'scope': 'user.read',
+        'code_challenge_method': 'S256'  # PKCE required for OAuth 2.1
+    },
+    'access_token_url': 'https://auth.tidal.com/v1/oauth2/token',
+    'authorize_url': 'https://login.tidal.com/authorize'
+}
+
+# Tidal doesn't allow localhost redirect URIs - production only
+if IS_PRODUCTION:
+    app.logger.info("Tidal OAuth production mode: authlib will auto-generate redirect_uri")
+else:
+    app.logger.info("Tidal OAuth: Skipping in development (no localhost support)")
+
 app.config['OAUTH_PROVIDERS'] = [
     {
         'name': 'google',
         'icon': 'fa-google',
         'token_key': 'access_token',
         'remote_app': oauth_remote_app
+    },
+    {
+        'name': 'tidal',
+        'icon': 'fa-music',
+        'token_key': 'access_token',
+        'remote_app': tidal_remote_app
     }
 ]
 

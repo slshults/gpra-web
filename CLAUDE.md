@@ -21,14 +21,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Key Architecture Changes**:
 - ✅ Database: Row-Level Security (RLS) with `user_id` on Items/Routines/ChordCharts, `subscriptions` table, Flask-AppBuilder's `ab_user` table
 - ✅ Authentication: Custom login/register pages (React) + Flask-AppBuilder backend, supports email OR username login
-- ⏳ OAuth: Google/SoundCloud OAuth (credentials configured, UI integration pending)
+- 🔄 OAuth: Google OAuth (✅ working locally, ❌ broken in production - redirect_uri issue), Spotify OAuth planned
 - ⏳ Subscriptions: 5 Stripe tiers (free/basic/standard/pro/unlimited), limits enforcement
 - ✅ Backend: Session management, tier-based feature gating, RLS middleware
 - ✅ Frontend: Custom login/signup pages matching GPRA styling
 - ⏳ Frontend: Account management (partial), billing UI (pending)
 - ✅ Infrastructure: Production configs, proper secrets management
 
-**Current Deployment Status** (as of Oct 19, 2025 - Session 16):
+**Current Deployment Status** (as of Oct 19, 2025 - Session 17):
 - ✅ **FULLY DEPLOYED & TESTED IN PRODUCTION** - All core features working! 🎉
 - ✅ **MULTI-TENANT SYSTEM COMPLETE** - Full data isolation verified in production
 - ✅ **CUSTOM AUTH PAGES COMPLETE** - Login/register pages match GPRA styling
@@ -50,8 +50,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **React stale closure bugs fixed**: RoutinesPage now fetches fresh data directly from API
 - ✅ **Production dependencies installed**: cryptography package for API key encryption, authlib for OAuth
 - ✅ **Playwright MCP auto-approve**: Configured in `~/.claude/settings.json` for autonomous testing
-- 🔄 **OAuth IMPLEMENTATION IN PROGRESS** - Hybrid auth system working, buttons live, redirect_uri blocking (Session 16)
-- ⏳ **Next**: Fix OAuth redirect_uri mismatch (need http://localhost:5000 whitelisted), test Google/Spotify OAuth
+- ✅ **LOCAL OAUTH FULLY WORKING** - Google OAuth login works perfectly on localhost (Session 17)
+- ⏳ **PRODUCTION OAUTH BLOCKED** - redirect_uri_mismatch error despite correct config (Session 17)
+- ⏳ **Next**: Debug production OAuth with browser Network tab, test ProxyFix middleware, add Spotify OAuth
 - ⏳ **Future**: Remaining Stripe subscription tier limits (basic/standard/pro/unlimited), billing UI
 - See `~/.claude/handoffSummary.md` for detailed session notes
 
