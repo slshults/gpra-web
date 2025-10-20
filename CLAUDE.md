@@ -28,7 +28,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ⏳ Frontend: Account management (partial), billing UI (pending)
 - ✅ Infrastructure: Production configs, proper secrets management
 
-**Current Deployment Status** (as of Oct 19, 2025 - Session 14-15):
+**Current Deployment Status** (as of Oct 19, 2025 - Session 16):
 - ✅ **FULLY DEPLOYED & TESTED IN PRODUCTION** - All core features working! 🎉
 - ✅ **MULTI-TENANT SYSTEM COMPLETE** - Full data isolation verified in production
 - ✅ **CUSTOM AUTH PAGES COMPLETE** - Login/register pages match GPRA styling
@@ -48,10 +48,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **Database migrations applied**: `user_id` columns, `subscriptions` table, encrypted API key columns
 - ✅ **RLS middleware active**: Application-level filtering by user_id on all queries
 - ✅ **React stale closure bugs fixed**: RoutinesPage now fetches fresh data directly from API
-- ✅ **Production dependencies installed**: cryptography package for API key encryption
+- ✅ **Production dependencies installed**: cryptography package for API key encryption, authlib for OAuth
 - ✅ **Playwright MCP auto-approve**: Configured in `~/.claude/settings.json` for autonomous testing
-- ✅ **OAuth PREP COMPLETE** - Credentials audited, codebase inventoried, implementation roadmap created (Session 15)
-- ⏳ **Next**: OAuth implementation (Google OAuth ready, SoundCloud blocked - API registration closed)
+- 🔄 **OAuth IMPLEMENTATION IN PROGRESS** - Hybrid auth system working, buttons live, redirect_uri blocking (Session 16)
+- ⏳ **Next**: Fix OAuth redirect_uri mismatch (need http://localhost:5000 whitelisted), test Google/Spotify OAuth
 - ⏳ **Future**: Remaining Stripe subscription tier limits (basic/standard/pro/unlimited), billing UI
 - See `~/.claude/handoffSummary.md` for detailed session notes
 
@@ -243,11 +243,17 @@ The `gpr.sh` script runs:
 - **Critical**: Large Tailwind padding classes (`pt-28`, `pt-36`) may not compile - use inline styles for reliable padding: `style={{paddingTop: '160px'}}`
 
 ### Authentication Flow
-- Legacy: OAuth2 flow for Google Sheets access (being removed)
-- Multi-tenant authentication: Flask-AppBuilder base auth + custom OAuth providers
-  - Email/password (Flask-AppBuilder built-in)
-  - Google OAuth (existing credentials, ready to integrate)
-  - SoundCloud OAuth 2.1 (musician-focused platform, planned)
+- Multi-tenant authentication: **Hybrid system** (DB auth + OAuth) - Session 16
+  - ✅ Email/password (Flask-AppBuilder built-in, fully working)
+  - 🔄 Google OAuth (UI implemented, backend working, redirect_uri mismatch blocking)
+  - ⏳ Spotify OAuth (researched as best option for musicians, ready to implement)
+  - ❌ SoundCloud (API registration closed indefinitely)
+  - ❌ YouTube Music (no official API exists)
+- **CRITICAL OAuth Requirements**:
+  - Requires `authlib` package (installed in Session 16)
+  - CustomSecurityManager uses hybrid pattern (manually initializes OAuth alongside DB auth)
+  - Cannot use `SERVER_NAME` config (breaks app routing)
+  - Redirect URI issue: Flask sends `http://localhost/oauth-authorized/google` but Google expects `:5000` port
 - Session management via Flask-AppBuilder security manager
 - Row-Level Security (RLS) middleware active - filters all queries by user_id
 

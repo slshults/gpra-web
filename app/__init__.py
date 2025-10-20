@@ -15,6 +15,9 @@ app = Flask(__name__,
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '82a393ed5a3dbe58b0e03785215cfcb757f7d393ecde90d4ef25d6b46b28d819')
 app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://gpra:^66*B^mzg6Y6e#@localhost:5432/gpra_dev')
 
+# NOTE: SERVER_NAME breaks app - don't set it!
+# OAuth redirect_uri issue needs different solution
+
 # Flask-Session Configuration (for multi-worker CSRF support)
 # CRITICAL: Must be configured BEFORE WTForms CSRF so CSRF tokens use Redis sessions
 from flask_session import Session
@@ -32,8 +35,11 @@ app.config['SESSION_REDIS'] = redis.from_url(
 Session(app)
 
 # Session Cookie Configuration
+# Detect production environment
+IS_PRODUCTION = os.getenv('FLASK_ENV') == 'production'
+
 # Set SECURE to False for local development (HTTP), True for production (HTTPS)
-app.config['SESSION_COOKIE_SECURE'] = False  # Allow cookies over HTTP for local dev
+app.config['SESSION_COOKIE_SECURE'] = IS_PRODUCTION  # Require HTTPS in production
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access to cookies
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
@@ -66,6 +72,7 @@ app.config['RECAPTCHA_PUBLIC_KEY'] = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI' 
 app.config['RECAPTCHA_PRIVATE_KEY'] = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe'  # Google test key
 
 # OAuth configuration from environment variables
+# Flask-AppBuilder automatically generates redirect URIs as: /oauth-authorized/<provider_name>
 app.config['OAUTH_PROVIDERS'] = [
     {
         'name': 'google',
