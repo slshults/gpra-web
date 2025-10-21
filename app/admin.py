@@ -1,17 +1,65 @@
 """
 Flask-AppBuilder Admin Interface Configuration
 """
-from flask import Flask
+from flask import Flask, flash
 from flask_appbuilder import AppBuilder, IndexView
 from flask_appbuilder.models.sqla.interface import SQLAInterface
 from flask_appbuilder import ModelView
 from flask_sqlalchemy import SQLAlchemy
+import logging
 
 # Import our existing models AND Base
 from app.models import Item, Routine, RoutineItem, ChordChart, CommonChord, ActiveRoutine, Subscription, Base
 
 # Import custom security manager
 from app.security import CustomSecurityManager, CustomAuthDBView
+
+logger = logging.getLogger(__name__)
+
+
+class BaseModelView(ModelView):
+    """
+    Base ModelView with LazyString serialization fix for Redis sessions.
+
+    Flask-AppBuilder uses lazy_gettext for flash messages, which can't be
+    serialized by Flask-Session with Redis backend. This class wraps all
+    flash messages in the _delete method.
+    """
+
+    def _delete(self, pk):
+        """
+        Override _delete to wrap flash messages in str() for Redis compatibility.
+
+        This is called by the delete route handler before deletion.
+        """
+        item = self.datamodel.get(pk)
+        if not item:
+            flash(str("Record not found"), "danger")
+            return False
+
+        # Call pre_delete if it exists (e.g., for user validation)
+        try:
+            if hasattr(self, 'pre_delete'):
+                self.pre_delete(item)
+        except Exception as e:
+            logger.error(f"pre_delete failed: {e}")
+            # pre_delete should have already set a flash message
+            return False
+
+        # Perform deletion
+        try:
+            self.datamodel.delete(item)
+            flash(str("Record deleted successfully"), "success")
+
+            # Call post_delete if it exists
+            if hasattr(self, 'post_delete'):
+                self.post_delete(item)
+
+            return True
+        except Exception as e:
+            logger.exception(f"Delete failed: {e}")
+            flash(str(f"Delete failed: {e}"), "danger")
+            return False
 
 
 class AdminIndexView(IndexView):
@@ -49,7 +97,7 @@ def init_admin(app: Flask, db_session):
     # Define admin views for each model
     # Each ModelView must set route_base to be under /admin/ prefix
 
-    class ItemModelView(ModelView):
+    class ItemModelView(BaseModelView):
         datamodel = SQLAInterface(Item)
         route_base = '/admin/items'
         list_columns = ['id', 'item_id', 'title', 'duration', 'tuning', 'user_id', 'username', 'created_at']
@@ -62,7 +110,7 @@ def init_admin(app: Flask, db_session):
             'user_id': 'User ID'
         }
 
-    class RoutineModelView(ModelView):
+    class RoutineModelView(BaseModelView):
         datamodel = SQLAInterface(Routine)
         route_base = '/admin/routines'
         list_columns = ['id', 'name', 'user_id', 'username', 'created_at', 'order']
@@ -73,13 +121,13 @@ def init_admin(app: Flask, db_session):
             'user_id': 'User ID'
         }
 
-    class RoutineItemModelView(ModelView):
+    class RoutineItemModelView(BaseModelView):
         datamodel = SQLAInterface(RoutineItem)
         route_base = '/admin/routineitems'
         list_columns = ['id', 'routine_id', 'item_id', 'order', 'completed']
         show_columns = ['id', 'routine_id', 'item_id', 'order', 'completed', 'created_at']
 
-    class ChordChartModelView(ModelView):
+    class ChordChartModelView(BaseModelView):
         datamodel = SQLAInterface(ChordChart)
         route_base = '/admin/chordcharts'
         list_columns = ['chord_id', 'item_id', 'title', 'section_label', 'user_id', 'username', 'created_at']
@@ -91,7 +139,7 @@ def init_admin(app: Flask, db_session):
             'user_id': 'User ID'
         }
 
-    class CommonChordModelView(ModelView):
+    class CommonChordModelView(BaseModelView):
         datamodel = SQLAInterface(CommonChord)
         route_base = '/admin/commonchords'
         list_columns = ['id', 'name', 'type', 'created_at']
@@ -101,13 +149,13 @@ def init_admin(app: Flask, db_session):
             'chord_data': 'Chord Data (JSON)'
         }
 
-    class ActiveRoutineModelView(ModelView):
+    class ActiveRoutineModelView(BaseModelView):
         datamodel = SQLAInterface(ActiveRoutine)
         route_base = '/admin/activeroutine'
         list_columns = ['id', 'routine_id', 'updated_at']
         show_columns = ['id', 'routine_id', 'updated_at']
 
-    class SubscriptionModelView(ModelView):
+    class SubscriptionModelView(BaseModelView):
         datamodel = SQLAInterface(Subscription)
         route_base = '/admin/subscriptions'
         list_columns = ['id', 'user_id', 'username', 'email', 'tier', 'status', 'mrr', 'created_at']
