@@ -54,8 +54,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **Playwright MCP auto-approve**: Configured in `~/.claude/settings.json` for autonomous testing
 - ✅ **GOOGLE OAUTH WORKING** - Production credentials added to .env, fully functional (Session 18)
 - ✅ **TIDAL OAUTH WORKING** - Uses user_id as username, placeholder email (Session 18)
-- ⏳ **Next**: First-run welcome experience for new OAuth users
+- ✅ **FIRST-RUN DEMO DATA COMPLETE** - All new users get demo routine with "For What It's Worth" and E-A-E-A chord progression (Session 19)
+- ⏳ **Next**: First-run walkthrough/tour UI to guide users through demo data
 - ⏳ **Future**: Remaining Stripe subscription tier limits (basic/standard/pro/unlimited), billing UI
+- ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (needs migration for proper multi-tenant isolation)
 - See `~/.claude/handoffSummary.md` for detailed session notes
 
 When working on this codebase, keep in mind we're building for a multi-user hosted environment, not the original single-user local setup.
