@@ -379,6 +379,49 @@ class CustomRegisterUserDBView_OLD(AuthDBView):
             db.rollback()
 
 
+class CustomUserDBModelView(UserDBModelView):
+    """
+    Custom User Model View with delete protection.
+
+    Prevents:
+    - Users from deleting themselves
+    - Deletion of the last admin user
+    """
+
+    def pre_delete(self, item):
+        """
+        Called before deleting a user - validates the deletion is allowed.
+
+        Args:
+            item: User object being deleted
+
+        Raises:
+            Exception: If deletion is not allowed
+        """
+        from flask_login import current_user
+
+        # Prevent users from deleting themselves
+        if current_user.id == item.id:
+            flash("You cannot delete your own account. Please have another admin delete it.", "danger")
+            raise Exception("Cannot delete current user")
+
+        # Check if this is the last admin user
+        admin_role = self.appbuilder.sm.find_role('Admin')
+        if admin_role and admin_role in item.roles:
+            # Count how many admin users exist
+            admin_count = self.appbuilder.session.query(self.datamodel.obj).join(
+                self.datamodel.obj.roles
+            ).filter(
+                self.datamodel.obj.roles.contains(admin_role)
+            ).count()
+
+            if admin_count <= 1:
+                flash("Cannot delete the last admin user. Create another admin first.", "danger")
+                raise Exception("Cannot delete last admin user")
+
+        logger.info(f"User deletion validated: {item.username} (id={item.id})")
+
+
 class CustomSecurityManager(SecurityManager):
     """
     Custom Security Manager for hybrid authentication (database + OAuth).
@@ -403,6 +446,9 @@ class CustomSecurityManager(SecurityManager):
 
     # Use custom OAuth view that redirects to main app instead of /admin/
     authoauthview = CustomAuthOAuthView
+
+    # Use custom user view with delete protection
+    userdbmodelview = CustomUserDBModelView
 
     # NOTE: OAuth providers are configured via app.config['OAUTH_PROVIDERS'] in app/__init__.py
     # DO NOT define oauth_providers as a class attribute here, as it overrides Flask-AppBuilder's
