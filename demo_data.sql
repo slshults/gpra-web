@@ -3,7 +3,7 @@
 
 -- Insert demo routine
 INSERT INTO routines (id, name, created_at, "order") VALUES
-(1, 'Songs', NOW(), 0);
+(1, 'Demo routine', NOW(), 0);
 
 -- Insert demo practice item
 INSERT INTO items (id, item_id, title, notes, duration, description, "order", tuning, songbook, created_at, updated_at) VALUES

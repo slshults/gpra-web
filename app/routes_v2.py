@@ -815,6 +815,9 @@ def api_register():
             app.logger.error(f"Failed to create subscription for user {user.id}: {e}")
             # Don't fail registration if subscription creation fails
 
+        # Create demo data for first-run experience
+        appbuilder.sm.create_demo_data_for_user(user)
+
         return jsonify({
             "success": True,
             "message": "User registered successfully"
