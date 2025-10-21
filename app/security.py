@@ -120,7 +120,7 @@ class ImmediateRegisterUserDBView(BaseRegisterUser):
         """
         Called after a new user is created.
 
-        Creates a free tier subscription for new users.
+        Creates a free tier subscription and demo data for new users.
 
         Args:
             user: Newly created User model instance
@@ -144,6 +144,9 @@ class ImmediateRegisterUserDBView(BaseRegisterUser):
             import traceback
             logger.error(traceback.format_exc())
             db.rollback()
+
+        # Create demo data for first-run experience
+        self.appbuilder.sm.create_demo_data_for_user(user)
 
 
 class CustomAuthOAuthView(AuthOAuthView):
@@ -567,7 +570,154 @@ class CustomSecurityManager(SecurityManager):
             logger.error(traceback.format_exc())
             db.rollback()
 
+        # Create demo data for first-run experience
+        self.create_demo_data_for_user(user)
+
         return user
+
+    def create_demo_data_for_user(self, user):
+        """
+        Create demo routine and item for new user's first-run experience.
+
+        Creates:
+        - Demo item: "For What It's Worth" with basic info
+        - Demo routine: "Demo routine"
+        - 4 chord charts: E, A, E, A (Intro section)
+        - Sets routine as active
+
+        Args:
+            user: Newly created User model instance
+
+        Note:
+            Fails silently to avoid blocking user registration if demo data creation fails.
+        """
+        logger.info(f"Creating demo data for user: {user.email} (id={user.id})")
+
+        try:
+            from sqlalchemy import text
+            db = self.appbuilder.session
+
+            # 1. Create demo item "For What It's Worth"
+            item_result = db.execute(text("""
+                INSERT INTO items (item_id, title, notes, duration, description, "order", tuning, songbook, user_id, created_at, updated_at)
+                VALUES ('', 'For What It''s Worth',
+                    'Classic Buffalo Springfield song - great for practicing basic chord changes',
+                    '5',
+                    'Work on smooth transitions between E and A chords. Focus on strumming pattern and timing.',
+                    0, 'EADGBE',
+                    'C:\\Users\\Username\\Documents\\Guitar\\Songbook\\ForWhatItsWorth',
+                    :user_id, NOW(), NOW())
+                RETURNING id, item_id
+            """), {'user_id': user.id})
+
+            item_row = item_result.fetchone()
+            item_db_id = item_row[0]  # Database primary key
+
+            # Update item_id to match database id (Google Sheets compatibility pattern)
+            db.execute(text("""
+                UPDATE items SET item_id = :item_id WHERE id = :id
+            """), {'item_id': str(item_db_id), 'id': item_db_id})
+
+            logger.info(f"Created demo item (id={item_db_id})")
+
+            # 2. Create demo routine "Demo routine"
+            routine_result = db.execute(text("""
+                INSERT INTO routines (name, "order", user_id, created_at)
+                VALUES ('Demo routine', 0, :user_id, NOW())
+                RETURNING id
+            """), {'user_id': user.id})
+
+            routine_id = routine_result.fetchone()[0]
+            logger.info(f"Created demo routine (id={routine_id})")
+
+            # 3. Add item to routine
+            db.execute(text("""
+                INSERT INTO routine_items (routine_id, item_id, "order", completed, created_at)
+                VALUES (:routine_id, :item_db_id, 0, FALSE, NOW())
+            """), {'routine_id': routine_id, 'item_db_id': item_db_id})
+
+            logger.info(f"Added item to routine")
+
+            # 4. Create 4 chord charts (E, A, E, A) with Intro section
+            # E chord (appears twice: positions 0 and 2)
+            e_chord_data = {
+                "fingers": [[2, 2, None], [3, 2, None], [4, 1, None]],
+                "barres": [],
+                "tuning": "EADGBE",
+                "capo": 0,
+                "startingFret": 1,
+                "numFrets": 4,
+                "numStrings": 6,
+                "openStrings": [1, 6],
+                "mutedStrings": [],
+                "sectionId": "section-intro",
+                "sectionLabel": "Intro",
+                "sectionRepeatCount": "",
+                "hasLineBreakAfter": False
+            }
+
+            # A chord (appears twice: positions 1 and 3)
+            a_chord_data = {
+                "fingers": [[2, 2, None], [3, 2, None], [4, 2, None]],
+                "barres": [],
+                "tuning": "EADGBE",
+                "capo": 0,
+                "startingFret": 1,
+                "numFrets": 4,
+                "numStrings": 6,
+                "openStrings": [1, 5],
+                "mutedStrings": [6],
+                "sectionId": "section-intro",
+                "sectionLabel": "Intro",
+                "sectionRepeatCount": "",
+                "hasLineBreakAfter": False
+            }
+
+            import json
+
+            # Create E, A, E, A progression
+            chord_sequence = [
+                ('E', e_chord_data, 0),
+                ('A', a_chord_data, 1),
+                ('E', e_chord_data, 2),
+                ('A', a_chord_data, 3)
+            ]
+
+            for title, chord_data, order in chord_sequence:
+                db.execute(text("""
+                    INSERT INTO chord_charts (item_id, title, chord_data, order_col, user_id, created_at)
+                    VALUES (:item_id, :title, :chord_data, :order_col, :user_id, NOW())
+                """), {
+                    'item_id': str(item_db_id),
+                    'title': title,
+                    'chord_data': json.dumps(chord_data),
+                    'order_col': order,
+                    'user_id': user.id
+                })
+
+            logger.info(f"Created 4 chord charts (E, A, E, A)")
+
+            # 5. Set as active routine
+            # NOTE: ActiveRoutine table doesn't have user_id yet (needs migration for multi-tenant)
+            # For now, just set it without user_id - will be filtered by RLS when user queries
+            db.execute(text("""
+                INSERT INTO active_routine (id, routine_id, updated_at)
+                VALUES (1, :routine_id, NOW())
+                ON CONFLICT (id) DO UPDATE
+                SET routine_id = :routine_id, updated_at = NOW()
+            """), {'routine_id': routine_id})
+
+            logger.info(f"Set demo routine as active")
+
+            db.commit()
+            logger.info(f"Demo data creation complete for user {user.id}")
+
+        except Exception as e:
+            logger.error(f"Failed to create demo data for user {user.id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            db.rollback()
+            # Don't raise - fail silently to avoid blocking registration
 
     def oauth_user_info(self, provider, response=None):
         """
