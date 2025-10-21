@@ -287,19 +287,26 @@ class CustomAuthDBView(AuthDBView):
         from flask_appbuilder.security.forms import LoginForm_db
         from flask_login import login_user
 
+        logger.debug(f"Login method called - Request method: {request.method}")
+
         # If already authenticated, redirect to main app
         if g.user is not None and g.user.is_authenticated:
+            logger.debug(f"Already authenticated: {g.user.username}")
             return redirect('/')
 
         form = LoginForm_db()
+        logger.debug(f"Form created - Is POST: {request.method == 'POST'}")
 
         if form.validate_on_submit():
+            logger.info(f"Form validated successfully - Username: {form.username.data}")
+
             # Authenticate user
             user = self.appbuilder.sm.auth_user_db(
                 form.username.data, form.password.data
             )
 
             if not user:
+                logger.warning(f"Authentication failed for username: {form.username.data}")
                 flash(as_unicode(self.invalid_login_message), "warning")
                 # Redirect back to login page
                 next_url = request.args.get("next", "")
@@ -308,6 +315,7 @@ class CustomAuthDBView(AuthDBView):
                 return redirect('/login/')
 
             # Login successful
+            logger.info(f"Login successful for user: {user.username}")
             login_user(user, remember=False)
 
             # Check for next parameter, otherwise redirect to main app
@@ -316,6 +324,9 @@ class CustomAuthDBView(AuthDBView):
                 # Default to main app, not admin interface
                 return redirect('/')
             return redirect(next_url)
+        else:
+            if request.method == 'POST':
+                logger.error(f"Form validation failed - Errors: {form.errors}")
 
         # Show login form
         return self.render_template(
@@ -402,7 +413,8 @@ class CustomUserDBModelView(UserDBModelView):
 
         # Prevent users from deleting themselves
         if current_user.id == item.id:
-            flash("You cannot delete your own account. Please have another admin delete it.", "danger")
+            # Convert to str() to avoid LazyString serialization issues with Redis sessions
+            flash(str("You cannot delete your own account. Please have another admin delete it."), "danger")
             raise Exception("Cannot delete current user")
 
         # Check if this is the last admin user
@@ -416,7 +428,8 @@ class CustomUserDBModelView(UserDBModelView):
             ).count()
 
             if admin_count <= 1:
-                flash("Cannot delete the last admin user. Create another admin first.", "danger")
+                # Convert to str() to avoid LazyString serialization issues with Redis sessions
+                flash(str("Cannot delete the last admin user. Create another admin first."), "danger")
                 raise Exception("Cannot delete last admin user")
 
         logger.info(f"User deletion validated: {item.username} (id={item.id})")

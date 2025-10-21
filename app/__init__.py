@@ -34,6 +34,58 @@ app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://gpra:***REM
 # CRITICAL: Must be configured BEFORE WTForms CSRF so CSRF tokens use Redis sessions
 from flask_session import Session
 import redis
+import json
+from flask_babel import LazyString
+
+# Custom serializer for Flask-Session that handles LazyString from Flask-AppBuilder
+# This inherits from Flask-Session's base Serializer class to match the expected interface
+import msgspec
+
+def convert_lazy_strings(obj):
+    """Recursively convert LazyString objects to str for serialization."""
+    if isinstance(obj, LazyString):
+        return str(obj)
+    elif isinstance(obj, dict):
+        return {k: convert_lazy_strings(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return type(obj)(convert_lazy_strings(item) for item in obj)
+    return obj
+
+class LazyStringSafeSerializer:
+    """
+    Custom Flask-Session serializer that converts LazyString objects before encoding.
+
+    Matches the interface expected by Flask-Session's ServerSideSessionInterface.
+    """
+    def __init__(self, app, format='json'):
+        """Initialize serializer with app and format (matching MsgSpecSerializer interface)."""
+        self.app = app
+        if format == 'json':
+            self.encoder = msgspec.json.Encoder()
+            self.decoder = msgspec.json.Decoder()
+        elif format == 'msgpack':
+            self.encoder = msgspec.msgpack.Encoder()
+            self.decoder = msgspec.msgpack.Decoder()
+        else:
+            raise ValueError(f"Unsupported serialization format: {format}")
+
+    def encode(self, session):
+        """Serialize session data, converting LazyString objects first."""
+        try:
+            # Convert LazyString objects to str before encoding
+            safe_data = convert_lazy_strings(dict(session))
+            return self.encoder.encode(safe_data)
+        except Exception as e:
+            self.app.logger.error(f"Failed to serialize session data: {e}")
+            raise
+
+    def decode(self, serialized_data):
+        """Deserialize session data from bytes."""
+        try:
+            return self.decoder.decode(serialized_data)
+        except Exception as e:
+            self.app.logger.error(f"Failed to deserialize session data: {e}")
+            raise
 
 app.config['SESSION_TYPE'] = 'redis'
 app.config['SESSION_PERMANENT'] = False
@@ -42,6 +94,24 @@ app.config['SESSION_KEY_PREFIX'] = 'gpra:'
 app.config['SESSION_REDIS'] = redis.from_url(
     os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 )
+
+# Monkey-patch Flask-Session to use our custom serializer
+# Strategy: Wrap the original __init__ and replace serializer immediately after creation
+from flask_session.base import ServerSideSessionInterface
+
+_original_session_init = ServerSideSessionInterface.__init__
+
+def _patched_session_init(self, *args, **kwargs):
+    """Call original init, then replace the serializer with our LazyString-safe version."""
+    # Call the original __init__ to set up everything properly
+    _original_session_init(self, *args, **kwargs)
+
+    # Now replace the serializer with our custom one
+    # Preserve the serialization format that was configured
+    serialization_format = kwargs.get('serialization_format', 'msgpack')
+    self.serializer = LazyStringSafeSerializer(app=self.app, format=serialization_format)
+
+ServerSideSessionInterface.__init__ = _patched_session_init
 
 # Initialize Flask-Session FIRST (before CSRF config)
 Session(app)
@@ -155,6 +225,18 @@ app.logger.info('Guitar Practice Routine App startup')
 
 # Also enable Flask-AppBuilder debug logging
 logging.getLogger('flask_appbuilder').setLevel(logging.DEBUG)
+
+# Monkey-patch Flask's flash function to handle LazyString serialization
+# This prevents Redis session serialization errors from Flask-AppBuilder's lazy_gettext messages
+from flask import flash as _original_flash
+import flask
+
+def _safe_flash(message, category='message'):
+    """Wrap flash messages in str() to prevent LazyString serialization issues."""
+    return _original_flash(str(message), category)
+
+# Replace Flask's flash function globally
+flask.flash = _safe_flash
 
 # Initialize Flask-AppBuilder admin interface
 from app.database import SessionLocal
