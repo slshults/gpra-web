@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Session Startup Reminder
+
+**IMPORTANT**: At the start of each session, run this command to disable PostHog MCP and save ~40k tokens:
+```bash
+claude mcp disable posthog
+```
+
+Re-enable only when actively working on PostHog analytics features. The PostHog skill at `~/.claude/skills/posthog-analytics/` contains all necessary documentation for when you need it.
+
 ## Project Status: Hosted Version Development
 
 **Important Context**: This codebase is a COPY of the original single-user local PostgreSQL version, which we are converting into a hosted multi-tenant SaaS application.
@@ -55,7 +64,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **GOOGLE OAUTH WORKING** - Production credentials added to .env, fully functional (Session 18)
 - ✅ **TIDAL OAUTH WORKING** - Uses user_id as username, placeholder email (Session 18)
 - ✅ **FIRST-RUN DEMO DATA COMPLETE** - All new users get demo routine with "For What It's Worth" and E-A-E-A chord progression (Session 19)
-- ⏳ **Next**: First-run walkthrough/tour UI to guide users through demo data
+- ✅ **ADMIN USER DELETION FIXED** - LazyString serialization issue resolved with custom Flask-Session serializer (Session 21)
+- ✅ **DATABASE CASCADE CONSTRAINTS** - User deletion properly cascades to routine_items and active_routine (Session 21)
+- ⏳ **Next**: reCAPTCHA v2 on signup form (waiting for Google keys), First-run walkthrough/tour UI
 - ⏳ **Future**: Remaining Stripe subscription tier limits (basic/standard/pro/unlimited), billing UI
 - ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (needs migration for proper multi-tenant isolation)
 - See `~/.claude/handoffSummary.md` for detailed session notes

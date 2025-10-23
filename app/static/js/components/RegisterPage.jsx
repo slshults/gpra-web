@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@ui/button';
 import { Input } from '@ui/input';
 import { Label } from '@ui/label';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
 import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+
+const RECAPTCHA_SITE_KEY = '6LcjIvQrAAAAAM4psu6wJT3NlL8RIwH4tNiiAJ6C';
 
 const RegisterPage = () => {
   const [username, setUsername] = useState('');
@@ -14,6 +16,38 @@ const RegisterPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [recaptchaToken, setRecaptchaToken] = useState(null);
+  const [recaptchaLoaded, setRecaptchaLoaded] = useState(false);
+  const recaptchaRef = useRef(null);
+
+  // Load reCAPTCHA script on component mount
+  useEffect(() => {
+    // Make callback available globally for reCAPTCHA
+    window.onRecaptchaChange = (token) => {
+      setRecaptchaToken(token);
+    };
+
+    const loadRecaptcha = () => {
+      if (window.grecaptcha) {
+        setRecaptchaLoaded(true);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://www.google.com/recaptcha/api.js';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => setRecaptchaLoaded(true);
+      document.head.appendChild(script);
+    };
+
+    loadRecaptcha();
+
+    // Cleanup
+    return () => {
+      delete window.onRecaptchaChange;
+    };
+  }, []);
 
   const validatePassword = () => {
     if (password.length < 8) {
@@ -61,6 +95,12 @@ const RegisterPage = () => {
       return;
     }
 
+    // Validate reCAPTCHA
+    if (!recaptchaToken) {
+      setError('Please complete the reCAPTCHA verification');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -68,7 +108,7 @@ const RegisterPage = () => {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, email, password }),
+        body: JSON.stringify({ username, email, password, recaptcha_token: recaptchaToken }),
       });
 
       const data = await response.json();
@@ -202,11 +242,22 @@ const RegisterPage = () => {
                 />
               </div>
 
+              {/* reCAPTCHA Widget */}
+              <div className="flex justify-center">
+                <div
+                  className="g-recaptcha"
+                  data-sitekey={RECAPTCHA_SITE_KEY}
+                  data-callback="onRecaptchaChange"
+                  data-theme="dark"
+                  ref={recaptchaRef}
+                ></div>
+              </div>
+
               {/* Register Button */}
               <Button
                 type="submit"
                 className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-                disabled={loading}
+                disabled={loading || !recaptchaToken}
               >
                 {loading ? (
                   <>

@@ -757,6 +757,41 @@ def api_register():
     username = data.get('username', '').strip()
     email = data.get('email', '').strip()
     password = data.get('password', '')
+    recaptcha_token = data.get('recaptcha_token', '')
+
+    # Verify reCAPTCHA
+    if not recaptcha_token:
+        return jsonify({"error": "reCAPTCHA verification required"}), 400
+
+    try:
+        import requests
+        recaptcha_secret = os.getenv('RECAPTCHA_SECRET_KEY')
+
+        if not recaptcha_secret:
+            app.logger.error("RECAPTCHA_SECRET_KEY not configured")
+            return jsonify({"error": "Registration not available"}), 500
+
+        # Verify token with Google
+        verify_response = requests.post(
+            'https://www.google.com/recaptcha/api/siteverify',
+            data={
+                'secret': recaptcha_secret,
+                'response': recaptcha_token
+            },
+            timeout=10
+        )
+
+        verify_data = verify_response.json()
+
+        if not verify_data.get('success'):
+            app.logger.warning(f"reCAPTCHA verification failed: {verify_data.get('error-codes', [])}")
+            return jsonify({"error": "reCAPTCHA verification failed. Please try again."}), 400
+
+        app.logger.info("reCAPTCHA verification successful")
+
+    except Exception as e:
+        app.logger.error(f"reCAPTCHA verification error: {e}")
+        return jsonify({"error": "Unable to verify reCAPTCHA. Please try again."}), 500
 
     # Validate inputs
     if not username or not email or not password:
