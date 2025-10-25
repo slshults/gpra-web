@@ -1053,6 +1053,155 @@ def validate_user_api_key():
     else:
         return jsonify({"valid": False, "error": error_message})
 
+# Tour Status Routes
+@app.route('/api/user/preferences/tour-status', methods=['GET'])
+def get_tour_status():
+    """
+    Get user's tour completion status.
+
+    Returns:
+        {
+            "tour_completed": boolean,
+            "show_tour": boolean  # Should tour be shown now?
+        }
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from app import appbuilder
+        from app.models import UserPreferences
+
+        db = appbuilder.session
+        user_id = current_user.id
+
+        # Try to find existing preferences
+        preferences = db.query(UserPreferences).filter_by(user_id=user_id).first()
+
+        if preferences:
+            tour_completed = preferences.tour_completed
+        else:
+            # User has no preferences record yet - tour not completed
+            tour_completed = False
+
+        return jsonify({
+            "tour_completed": tour_completed,
+            "show_tour": not tour_completed  # Show tour if not completed
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error fetching tour status for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to fetch tour status"}), 500
+
+@app.route('/api/user/preferences/tour-complete', methods=['POST'])
+def complete_tour():
+    """
+    Mark tour as completed for the current user.
+
+    Creates or updates user_preferences record to set tour_completed = true.
+
+    Returns:
+        {
+            "success": true,
+            "message": "Tour marked as completed"
+        }
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from app import appbuilder
+        from app.models import UserPreferences
+        from sqlalchemy import text
+
+        db = appbuilder.session
+        user_id = current_user.id
+
+        # Try to find existing preferences
+        preferences = db.query(UserPreferences).filter_by(user_id=user_id).first()
+
+        if preferences:
+            # Update existing record
+            preferences.tour_completed = True
+            app.logger.info(f"Updated tour status for user {user_id} to completed")
+        else:
+            # Create new record
+            preferences = UserPreferences(
+                user_id=user_id,
+                tour_completed=True
+            )
+            db.add(preferences)
+            app.logger.info(f"Created tour status for user {user_id} as completed")
+
+        db.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Tour marked as completed"
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error completing tour for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        db.rollback()
+        return jsonify({"error": "Failed to mark tour as completed"}), 500
+
+@app.route('/api/user/preferences/tour-reset', methods=['POST'])
+def reset_tour():
+    """
+    Reset tour status so user can take it again.
+
+    Sets tour_completed = false for the current user.
+
+    Returns:
+        {
+            "success": true,
+            "message": "Tour reset successfully"
+        }
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from app import appbuilder
+        from app.models import UserPreferences
+
+        db = appbuilder.session
+        user_id = current_user.id
+
+        # Try to find existing preferences
+        preferences = db.query(UserPreferences).filter_by(user_id=user_id).first()
+
+        if preferences:
+            # Update existing record
+            preferences.tour_completed = False
+            app.logger.info(f"Reset tour status for user {user_id}")
+        else:
+            # Create new record with tour not completed
+            preferences = UserPreferences(
+                user_id=user_id,
+                tour_completed=False
+            )
+            db.add(preferences)
+            app.logger.info(f"Created tour status for user {user_id} as not completed")
+
+        db.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Tour reset successfully"
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error resetting tour for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        db.rollback()
+        return jsonify({"error": "Failed to reset tour"}), 500
+
 @app.route('/authorize')
 def authorize():
     """Initiate OAuth flow for Google Sheets (fallback for Sheets mode)"""

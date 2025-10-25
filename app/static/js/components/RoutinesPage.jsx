@@ -695,7 +695,7 @@ const RoutinesPage = () => {
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Active Routine Section */}
-        <Card className="bg-gray-900 text-gray-100">
+        <Card className="bg-gray-900 text-gray-100" data-tour="routines-items">
           <CardHeader>
             <CardTitle>Current active routine</CardTitle>
           </CardHeader>
@@ -708,7 +708,7 @@ const RoutinesPage = () => {
                       <CheckCircle2 className="h-5 w-5 text-green-500 mr-2" aria-hidden="true" />
                       {activeRoutine.name}
                     </span>
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-2" data-tour="edit-routine-icon">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -781,7 +781,7 @@ const RoutinesPage = () => {
               <>
                 {/* Routines List */}
                 <div className="space-y-2">
-                  <div className="mb-4 flex space-x-2">
+                  <div className="mb-4 flex space-x-2" data-tour="new-routine-input">
                     <label htmlFor="new-routine-name-input" className="sr-only">
                       New routine name
                     </label>

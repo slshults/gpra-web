@@ -247,3 +247,34 @@ class Subscription(Base):
 
     def __repr__(self):
         return f"<Subscription user_id={self.user_id} tier={self.tier} status={self.status}>"
+
+class UserPreferences(Base):
+    __tablename__ = 'user_preferences'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # NOTE: user_id references ab_user.id but NO ForeignKey constraint due to Base mismatch issues
+    # Referential integrity enforced at application level + PostgreSQL trigger
+    user_id = Column(Integer, nullable=False, unique=True, index=True)
+    tour_completed = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index('idx_user_preferences_user_id', 'user_id'),
+    )
+
+    @property
+    def username(self):
+        """Fetch username from ab_user table for admin display"""
+        if not self.user_id:
+            return 'N/A'
+        try:
+            from flask_appbuilder.security.sqla.models import User
+            from flask import current_app
+            user = current_app.appbuilder.session.query(User).filter_by(id=self.user_id).first()
+            return user.username if user else 'Unknown'
+        except Exception:
+            return 'Error'
+
+    def __repr__(self):
+        return f"<UserPreferences user_id={self.user_id} tour_completed={self.tour_completed}>"
