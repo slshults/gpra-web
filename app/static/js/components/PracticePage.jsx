@@ -3417,6 +3417,8 @@ export const PracticePage = () => {
                 aria-expanded={isExpanded}
                 aria-controls={`practice-item-content-${routineItem['A']}`}
                 tabIndex={0}
+                data-item-header={routineItem['A']}
+                data-expanded={isExpanded ? 'true' : 'false'}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
@@ -3479,7 +3481,7 @@ export const PracticePage = () => {
               {isExpanded && (
                 <div className="px-8 pb-6">
                   {/* Timer section */}
-                  <div className="flex flex-col items-center justify-center py-8 space-y-6">
+                  <div className="flex flex-col items-center justify-center py-8 space-y-6" data-tour="practice-timer">
                     <button
                       onClick={(e) => toggleTimer(routineItem['A'], e)}  // Column A is ID
                       className="w-48 h-48 rounded-full border-4 border-gray-600 flex items-center justify-center hover:border-gray-500 transition-colors"
@@ -3519,43 +3521,45 @@ export const PracticePage = () => {
 
                   {/* Description */}
                   <div className="space-y-2 px-4">
-                    {/* Chord Charts toggle */}
-                    <div
-                      className="flex items-center justify-between p-2 hover:bg-gray-700 rounded cursor-pointer"
-                      onClick={(e) => toggleChords(routineItem['A'], e)}
-                      role="button"
-                      aria-expanded={isChordsExpanded}
-                      aria-controls={`chord-charts-content-${routineItem['A']}`}
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          toggleChords(routineItem['A'], e);
-                        }
-                      }}
-                    >
-                      <div className="flex items-center">
-                        {isChordsExpanded ? (
-                          <ChevronDown className="h-5 w-5 text-gray-400 mr-2" aria-hidden="true" />
-                        ) : (
-                          <ChevronRight className="h-5 w-5 text-gray-400 mr-2" aria-hidden="true" />
-                        )}
-                        <h3 className="text-xl text-gray-300 flex items-center" id={`chord-charts-title-${routineItem['A']}`}>
-                          <Music className="h-5 w-5 mr-2" aria-hidden="true" />
-                          Chord charts
-                        </h3>
-                      </div>
-                    </div>
-
-                    {/* Collapsible chord chart content */}
-                    {isChordsExpanded && (
+                    {/* Chord Charts Section Wrapper - for tour highlighting */}
+                    <div data-tour="chord-charts-section">
+                      {/* Chord Charts toggle */}
                       <div
-                        id={`chord-charts-content-${routineItem['A']}`}
-                        className="bg-gray-700 rounded-lg p-4 chord-charts-container relative"
-                        data-item-id={routineItem['B']}
-                        role="region"
-                        aria-labelledby={`chord-charts-title-${routineItem['A']}`}
+                        className="flex items-center justify-between p-2 hover:bg-gray-700 rounded cursor-pointer"
+                        onClick={(e) => toggleChords(routineItem['A'], e)}
+                        role="button"
+                        aria-expanded={isChordsExpanded}
+                        aria-controls={`chord-charts-content-${routineItem['A']}`}
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleChords(routineItem['A'], e);
+                          }
+                        }}
                       >
+                        <div className="flex items-center">
+                          {isChordsExpanded ? (
+                            <ChevronDown className="h-5 w-5 text-gray-400 mr-2" aria-hidden="true" />
+                          ) : (
+                            <ChevronRight className="h-5 w-5 text-gray-400 mr-2" aria-hidden="true" />
+                          )}
+                          <h3 className="text-xl text-gray-300 flex items-center" id={`chord-charts-title-${routineItem['A']}`} data-tour="chord-charts">
+                            <Music className="h-5 w-5 mr-2" aria-hidden="true" />
+                            Chord charts
+                          </h3>
+                        </div>
+                      </div>
+
+                      {/* Collapsible chord chart content */}
+                      {isChordsExpanded && (
+                        <div
+                          id={`chord-charts-content-${routineItem['A']}`}
+                          className="bg-gray-700 rounded-lg p-4 chord-charts-container relative"
+                          data-item-id={routineItem['B']}
+                          role="region"
+                          aria-labelledby={`chord-charts-title-${routineItem['A']}`}
+                        >
                         
                         {/* Display chord sections */}
                         {(() => {
@@ -4170,6 +4174,8 @@ export const PracticePage = () => {
                         })()}
                       </div>
                     )}
+                    </div>
+                    {/* End Chord Charts Section Wrapper */}
 
                     {/* Notes toggle */}
                     <div

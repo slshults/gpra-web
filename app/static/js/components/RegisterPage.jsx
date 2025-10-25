@@ -115,10 +115,12 @@ const RegisterPage = () => {
 
       if (response.ok) {
         setSuccess(true);
-        // Redirect to login page after 2 seconds
+        // Set flag to show tour after login
+        sessionStorage.setItem('show_tour_after_login', 'true');
+        // Redirect to login page after 1.5 seconds
         setTimeout(() => {
           window.location.href = '/login';
-        }, 2000);
+        }, 1500);
       } else {
         setError(data.error || 'Registration failed');
       }

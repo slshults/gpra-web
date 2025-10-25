@@ -1,0 +1,153 @@
+/* Driver.js custom theme for GPRA dark mode */
+
+/* Override driver.js default styles to match GPRA theme */
+.gpra-tour-popover.driver-popover {
+  background-color: #1f2937 !important; /* gray-800 */
+  color: #f3f4f6 !important; /* gray-100 */
+  border: 1px solid #374151 !important; /* gray-700 */
+  border-radius: 0.5rem !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4) !important;
+}
+
+.gpra-tour-popover .driver-popover-title {
+  color: #f97316 !important; /* orange-500 - matches GPRA brand */
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.gpra-tour-popover .driver-popover-description {
+  color: #d1d5db !important; /* gray-300 */
+  font-size: 1rem !important;
+  line-height: 1.5 !important;
+}
+
+.gpra-tour-popover .driver-popover-footer {
+  margin-top: 1rem !important;
+  padding-top: 1rem !important;
+  border-top: 1px solid #374151 !important; /* gray-700 */
+}
+
+/* Button styling */
+.gpra-tour-popover .driver-popover-prev-btn,
+.gpra-tour-popover .driver-popover-next-btn {
+  background-color: #f97316 !important; /* orange-600 */
+  color: white !important;
+  border: none !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: 0.375rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s !important;
+  text-shadow: none !important;
+}
+
+.gpra-tour-popover .driver-popover-prev-btn:hover,
+.gpra-tour-popover .driver-popover-next-btn:hover {
+  background-color: #ea580c !important; /* orange-700 */
+}
+
+.gpra-tour-popover .driver-popover-close-btn {
+  background-color: #374151 !important; /* gray-700 */
+  color: #d1d5db !important; /* gray-300 */
+  border: 1px solid #4b5563 !important; /* gray-600 */
+  padding: 0.25rem 0.5rem !important; /* Reduced padding for compact size */
+  border-radius: 0.25rem !important;
+  font-weight: 600 !important;
+  font-size: 0.875rem !important; /* Smaller text */
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  text-shadow: none !important;
+}
+
+.gpra-tour-popover .driver-popover-close-btn:hover {
+  background-color: #4b5563 !important; /* gray-600 */
+  color: #f3f4f6 !important; /* gray-100 */
+}
+
+/* Progress text styling */
+.gpra-tour-popover .driver-popover-progress-text {
+  color: #9ca3af !important; /* gray-400 */
+  font-size: 0.875rem !important;
+}
+
+/* Arrow styling */
+.gpra-tour-popover .driver-popover-arrow {
+  border-color: #1f2937 !important; /* gray-800 */
+}
+
+.gpra-tour-popover .driver-popover-arrow-side-left {
+  border-left-color: #1f2937 !important;
+}
+
+.gpra-tour-popover .driver-popover-arrow-side-right {
+  border-right-color: #1f2937 !important;
+}
+
+.gpra-tour-popover .driver-popover-arrow-side-top {
+  border-top-color: #1f2937 !important;
+}
+
+.gpra-tour-popover .driver-popover-arrow-side-bottom {
+  border-bottom-color: #1f2937 !important;
+}
+
+/* Highlighted element styling */
+.driver-active-element {
+  outline: 2px solid #f97316 !important; /* orange-500 */
+  outline-offset: 4px !important;
+}
+
+/* Z-index to ensure tour is above everything */
+.driver-popover-wrapper {
+  z-index: 9999 !important;
+}
+
+/* Desktop width adjustments - ensure welcome message displays on one line */
+@media (min-width: 768px) {
+  .gpra-tour-popover.driver-popover {
+    min-width: 450px !important;
+    max-width: 525px !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .gpra-tour-popover.driver-popover {
+    min-width: 525px !important;
+    max-width: 600px !important;
+  }
+}
+
+/* Position welcome modal at top of screen and center horizontally */
+.gpra-tour-welcome.driver-popover {
+  top: 10% !important;
+  left: 50% !important;
+  transform: translateX(-50%) translateY(0) !important;
+  margin: 0 auto !important;
+}
+
+/* Position chord charts modal at top-center of screen */
+.gpra-tour-chord-charts.driver-popover {
+  top: 10% !important;
+  left: 50% !important;
+  transform: translateX(-50%) translateY(0) !important;
+  margin: 0 auto !important;
+}
+
+/* Position API key modal above input field without blocking it */
+.gpra-tour-api-key.driver-popover {
+  /* Let Driver.js position it naturally with side: 'top' */
+  /* No manual positioning needed - removed to avoid blocking */
+}
+
+/* Ensure chord charts section highlight is visible */
+[data-tour="chord-charts-section"].driver-active-element {
+  position: relative !important;
+  z-index: 10 !important;
+}
+
+/* Hide the stage highlight for modal-only steps (dummy element) */
+#driver-dummy-element.driver-active-element {
+  outline: none !important;
+}
+

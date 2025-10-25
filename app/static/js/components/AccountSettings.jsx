@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
-import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink } from 'lucide-react';
+import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink, Play } from 'lucide-react';
 
 const AccountSettings = () => {
   const [apiKey, setApiKey] = useState('');
@@ -138,6 +138,22 @@ const AccountSettings = () => {
     }
   };
 
+  const restartTour = async () => {
+    try {
+      // Reset tour status via API
+      await fetch('/api/user/preferences/tour-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      // Reload page with tour param to start it
+      window.location.href = '/?show_tour=1';
+    } catch (error) {
+      console.error('Error restarting tour:', error);
+      // Fallback: just navigate with param
+      window.location.href = '/?show_tour=1';
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto py-8">
       <h1 className="text-3xl font-bold mb-6 text-gray-100">Account Settings</h1>
@@ -192,7 +208,7 @@ const AccountSettings = () => {
             <Label htmlFor="api-key" className="text-gray-200">
               {hasExistingKey ? 'Update API Key' : 'Enter API Key'}
             </Label>
-            <div className="flex gap-2">
+            <div className="flex gap-2" data-tour="api-key-input">
               <div className="relative flex-1">
                 <Input
                   id="api-key"
@@ -292,6 +308,24 @@ const AccountSettings = () => {
               </Button>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-gray-800 border-gray-700 mt-6">
+        <CardHeader>
+          <CardTitle className="text-gray-100">Guided Tour</CardTitle>
+          <CardDescription className="text-gray-400">
+            Take the interactive tour again to learn about GPRA features.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            onClick={restartTour}
+            className="bg-orange-600 hover:bg-orange-700"
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Restart Tour
+          </Button>
         </CardContent>
       </Card>
     </div>

@@ -9,6 +9,7 @@ import NavMenu from '@components/NavMenu';
 import RoutinesPage from '@components/RoutinesPage';
 import ImportsPage from '@components/ImportsPage';
 import AccountSettings from '@components/AccountSettings';
+import GuidedTour from '@components/GuidedTour';
 import { useLightweightItems } from '@hooks/useLightweightItems';
 
 const ItemsPage = () => {
@@ -54,6 +55,9 @@ const App = () => {
 
   return (
     <div className="min-h-screen">
+      {/* Guided Tour Component */}
+      <GuidedTour />
+
       {/* Fixed Header */}
       <div ref={headerRef} className="fixed top-0 left-0 right-0 z-50 bg-gray-900">
         <div className="container mx-auto px-4 pt-4 pb-1">

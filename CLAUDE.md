@@ -39,7 +39,7 @@ Re-enable only when actively working on PostHog analytics features. The PostHog 
 - ⏳ Frontend: Account management (partial), billing UI (pending)
 - ✅ Infrastructure: Production configs, proper secrets management
 
-**Current Deployment Status** (as of Oct 20, 2025 - Session 18):
+**Current Deployment Status** (as of Oct 23, 2025 - Session 22):
 - ✅ **FULLY DEPLOYED & TESTED IN PRODUCTION** - All core features working! 🎉
 - ✅ **MULTI-TENANT SYSTEM COMPLETE** - Full data isolation verified in production
 - ✅ **CUSTOM AUTH PAGES COMPLETE** - Login/register pages match GPRA styling
@@ -54,19 +54,33 @@ Re-enable only when actively working on PostHog analytics features. The PostHog 
 - ✅ PostgreSQL: Production DB `gpra_production` with multi-tenant schema
 - ✅ Gunicorn: 1 worker with 3 threads (thread-based concurrency)
 - ✅ Nginx reverse proxy with security headers, serving static files directly
-- ✅ SSL certificates properly mapped via SNI
+- ✅ SSL certificates properly mapped via SNI (12 domains total)
 - ✅ IP whitelist (108.172.116.193) - only Steven has access
 - ✅ **Database migrations applied**: `user_id` columns, `subscriptions` table, encrypted API key columns
 - ✅ **RLS middleware active**: Application-level filtering by user_id on all queries
 - ✅ **React stale closure bugs fixed**: RoutinesPage now fetches fresh data directly from API
-- ✅ **Production dependencies installed**: cryptography package for API key encryption, authlib for OAuth
+- ✅ **Production dependencies installed**: cryptography package for API key encryption, authlib for OAuth, requests for reCAPTCHA
 - ✅ **Playwright MCP auto-approve**: Configured in `~/.claude/settings.json` for autonomous testing
 - ✅ **GOOGLE OAUTH WORKING** - Production credentials added to .env, fully functional (Session 18)
 - ✅ **TIDAL OAUTH WORKING** - Uses user_id as username, placeholder email (Session 18)
 - ✅ **FIRST-RUN DEMO DATA COMPLETE** - All new users get demo routine with "For What It's Worth" and E-A-E-A chord progression (Session 19)
 - ✅ **ADMIN USER DELETION FIXED** - LazyString serialization issue resolved with custom Flask-Session serializer (Session 21)
 - ✅ **DATABASE CASCADE CONSTRAINTS** - User deletion properly cascades to routine_items and active_routine (Session 21)
-- ⏳ **Next**: reCAPTCHA v2 on signup form (waiting for Google keys), First-run walkthrough/tour UI
+- ✅ **RECAPTCHA v2 IMPLEMENTED** - Bot protection on signup form, tested local + production (Session 22)
+- ✅ **DRIVER.JS GUIDED TOUR FULLY FUNCTIONAL** - 8-step interactive tour complete and tested (Sessions 23-25)
+  - Overlay opacity optimized (0.55) for visibility
+  - StagePadding increased (15px) for better element highlighting
+  - Welcome and final dialogs positioned at top of screen (centered)
+  - Backend API endpoint for tour reset (/api/user/preferences/tour-reset)
+  - All titles converted to sentence case
+  - Tour cannot be closed by clicking outside (allowClose: false)
+  - Navigation timing fixed: setActivePage() moved to previous step's onNextClick
+  - All highlights working correctly on all 8 steps
+  - Auto-expansion of demo item and chord charts on step 5
+  - Precise highlights: new routine input, edit icon, full chord charts section, API key input
+  - Final step navigates to Items page after completion
+  - Ready for GIF recording and production deployment
+- ⏳ **Next**: Record GIF demonstrations for tour cards, additional onboarding polish
 - ⏳ **Future**: Remaining Stripe subscription tier limits (basic/standard/pro/unlimited), billing UI
 - ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (needs migration for proper multi-tenant isolation)
 - See `~/.claude/handoffSummary.md` for detailed session notes
@@ -356,6 +370,21 @@ Here's a map of the columns for our Items sheet and routine sheets.  This is wha
 - **Troubleshooting guide** (clipping, wrong fret positions, missing sections, UI refresh issues)
 
 **Most common issues**: Chord chart clipping (sizing sync), wrong fret positions (visual analysis rules), sections missing (OCR raw_text)
+
+## Driver.js Guided Tours
+
+**When implementing or debugging Driver.js tours**, use the **`driverjs-tours` skill** located at `~/.claude/skills/driverjs-tours/`. This skill provides:
+
+- **Official API reference** from driverjs.com documentation
+- **Configuration options** (overlayOpacity, stagePadding, allowClose, showProgress, etc.)
+- **Callback functions** (onNextClick, onPrevClick, onPopoverRender, lifecycle hooks)
+- **Step definitions** (element targeting, popover configuration, positioning)
+- **Styling guide** (custom CSS classes, popover customization, theming)
+- **Driver instance methods** (moveNext, movePrevious, drive, destroy, etc.)
+
+**Based entirely on official documentation** - no assumptions or unverified implementation patterns
+
+**Note**: GPRA tour (GuidedTour.jsx) has known issues with Step 4 (edit icon highlight) and Step 7 (API key dialog positioning)
 
 ## Development Tools
 
