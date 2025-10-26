@@ -67,7 +67,7 @@ Re-enable only when actively working on PostHog analytics features. The PostHog 
 - ✅ **ADMIN USER DELETION FIXED** - LazyString serialization issue resolved with custom Flask-Session serializer (Session 21)
 - ✅ **DATABASE CASCADE CONSTRAINTS** - User deletion properly cascades to routine_items and active_routine (Session 21)
 - ✅ **RECAPTCHA v2 IMPLEMENTED** - Bot protection on signup form, tested local + production (Session 22)
-- ✅ **DRIVER.JS GUIDED TOUR FULLY FUNCTIONAL** - 8-step interactive tour complete and tested (Sessions 23-25)
+- ✅ **DRIVER.JS GUIDED TOUR COMPLETE** - 8-step interactive tour polished and production-ready (Sessions 23-26)
   - Overlay opacity optimized (0.55) for visibility
   - StagePadding increased (15px) for better element highlighting
   - Welcome and final dialogs positioned at top of screen (centered)
@@ -79,8 +79,14 @@ Re-enable only when actively working on PostHog analytics features. The PostHog 
   - Auto-expansion of demo item and chord charts on step 5
   - Precise highlights: new routine input, edit icon, full chord charts section, API key input
   - Final step navigates to Items page after completion
+  - **Session 26 improvements:**
+    - Welcome message stays until "Let's go!" button clicked (removed auto-dismiss)
+    - Previous button fully functional (all onPrevClick callbacks fixed)
+    - Step 3 text formatting improved (line break before "Drag n' drop")
+    - Step 6 copy refined ("on free and basic tiers", "Then Claude...")
+    - Routines page header simplified ("Routines" instead of "Inactive routines")
   - Ready for GIF recording and production deployment
-- ⏳ **Next**: Record GIF demonstrations for tour cards, additional onboarding polish
+- ⏳ **Next**: Record GIF demonstrations for tour cards
 - ⏳ **Future**: Remaining Stripe subscription tier limits (basic/standard/pro/unlimited), billing UI
 - ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (needs migration for proper multi-tenant isolation)
 - See `~/.claude/handoffSummary.md` for detailed session notes

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@hooks/useAuth';
-import { trackItemOperation, trackRoutineOperation } from '../utils/analytics';
 import { Button } from '@ui/button';
 import { Input } from '@ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@ui/card';
@@ -774,7 +773,7 @@ const RoutinesPage = () => {
         {/* Inactive Routines Section */}
         <Card className="bg-gray-900 text-gray-100">
           <CardHeader>
-            <CardTitle>Inactive routines</CardTitle>
+            <CardTitle>Routines</CardTitle>
           </CardHeader>
           <CardContent>
             {isAuthenticated ? (

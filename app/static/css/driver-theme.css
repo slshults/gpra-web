@@ -151,3 +151,19 @@
   outline: none !important;
 }
 
+/* Hide stage highlight completely for welcome/final modal steps */
+.driver-overlay:has(+ .driver-popover.gpra-tour-welcome) .driver-highlighted-element {
+  display: none !important;
+}
+
+/* Alternative: Hide stage positioning entirely for modal steps */
+.gpra-tour-welcome ~ .driver-stage {
+  display: none !important;
+}
+
+/* When welcome popover is present, hide the stage highlight box */
+body:has(.gpra-tour-welcome) .driver-stage {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+

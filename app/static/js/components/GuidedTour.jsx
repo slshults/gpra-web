@@ -76,26 +76,61 @@ const GuidedTour = () => {
       allowClose: false,
       steps: [
         {
+          element: '[data-tour="app-title"]',
           popover: {
             title: 'Welcome to Guitar Practice Routine App!',
-            description: 'You\'ll be tempted to skip through this tour without reading it, but since you\'re new here you\'ll get a lot more from the app (a lot more quickly) if you take the tour. Click `Next` to get going... 🎸',
-            popoverClass: 'gpra-tour-popover gpra-tour-welcome'
+            description: 'You\'ll be tempted to skip through this tour without reading it, but since you\'re new here you\'ll get a lot more from the app (a lot more quickly) if you take the tour.<br> Click `Next` to get going... 🎸',
+            popoverClass: 'gpra-tour-popover gpra-tour-welcome',
+            side: 'bottom',
+            align: 'start'
           }
         },
         {
           element: '[data-tour="items-tab"]',
+          onHighlightStarted: (element) => {
+            // Wait for layout to settle and images to load before positioning
+            return new Promise((resolve) => {
+              // Force layout recalculation
+              element.getBoundingClientRect();
+
+              // Wait for any images in popovers to load
+              const images = document.querySelectorAll('.driver-popover img');
+              if (images.length > 0) {
+                let loadedCount = 0;
+                const checkAllLoaded = () => {
+                  loadedCount++;
+                  if (loadedCount === images.length) {
+                    // All images loaded, wait a bit more for layout to settle
+                    setTimeout(resolve, 100);
+                  }
+                };
+
+                images.forEach(img => {
+                  if (img.complete) {
+                    checkAllLoaded();
+                  } else {
+                    img.addEventListener('load', checkAllLoaded);
+                    img.addEventListener('error', checkAllLoaded); // Resolve even on error
+                  }
+                });
+              } else {
+                // No images, just wait for layout to settle
+                setTimeout(resolve, 100);
+              }
+            });
+          },
           popover: {
             title: 'Step 1: Creating practice items',
-            description: 'Click here to view and create practice items. Items can be songs, exercises, reminders, etc.',
+            description: 'Use the items page to create and manage items.<br>Items can be songs, exercises, reminders, etc.<br><br><div style="text-align: center;"><img src="/static/images/tour/CreateItem.gif" style="width: 600px; height: 579px; border-radius: 4px;" alt="Creating a practice item"></div>',
             side: 'bottom',
             align: 'start',
             onNextClick: () => {
               // Navigate to Routines BEFORE Step 2 initializes
               setActivePage('Routines');
-              // Wait for navigation, then manually advance
+              // Wait longer for navigation to complete
               setTimeout(() => {
                 driverObj.moveNext();
-              }, 200);
+              }, 400);
               // Prevent default advancement
               return false;
             }
@@ -103,24 +138,61 @@ const GuidedTour = () => {
         },
         {
           element: '[data-tour="new-routine-input"]',
+          onHighlightStarted: (element) => {
+            // Wait for layout to settle and images to load before positioning
+            return new Promise((resolve) => {
+              // Force layout recalculation
+              element.getBoundingClientRect();
+
+              // Wait for any images in popovers to load
+              const images = document.querySelectorAll('.driver-popover img');
+              if (images.length > 0) {
+                let loadedCount = 0;
+                const checkAllLoaded = () => {
+                  loadedCount++;
+                  if (loadedCount === images.length) {
+                    // All images loaded, wait a bit more for layout to settle
+                    setTimeout(resolve, 100);
+                  }
+                };
+
+                images.forEach(img => {
+                  if (img.complete) {
+                    checkAllLoaded();
+                  } else {
+                    img.addEventListener('load', checkAllLoaded);
+                    img.addEventListener('error', checkAllLoaded); // Resolve even on error
+                  }
+                });
+              } else {
+                // No images, just wait for layout to settle
+                setTimeout(resolve, 100);
+              }
+            });
+          },
           popover: {
             title: 'Step 2: Creating routines',
-            description: 'Routines are for organizing your practice items into structured sessions. Add a new routine by entering a name for it, then click the `+` to make it the active routine.',
-            side: 'top',
+            description: 'Routines are for organizing your practice items into structured sessions.<br>Enter a name for a new routine, then click the `+ Add` button.<br><br><div style="text-align: center;"><img src="/static/images/tour/CreateRoutine.gif" style="width: 600px; height: 495px; border-radius: 4px;" alt="Creating a routine"></div>',
+            side: 'bottom',
             align: 'start',
             onPrevClick: () => {
               // Navigate back to Items page when going backwards
               setActivePage('Items');
+              // Wait for navigation, then manually go back
+              setTimeout(() => {
+                driverObj.movePrevious();
+              }, 400);
+              // Prevent default behavior
+              return false;
             },
             onPopoverRender: () => {
-              // Navigation already happened in Step 1's onNextClick
-              // Just scroll element into view
+              // Scroll element into view after popover renders
               setTimeout(() => {
                 const element = document.querySelector('[data-tour="new-routine-input"]');
                 if (element) {
                   element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
-              }, 300);
+              }, 100);
             },
             onNextClick: () => {
               // Stay on Routines - Step 3 needs it too, just advance normally
@@ -133,7 +205,7 @@ const GuidedTour = () => {
           element: '[data-tour="edit-routine-icon"]',
           popover: {
             title: 'Step 3: Adding items to routines',
-            description: 'To add items to routines, click the ✏️ edit icon for the routine. Drag n\' drop to reorder.',
+            description: 'To add items to routines, click the ✏️ edit icon.<br>Drag n\' drop to reorder.<br><br><div style="text-align: center;"><img src="/static/images/tour/AddItemsToRoutine.gif" style="width: 600px; height: 435px; border-radius: 4px;" alt="Adding items to routine"></div>',
             side: 'left',
             align: 'start',
             onNextClick: () => {
@@ -151,12 +223,18 @@ const GuidedTour = () => {
           element: '[data-tour="practice-tab"]',
           popover: {
             title: 'Step 4: Practice page',
-            description: 'This is where you\'ll spend your time while actually practicing. The Practice page shows the active routine with all its items. To change the active routine, go to the Routines page and click the `+` on a routine to make it active.',
+            description: 'This is where you\'ll spend your time when you\'re practicing. The Practice page shows the active routine and its items.<br><br> To change the active routine, go to the Routines page and click the `+` on a routine to make it active.',
             side: 'bottom',
             align: 'start',
             onPrevClick: () => {
               // Navigate back to Routines page when going backwards
               setActivePage('Routines');
+              // Wait for navigation, then manually go back
+              setTimeout(() => {
+                driverObj.movePrevious();
+              }, 200);
+              // Prevent default behavior
+              return false;
             },
             onNextClick: () => {
               // Expand sections BEFORE moving to Step 5
@@ -191,13 +269,19 @@ const GuidedTour = () => {
           element: '[data-tour="chord-charts-section"]',
           popover: {
             title: 'Step 5: Chord charts',
-            description: 'You can view and manage chord charts from the `Practice`, `Routines`, and `Items` pages. You can create charts manually, or use the autocreate feature to have chord charts built from PDFs, images, YouTube lesson videos, or type the names of the song sections and chords to have them built for you.',
+            description: 'You can view and manage chord charts from the `Practice`, `Routines`, and `Items` pages. You can create charts manually, or use the autocreate feature to build charts from PDFs, images, YouTube lesson videos, or type the names of the song sections and chords.',
             side: 'top',
             align: 'start',
             popoverClass: 'gpra-tour-popover gpra-tour-chord-charts',
             onPrevClick: () => {
               // Navigate back to Practice tab highlight when going backwards
               setActivePage('Practice');
+              // Wait for navigation, then manually go back
+              setTimeout(() => {
+                driverObj.movePrevious();
+              }, 200);
+              // Prevent default behavior
+              return false;
             },
             onNextClick: () => {
               // Navigate to Account BEFORE Step 6 initializes
@@ -214,21 +298,30 @@ const GuidedTour = () => {
           element: '[data-tour="api-key-input"]',
           popover: {
             title: 'Step 6: Adding your API key',
-            description: 'To use the autocreate chord charts feature for free and basic tiers, add your Anthropic API key here. This enables Claude to build chord charts for you.',
+            description: 'To use the autocreate feature on free and basic tiers, add your Anthropic API key on the account page. Then Claude can build chord charts for you.',
             side: 'top',
             align: 'start',
             popoverClass: 'gpra-tour-popover gpra-tour-api-key',
             onPrevClick: () => {
               // Navigate back to Practice page when going backwards
               setActivePage('Practice');
+              // Wait for navigation, then manually go back
+              setTimeout(() => {
+                driverObj.movePrevious();
+              }, 200);
+              // Prevent default behavior
+              return false;
             }
           }
         },
         {
+          element: '[data-tour="items-tab"]',
           popover: {
             title: 'You\'re all set!',
-            description: 'That\'s it for the tour. Rock on! 🤘 (or blues on, folk on, jazz on, country on, reggae on, get your worship on, or whatever floats your musical boat...)',
-            popoverClass: 'gpra-tour-popover gpra-tour-welcome'
+            description: 'That\'s it for the tour. Rock on! 🤘<br> (or blues on, folk on, jazz on, hip hop on, country on, reggae on, get your worship on, or whatever floats your musical boat...)',
+            popoverClass: 'gpra-tour-popover gpra-tour-welcome',
+            side: 'bottom',
+            align: 'start'
           }
         }
       ],
