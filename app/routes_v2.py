@@ -733,7 +733,7 @@ def api_register():
     """
     API registration endpoint for custom React register page.
 
-    Creates new user with Flask-AppBuilder's security manager.
+    Creates new user with Flask-AppBuilder's security manager and automatically logs them in.
 
     Request body:
         {
@@ -749,6 +749,7 @@ def api_register():
         }
     """
     from app import appbuilder
+    from flask_login import login_user
 
     if not request.is_json:
         return jsonify({"error": "Request must be JSON"}), 400
@@ -852,6 +853,10 @@ def api_register():
 
         # Create demo data for first-run experience
         appbuilder.sm.create_demo_data_for_user(user)
+
+        # Automatically log the user in
+        login_user(user)
+        app.logger.info(f"User automatically logged in after registration: {user.username}")
 
         return jsonify({
             "success": True,
