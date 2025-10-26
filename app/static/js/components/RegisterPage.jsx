@@ -117,9 +117,9 @@ const RegisterPage = () => {
         setSuccess(true);
         // Set flag to show tour after login
         sessionStorage.setItem('show_tour_after_login', 'true');
-        // Redirect to login page after 1.5 seconds
+        // Redirect to practice page after 1.5 seconds (user is now logged in)
         setTimeout(() => {
-          window.location.href = '/login';
+          window.location.href = '/';
         }, 1500);
       } else {
         setError(data.error || 'Registration failed');
@@ -138,11 +138,11 @@ const RegisterPage = () => {
           <CardContent className="pt-6">
             <div className="text-center space-y-4">
               <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
-              <h2 className="text-2xl font-bold text-gray-100">Account Created!</h2>
+              <h2 className="text-2xl font-bold text-gray-100">Welcome to GPRA!</h2>
               <p className="text-gray-400">
-                Your account has been successfully created.
+                Your account has been successfully created and you're now logged in.
                 <br />
-                Redirecting to login page...
+                Redirecting to your practice page...
               </p>
             </div>
           </CardContent>
