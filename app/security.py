@@ -664,7 +664,7 @@ class CustomSecurityManager(SecurityManager):
                     '5',
                     'Work on smooth transitions between E and A chords. Focus on strumming pattern and timing.',
                     0, 'EADGBE',
-                    'C:\\Users\\Username\\Documents\\Guitar\\Songbook\\ForWhatItsWorth',
+                    'D:\\Users\\Steven\\Documents\\Guitar\\Songbook\\ForWhatItsWorth',
                     :user_id, NOW(), NOW())
                 RETURNING id, item_id
             """), {'user_id': user.id})

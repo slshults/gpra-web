@@ -17,7 +17,6 @@ const RegisterPage = () => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [recaptchaToken, setRecaptchaToken] = useState(null);
-  const [recaptchaLoaded, setRecaptchaLoaded] = useState(false);
   const recaptchaRef = useRef(null);
 
   // Load reCAPTCHA script on component mount
@@ -29,7 +28,6 @@ const RegisterPage = () => {
 
     const loadRecaptcha = () => {
       if (window.grecaptcha) {
-        setRecaptchaLoaded(true);
         return;
       }
 
@@ -37,7 +35,6 @@ const RegisterPage = () => {
       script.src = 'https://www.google.com/recaptcha/api.js';
       script.async = true;
       script.defer = true;
-      script.onload = () => setRecaptchaLoaded(true);
       document.head.appendChild(script);
     };
 
@@ -48,6 +45,19 @@ const RegisterPage = () => {
       delete window.onRecaptchaChange;
     };
   }, []);
+
+  const resetRecaptcha = () => {
+    // Reset the token state
+    setRecaptchaToken(null);
+    // Reset the widget if grecaptcha is loaded
+    if (window.grecaptcha) {
+      try {
+        window.grecaptcha.reset();
+      } catch (error) {
+        console.error('Error resetting reCAPTCHA:', error);
+      }
+    }
+  };
 
   const validatePassword = () => {
     if (password.length < 8) {
@@ -117,15 +127,14 @@ const RegisterPage = () => {
         setSuccess(true);
         // Set flag to show tour after login
         sessionStorage.setItem('show_tour_after_login', 'true');
-        // Redirect to practice page after 1.5 seconds (user is now logged in)
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 1500);
+        // User will click "Let's go!" button to proceed
       } else {
         setError(data.error || 'Registration failed');
+        resetRecaptcha();
       }
-    } catch (err) {
+    } catch {
       setError('An error occurred. Please try again.');
+      resetRecaptcha();
     } finally {
       setLoading(false);
     }
@@ -140,10 +149,14 @@ const RegisterPage = () => {
               <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
               <h2 className="text-2xl font-bold text-gray-100">Welcome to GPRA!</h2>
               <p className="text-gray-400">
-                Your account has been successfully created and you're now logged in.
-                <br />
-                Redirecting to your practice page...
+                You now have an account, and we've logged you in. Click that button to start the tour...
               </p>
+              <Button
+                onClick={() => window.location.href = '/'}
+                className="bg-orange-600 hover:bg-orange-700 text-white mt-4"
+              >
+                Let's go!
+              </Button>
             </div>
           </CardContent>
         </Card>
