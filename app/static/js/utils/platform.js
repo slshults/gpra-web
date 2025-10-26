@@ -70,10 +70,23 @@ export const isMobileDevice = () => {
   return isMobileUA || (isTouchDevice && isSmallScreen);
 };
 
+/**
+ * Get the file manager name for the current platform
+ * @returns {string} File manager name (e.g., "Windows Explorer", "Finder")
+ */
+export const getFileManagerName = () => {
+  const os = detectOS();
+  if (os === 'windows') return 'Windows Explorer';
+  if (os === 'macos') return 'Finder';
+  if (os === 'linux') return 'File Manager';
+  return 'File Manager';
+};
+
 export default {
   detectOS,
   isMobile,
   supportsFolderOpening,
   getPlatformDisplayName,
-  isMobileDevice
+  isMobileDevice,
+  getFileManagerName
 };

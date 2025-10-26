@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useState, useRef, useMemo, memo } from 'react';
 import { trackPracticeEvent, trackActiveRoutine, trackChordChartEvent, trackSongbookLinkClick } from '../utils/analytics';
-import { supportsFolderOpening } from '../utils/platform';
+import { supportsFolderOpening, isMobileDevice, getFileManagerName } from '../utils/platform';
 
 // Simple debounce function
 const debounce = (func, wait) => {
@@ -424,6 +424,10 @@ export const PracticePage = () => {
 // oxlint-disable-next-line no-unused-vars
   const [messageQueue, setMessageQueue] = useState([]);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
+
+  // Songbook folder path copy modal state
+  const [showFolderPathModal, setShowFolderPathModal] = useState(false);
+  const [copiedFolderPath, setCopiedFolderPath] = useState('');
   const [pendingCancelItemId, setPendingCancelItemId] = useState(null);
   
   // Single file tracking for all uploaded files
@@ -4234,28 +4238,40 @@ export const PracticePage = () => {
                     {/* Tuning and Songbook section */}
                     <div className="mt-4">
                       <div className="flex items-center justify-between">
-                        {/* Songbook folder link - only show on desktop platforms */}
-                        {itemDetails?.['F'] && supportsFolderOpening() && (
+                        {/* Songbook folder link - show for desktop OR mobile */}
+                        {itemDetails?.['F'] && (supportsFolderOpening() || isMobileDevice()) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
 
-                              // Track songbook link click
+                              const folderPath = itemDetails['F'];
                               const itemName = itemDetails?.['C'] || `Item ${routineItem['A']}`;
-                              trackSongbookLinkClick(itemName, itemDetails['F']);
 
-                              fetch('/api/open-folder', {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({ path: itemDetails['F'] })
-                              }).catch(err => console.error('Error opening folder:', err));
+                              // Track songbook link click
+                              trackSongbookLinkClick(itemName, folderPath);
+
+                              if (isMobileDevice()) {
+                                // Mobile: Just show the path
+                                setCopiedFolderPath(folderPath);
+                                setShowFolderPathModal(true);
+                              } else {
+                                // Desktop: Copy to clipboard and show instructions
+                                navigator.clipboard.writeText(folderPath).then(() => {
+                                  setCopiedFolderPath(folderPath);
+                                  setShowFolderPathModal(true);
+                                }).catch(err => {
+                                  console.error('Failed to copy to clipboard:', err);
+                                  // Fallback: still show modal with path
+                                  setCopiedFolderPath(folderPath);
+                                  setShowFolderPathModal(true);
+                                });
+                              }
                             }}
                             className="text-gray-400 hover:text-gray-300 hover:underline flex items-center"
+                            title={isMobileDevice() ? 'View folder path' : 'Copy folder path'}
                           >
                             <Book className="h-4 w-4 mr-2" />
-                            Open Songbook Folder
+                            {isMobileDevice() ? 'View Songbook Folder' : 'Copy Folder Path'}
                           </button>
                         )}
                         {/* Tuning */}
@@ -4644,6 +4660,44 @@ export const PracticePage = () => {
         }}
         autocreateData={autocreateSuccessData}
       />
+
+      {/* Folder Path Copy Modal */}
+      <AlertDialog open={showFolderPathModal} onOpenChange={setShowFolderPathModal}>
+        <AlertDialogContent className="bg-gray-800 border-gray-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-gray-100">
+              {isMobileDevice() ? 'Songbook Folder Path' : 'Path Copied to Clipboard'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-300">
+              {isMobileDevice() ? (
+                <>
+                  <p className="mb-2">Here's the folder path for this item:</p>
+                  <code className="block bg-gray-900 p-2 rounded text-sm break-all text-gray-200">
+                    {copiedFolderPath}
+                  </code>
+                </>
+              ) : (
+                <>
+                  <p className="mb-2">
+                    The path has been copied to your clipboard. Open <strong>{getFileManagerName()}</strong>, paste, then hit <kbd className="bg-gray-700 px-2 py-1 rounded text-xs">Enter</kbd> to open the folder.
+                  </p>
+                  <code className="block bg-gray-900 p-2 rounded text-sm break-all text-gray-200">
+                    {copiedFolderPath}
+                  </code>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={() => setShowFolderPathModal(false)}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* No Transcript Modal */}
       {showNoTranscriptModal && (
