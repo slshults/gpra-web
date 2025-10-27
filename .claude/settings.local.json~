@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "mcp__playwright__browser_resize",
+      "Bash(claude mcp disable:*)",
+      "Bash(claude mcp list:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_close",
+      "mcp__playwright__browser_evaluate",
+      "WebSearch",
+      "Bash(npm run build:*)",
+      "WebFetch(domain:driverjs.com)",
+      "mcp__playwright__browser_type",
+      "Read(//home/steven/.claude/**)",
+      "Bash(awk:*)",
+      "Skill(playwright-gpra-testing)",
+      "Skill(driverjs-tours)",
+      "Read(///**)",
+      "Bash(for:*)",
+      "Bash(do echo \"Clicking Next (step $i)\")",
+      "Bash(done)",
+      "Bash(ssh:*)",
+      "Bash(python3:*)",
+      "Bash(chmod:*)",
+      "Bash(bash:*)",
+      "Read(//home/steven/**)",
+      "Bash(do echo \"=== $f ===\")",
+      "Bash(identify:*)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit.*\\.jsx$|Write.*\\.jsx$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '🧪 REMINDER: Test affected UI with Playwright MCP before marking task complete' >&2"
+          }
+        ]
+      }
+    ]
+  }
+}

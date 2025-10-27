@@ -2,15 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Session Startup Reminder
-
-**IMPORTANT**: At the start of each session, run this command to disable PostHog MCP and save ~40k tokens:
-```bash
-claude mcp disable posthog
-```
-
-Re-enable only when actively working on PostHog analytics features. The PostHog skill at `~/.claude/skills/posthog-analytics/` contains all necessary documentation for when you need it.
-
 ## Project Status: Hosted Version Development
 
 **Important Context**: This codebase is a COPY of the original single-user local PostgreSQL version, which we are converting into a hosted multi-tenant SaaS application.
@@ -39,7 +30,7 @@ Re-enable only when actively working on PostHog analytics features. The PostHog 
 - ⏳ Frontend: Account management (partial), billing UI (pending)
 - ✅ Infrastructure: Production configs, proper secrets management
 
-**Current Deployment Status** (as of Oct 23, 2025 - Session 22):
+**Current Deployment Status** (as of Oct 26, 2025 - Session 28):
 - ✅ **FULLY DEPLOYED & TESTED IN PRODUCTION** - All core features working! 🎉
 - ✅ **MULTI-TENANT SYSTEM COMPLETE** - Full data isolation verified in production
 - ✅ **CUSTOM AUTH PAGES COMPLETE** - Login/register pages match GPRA styling
@@ -86,7 +77,25 @@ Re-enable only when actively working on PostHog analytics features. The PostHog 
     - Step 6 copy refined ("on free and basic tiers", "Then Claude...")
     - Routines page header simplified ("Routines" instead of "Inactive routines")
   - Ready for GIF recording and production deployment
-- ⏳ **Next**: Record GIF demonstrations for tour cards
+- ✅ **ACCOUNT SETTINGS ENHANCED** - Profile display, password change, improved UI (Session 27)
+  - Profile section with username, email, gravatar integration
+  - Password change with 12-char requirements (upper+lower+number+symbol)
+  - Account menu item hidden from nav (gear icon only)
+  - Tooltip on gear icon: "Account/Settings"
+- ✅ **PASSWORD RESET COMPLETE** - Full email-based password reset flow (Sessions 27-28)
+  - Mailgun integration for transactional emails (REST API v3)
+  - Branded email template with GPRA dark theme (orange text, dark background)
+  - From: "GPRA" (emoji moved to banner only)
+  - Secure token-based reset links (1-hour expiry via itsdangerous)
+  - Backend: `/api/auth/forgot-password` and `/api/auth/reset-password` endpoints
+  - Frontend: ForgotPasswordPage and ResetPasswordPage components
+  - Email prefill from login page to forgot password page
+  - DNS verified: SPF, DKIM, DMARC records on mail.guitarpracticeroutine.com
+  - Production tested: Email delivery working via Mailgun free tier (100/day)
+  - **Rate Limiting** (Session 28): Email-based (2/min, 5/30min, 10/hour) + IP-based (9 emails/hour)
+  - **OAuth Detection** (Session 28): Shows Google sign-in button for OAuth accounts instead of sending email
+  - **Security Hardening** (Session 28): OAuth users have `password=NULL` with timing attack protection
+- ⏳ **Next**: Deploy password reset enhancements to production, record GIF demonstrations for tour cards
 - ⏳ **Future**: Remaining Stripe subscription tier limits (basic/standard/pro/unlimited), billing UI
 - ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (needs migration for proper multi-tenant isolation)
 - See `~/.claude/handoffSummary.md` for detailed session notes

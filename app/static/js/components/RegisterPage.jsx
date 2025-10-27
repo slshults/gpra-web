@@ -60,8 +60,8 @@ const RegisterPage = () => {
   };
 
   const validatePassword = () => {
-    if (password.length < 8) {
-      return 'Password must be at least 8 characters long';
+    if (password.length < 12) {
+      return 'Password must be at least 12 characters long';
     }
     if (!/[A-Z]/.test(password)) {
       return 'Password must contain at least one uppercase letter';
@@ -71,6 +71,9 @@ const RegisterPage = () => {
     }
     if (!/[0-9]/.test(password)) {
       return 'Password must contain at least one number';
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      return 'Password must contain at least one symbol or punctuation character';
     }
     return null;
   };
@@ -238,7 +241,7 @@ const RegisterPage = () => {
                   required
                 />
                 <p className="text-xs text-gray-500">
-                  Must be 8+ characters with uppercase, lowercase, and number
+                  Must be 12+ characters with uppercase, lowercase, number, and symbol
                 </p>
               </div>
 

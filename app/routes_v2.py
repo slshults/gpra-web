@@ -50,6 +50,22 @@ def register_page():
         return redirect('/')
     return render_template('auth.html.jinja', page='register')
 
+@app.route('/forgot-password')
+def forgot_password_page():
+    """Custom React forgot password page"""
+    # If already authenticated, redirect to main app
+    if current_user.is_authenticated:
+        return redirect('/')
+    return render_template('auth.html.jinja', page='forgot-password')
+
+@app.route('/reset-password')
+def reset_password_page():
+    """Custom React reset password page"""
+    # If already authenticated, redirect to main app
+    if current_user.is_authenticated:
+        return redirect('/')
+    return render_template('auth.html.jinja', page='reset-password')
+
 # Items API - Updated to use data layer
 @app.route('/api/items', methods=['GET', 'POST'])
 def items():
@@ -869,6 +885,257 @@ def api_register():
         app.logger.error(traceback.format_exc())
         return jsonify({"error": f"Registration failed: {str(e)}"}), 500
 
+# Password Reset Routes
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def forgot_password():
+    """
+    Request password reset link via email.
+
+    Accepts:
+        {
+            "email": "user@example.com"
+        }
+
+    Returns:
+        Success case:
+        {
+            "success": true,
+            "message": "If an account exists, password reset instructions have been sent to your email."
+        }
+
+        OAuth user case:
+        {
+            "success": false,
+            "oauth_account": true,
+            "message": "It looks like you signed up with Google, so you don't have a password to reset. Use this button instead:"
+        }
+
+        Rate limit case:
+        {
+            "success": false,
+            "rate_limited": true,
+            "message": "Rate limit error message"
+        }
+
+    Security Note:
+        - Returns success even if email doesn't exist (prevents user enumeration)
+        - Token expires after PASSWORD_RESET_TOKEN_EXPIRY seconds (default: 3600 = 1 hour)
+        - Email lookup is case-insensitive
+        - Rate limiting on both email and IP address
+    """
+    from app import appbuilder
+    from app.password_reset import generate_password_reset_token
+    from app.mailgun_service import send_password_reset_email
+    from app.rate_limiter import get_rate_limiter
+
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.json
+    email = data.get('email', '').strip().lower()
+
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+
+    # Get client IP address
+    client_ip = request.remote_addr
+    if request.headers.get('X-Forwarded-For'):
+        # Use the first IP in X-Forwarded-For (client IP)
+        client_ip = request.headers.get('X-Forwarded-For').split(',')[0].strip()
+
+    # Check rate limits
+    rate_limiter = get_rate_limiter()
+
+    # Check email-based rate limit
+    email_allowed, email_error = rate_limiter.check_email_rate_limit(email)
+    if not email_allowed:
+        app.logger.warning(f"Email rate limit exceeded for {email}")
+        return jsonify({
+            "success": False,
+            "rate_limited": True,
+            "message": email_error
+        }), 429
+
+    # Check IP-based rate limit
+    ip_allowed, ip_error = rate_limiter.check_ip_rate_limit(client_ip, email)
+    if not ip_allowed:
+        app.logger.warning(f"IP rate limit exceeded for {client_ip}")
+        return jsonify({
+            "success": False,
+            "rate_limited": True,
+            "message": ip_error
+        }), 429
+
+    # Generic success message (always return this to prevent email enumeration)
+    success_message = "If an account exists, password reset instructions have been sent to your email."
+
+    try:
+        # Find user by email (case-insensitive)
+        user = appbuilder.sm.find_user(email=email)
+
+        if user:
+            app.logger.info(f"Password reset requested for email: {email}")
+
+            # Check if user signed up via OAuth (no password set)
+            # OAuth users have null/empty password field
+            if not user.password:
+                app.logger.info(f"OAuth account detected for {email}, showing Google sign-in prompt")
+                return jsonify({
+                    "success": False,
+                    "oauth_account": True,
+                    "message": "It looks like you signed up with Google, so you don't have a password to reset. Use this button instead:"
+                }), 200
+
+            # Generate password reset token
+            reset_token = generate_password_reset_token(user.id, user.email)
+
+            # Send password reset email
+            email_sent = send_password_reset_email(user.email, reset_token)
+
+            if email_sent:
+                app.logger.info(f"Password reset email sent to {user.email}")
+            else:
+                # Log error but still return success to user (don't leak email existence)
+                app.logger.error(f"Failed to send password reset email to {user.email}")
+        else:
+            # User doesn't exist - log it but return success message
+            app.logger.info(f"Password reset requested for non-existent email: {email}")
+
+        # Always return success (security: don't leak if email exists)
+        return jsonify({
+            "success": True,
+            "message": success_message
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error processing password reset request: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+
+        # Still return success message (don't leak errors)
+        return jsonify({
+            "success": True,
+            "message": success_message
+        })
+
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def reset_password():
+    """
+    Reset password using valid token.
+
+    Accepts:
+        {
+            "token": "valid-reset-token",
+            "password": "newpassword123"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "message": "Password reset successfully"
+        }
+
+    Errors:
+        - 400: Invalid request format or missing fields
+        - 401: Token expired or invalid
+        - 404: User not found
+        - 500: Server error
+
+    Password Requirements:
+        - At least 12 characters
+        - At least one uppercase letter
+        - At least one lowercase letter
+        - At least one number
+        - At least one symbol/punctuation
+    """
+    from app import appbuilder
+    from app.password_reset import validate_password_reset_token
+    from itsdangerous import SignatureExpired, BadSignature
+    from werkzeug.security import generate_password_hash
+
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.json
+    token = data.get('token', '')
+    new_password = data.get('password', '')
+
+    # Validate inputs
+    if not token:
+        return jsonify({"error": "Reset token is required"}), 400
+
+    if not new_password:
+        return jsonify({"error": "New password is required"}), 400
+
+    # Validate password strength (same rules as password change)
+    if len(new_password) < 12:
+        return jsonify({"error": "Password must be at least 12 characters"}), 400
+
+    import re
+    if not re.search(r'[A-Z]', new_password):
+        return jsonify({"error": "Password must contain at least one uppercase letter"}), 400
+
+    if not re.search(r'[a-z]', new_password):
+        return jsonify({"error": "Password must contain at least one lowercase letter"}), 400
+
+    if not re.search(r'[0-9]', new_password):
+        return jsonify({"error": "Password must contain at least one number"}), 400
+
+    if not re.search(r'[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]', new_password):
+        return jsonify({"error": "Password must contain at least one symbol or punctuation character"}), 400
+
+    try:
+        # Validate token
+        payload = validate_password_reset_token(token)
+        user_id = payload['user_id']
+        token_email = payload['email']
+
+        app.logger.info(f"Valid password reset token for user_id={user_id}, email={token_email}")
+
+        # Find user by ID
+        user = appbuilder.sm.get_user_by_id(user_id)
+
+        if not user:
+            app.logger.error(f"User not found for password reset: user_id={user_id}")
+            return jsonify({"error": "User not found"}), 404
+
+        # Verify email matches (security: ensure token is for this user)
+        if user.email.lower() != token_email.lower():
+            app.logger.error(f"Email mismatch for password reset: user={user.email}, token={token_email}")
+            return jsonify({"error": "Invalid reset token"}), 401
+
+        # Update password
+        user.password = generate_password_hash(
+            new_password,
+            method="scrypt",
+            salt_length=16
+        )
+
+        appbuilder.session.commit()
+        app.logger.info(f"Password reset successfully for user: {user.username} ({user.email})")
+
+        return jsonify({
+            "success": True,
+            "message": "Password reset successfully"
+        })
+
+    except SignatureExpired:
+        app.logger.warning(f"Expired password reset token")
+        return jsonify({"error": "Reset link has expired. Please request a new one."}), 401
+
+    except BadSignature:
+        app.logger.warning(f"Invalid password reset token signature")
+        return jsonify({"error": "Invalid reset link. Please request a new one."}), 401
+
+    except Exception as e:
+        app.logger.error(f"Error resetting password: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        appbuilder.session.rollback()
+        return jsonify({"error": "Failed to reset password"}), 500
+
+
 # API Key Management Routes
 @app.route('/api/user/api-key', methods=['GET'])
 def get_user_api_key():
@@ -1206,6 +1473,95 @@ def reset_tour():
         app.logger.error(traceback.format_exc())
         db.rollback()
         return jsonify({"error": "Failed to reset tour"}), 500
+
+@app.route('/api/user/password-change', methods=['POST'])
+def change_password():
+    """
+    Change user's password.
+
+    Request body:
+        {
+            "current_password": "oldpass123",
+            "new_password": "newpass456",
+            "confirm_password": "newpass456"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "message": "Password changed successfully"
+        }
+    """
+    from werkzeug.security import check_password_hash, generate_password_hash
+    from app import appbuilder
+
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.json
+    current_password = data.get('current_password', '')
+    new_password = data.get('new_password', '')
+    confirm_password = data.get('confirm_password', '')
+
+    # Validate inputs
+    if not all([current_password, new_password, confirm_password]):
+        return jsonify({"error": "All fields required"}), 400
+
+    if new_password != confirm_password:
+        return jsonify({"error": "New passwords do not match"}), 400
+
+    # Validate password strength (12 chars, upper, lower, number, symbol)
+    if len(new_password) < 12:
+        return jsonify({"error": "Password must be at least 12 characters"}), 400
+
+    import re
+    if not re.search(r'[A-Z]', new_password):
+        return jsonify({"error": "Password must contain at least one uppercase letter"}), 400
+
+    if not re.search(r'[a-z]', new_password):
+        return jsonify({"error": "Password must contain at least one lowercase letter"}), 400
+
+    if not re.search(r'[0-9]', new_password):
+        return jsonify({"error": "Password must contain at least one number"}), 400
+
+    if not re.search(r'[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]', new_password):
+        return jsonify({"error": "Password must contain at least one symbol or punctuation character"}), 400
+
+    # Get current user from database (FAB session)
+    user = appbuilder.sm.find_user(username=current_user.username)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Verify current password
+    if not check_password_hash(user.password, current_password):
+        app.logger.warning(f"Invalid current password for user: {current_user.username}")
+        return jsonify({"error": "Current password is incorrect"}), 401
+
+    try:
+        # Hash new password and update
+        user.password = generate_password_hash(
+            new_password,
+            method="scrypt",
+            salt_length=16
+        )
+
+        appbuilder.session.commit()
+        app.logger.info(f"Password changed for user: {current_user.username}")
+
+        return jsonify({
+            "success": True,
+            "message": "Password changed successfully"
+        })
+    except Exception as e:
+        app.logger.error(f"Error changing password: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        appbuilder.session.rollback()
+        return jsonify({"error": "Failed to change password"}), 500
 
 @app.route('/authorize')
 def authorize():

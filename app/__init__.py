@@ -27,6 +27,16 @@ if IS_PRODUCTION:
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '82a393ed5a3dbe58b0e03785215cfcb757f7d393ecde90d4ef25d6b46b28d819')
 app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://gpra:^66*B^mzg6Y6e#@localhost:5432/gpra_dev')
 
+# Password Reset Configuration
+app.config['PASSWORD_RESET_TOKEN_EXPIRY'] = int(os.getenv('PASSWORD_RESET_TOKEN_EXPIRY', '3600'))
+
+# Mailgun Email Service Configuration
+app.config['MAILGUN_API_KEY'] = os.getenv('MAILGUN_API_KEY')
+app.config['MAILGUN_DOMAIN'] = os.getenv('MAILGUN_DOMAIN')
+app.config['MAILGUN_API_URL'] = os.getenv('MAILGUN_API_URL', 'https://api.mailgun.net/v3')
+app.config['MAILGUN_FROM_EMAIL'] = os.getenv('MAILGUN_FROM_EMAIL')
+app.config['MAILGUN_FROM_NAME'] = os.getenv('MAILGUN_FROM_NAME', 'Guitar Practice Routine App')
+
 # NOTE: SERVER_NAME breaks app - don't set it!
 # OAuth redirect_uri issue needs different solution
 

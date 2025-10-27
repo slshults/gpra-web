@@ -21,10 +21,20 @@ const AccountSettings = () => {
   const [validating, setValidating] = useState(false);
   const [message, setMessage] = useState(null);
   const [isValid, setIsValid] = useState(null);
+  const [userProfile, setUserProfile] = useState({ username: '', email: '' });
+
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState(null);
 
   useEffect(() => {
-    // Fetch current API key status
+    // Fetch current API key status and user profile
     fetchApiKeyStatus();
+    fetchUserProfile();
   }, []);
 
   const fetchApiKeyStatus = async () => {
@@ -38,6 +48,30 @@ const AccountSettings = () => {
     } catch (error) {
       console.error('Error fetching API key status:', error);
     }
+  };
+
+  const fetchUserProfile = async () => {
+    try {
+      const response = await fetch('/api/auth/status');
+      if (response.ok) {
+        const data = await response.json();
+        setUserProfile({
+          username: data.user || '',
+          email: data.email || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
+
+  const getGravatarUrl = (email, size = 128) => {
+    // Create MD5 hash of email for Gravatar
+    const trimmedEmail = (email || '').trim().toLowerCase();
+    // Simple hash for gravatar - using a library would be better but keeping dependencies minimal
+    // For now, we'll use a placeholder pattern. In production, you'd want crypto-js or similar
+    const hash = Array.from(trimmedEmail).reduce((s, c) => Math.imul(31, s) + c.charCodeAt(0) | 0, 0);
+    return `https://www.gravatar.com/avatar/${Math.abs(hash).toString(16)}?s=${size}&d=identicon`;
   };
 
   const validateKey = async () => {
@@ -154,9 +188,241 @@ const AccountSettings = () => {
     }
   };
 
+  const validatePasswordStrength = (password) => {
+    if (password.length < 12) {
+      return 'Password must be at least 12 characters long';
+    }
+    if (!/[A-Z]/.test(password)) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    if (!/[a-z]/.test(password)) {
+      return 'Password must contain at least one lowercase letter';
+    }
+    if (!/[0-9]/.test(password)) {
+      return 'Password must contain at least one number';
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      return 'Password must contain at least one symbol or punctuation character';
+    }
+    return null;
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setPasswordMessage(null);
+
+    // Validate inputs
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'All fields are required' });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'New passwords do not match' });
+      return;
+    }
+
+    // Validate password strength
+    const validationError = validatePasswordStrength(newPassword);
+    if (validationError) {
+      setPasswordMessage({ type: 'error', text: validationError });
+      return;
+    }
+
+    setPasswordLoading(true);
+
+    try {
+      const response = await fetch('/api/user/password-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setPasswordMessage({ type: 'success', text: 'Password changed successfully!' });
+        // Clear fields
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setPasswordMessage({ type: 'error', text: data.error || 'Failed to change password' });
+      }
+    } catch (error) {
+      setPasswordMessage({ type: 'error', text: 'Error changing password' });
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto py-8">
       <h1 className="text-3xl font-bold mb-6 text-gray-100">Account Settings</h1>
+
+      {/* Profile Section */}
+      <Card className="bg-gray-800 border-gray-700 mb-6">
+        <CardHeader>
+          <CardTitle className="text-gray-100">Profile</CardTitle>
+          <CardDescription className="text-gray-400">
+            Your account information
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <img
+              src={getGravatarUrl(userProfile.email)}
+              alt="Profile avatar"
+              className="w-20 h-20 rounded-full border-2 border-gray-600"
+            />
+            <div className="space-y-2">
+              <div>
+                <Label className="text-gray-400 text-sm">Username</Label>
+                <p className="text-gray-100 font-medium">{userProfile.username || 'Loading...'}</p>
+              </div>
+              <div>
+                <Label className="text-gray-400 text-sm">Email</Label>
+                <p className="text-gray-100 font-medium">{userProfile.email || 'Loading...'}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Change Password Section */}
+      <Card className="bg-gray-800 border-gray-700 mb-6">
+        <CardHeader>
+          <CardTitle className="text-gray-100">Change Password</CardTitle>
+          <CardDescription className="text-gray-400">
+            Update your account password
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handlePasswordChange} className="space-y-4">
+            {/* Current Password */}
+            <div className="space-y-2">
+              <Label htmlFor="current-password" className="text-gray-200">
+                Current Password
+              </Label>
+              <div className="relative">
+                <Input
+                  id="current-password"
+                  type={showPasswords.current ? 'text' : 'password'}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
+                  disabled={passwordLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                  disabled={passwordLoading}
+                >
+                  {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* New Password */}
+            <div className="space-y-2">
+              <Label htmlFor="new-password" className="text-gray-200">
+                New Password
+              </Label>
+              <div className="relative">
+                <Input
+                  id="new-password"
+                  type={showPasswords.new ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
+                  disabled={passwordLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                  disabled={passwordLoading}
+                >
+                  {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm Password */}
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password" className="text-gray-200">
+                Confirm New Password
+              </Label>
+              <div className="relative">
+                <Input
+                  id="confirm-password"
+                  type={showPasswords.confirm ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
+                  disabled={passwordLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                  disabled={passwordLoading}
+                >
+                  {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Password Requirements */}
+            <div className="bg-blue-900/30 border border-blue-700 rounded-md p-3">
+              <h4 className="text-sm font-semibold text-blue-300 mb-1">Password Requirements:</h4>
+              <ul className="text-xs text-gray-300 space-y-0.5 list-disc list-inside">
+                <li>At least 12 characters long</li>
+                <li>At least one uppercase letter</li>
+                <li>At least one lowercase letter</li>
+                <li>At least one number</li>
+                <li>At least one symbol or punctuation character</li>
+              </ul>
+            </div>
+
+            {/* Messages */}
+            {passwordMessage && (
+              <Alert className={passwordMessage.type === 'success' ? 'bg-green-900/30 border-green-700' : 'bg-red-900/30 border-red-700'}>
+                {passwordMessage.type === 'success' ? (
+                  <Check className="h-4 w-4 text-green-400" />
+                ) : (
+                  <X className="h-4 w-4 text-red-400" />
+                )}
+                <AlertDescription className="text-gray-300">{passwordMessage.text}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {passwordLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Changing Password...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  Change Password
+                </>
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>

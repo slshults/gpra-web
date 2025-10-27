@@ -4,6 +4,7 @@ import { Button } from '@ui/button';
 import { useAuth } from '@hooks/useAuth';
 import { useNavigation } from '@contexts/NavigationContext';
 import { Loader2, LogOut, Settings } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@ui/tooltip';
 
 const AuthButton = () => {
   const { isAuthenticated, hasSpreadsheetAccess, checking, error, handleLogin, handleLogout } = useAuth();
@@ -16,15 +17,23 @@ const AuthButton = () => {
       )}
       {isAuthenticated ? (
         <div className="flex flex-col gap-1 items-end">
-          <Button
-            onClick={() => setActivePage('Account')}
-            variant="ghost"
-            size="sm"
-            className="text-gray-400 hover:text-gray-200 h-auto py-1"
-          >
-            <Settings className="mr-2 h-4 w-4" />
-            Account
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => setActivePage('Account')}
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-400 hover:text-gray-200 h-auto py-1"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Account/Settings</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Button
             onClick={handleLogout}
             variant="ghost"
