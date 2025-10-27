@@ -79,7 +79,7 @@ const GuidedTour = () => {
           element: '[data-tour="app-title"]',
           popover: {
             title: 'Welcome to Guitar Practice Routine App!',
-            description: 'You\'ll be tempted to skip through this tour without reading it, but since you\'re new here you\'ll get a lot more from the app (a lot more quickly) if you take the tour.<br> Click `Next` to get going... 🎸',
+            description: 'You\'ll be tempted to skip through this tour without reading it, but since you\'re new here you\'ll get a lot more from the app (a lot more quickly) if you take the tour.<br> Click `Next` to get going... 🎸<br><br>Sidenote: The app works on mobile, but it\'s best on desktop/laptop ',
             popoverClass: 'gpra-tour-popover gpra-tour-welcome',
             side: 'bottom',
             align: 'start'

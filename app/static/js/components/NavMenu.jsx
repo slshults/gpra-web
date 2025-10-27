@@ -31,7 +31,8 @@ const NavMenu = ({ className }) => {
           variant={activePage === 'Account' ? "secondary" : "ghost"}
           className={cn(
             "text-xl py-6 px-8",
-            activePage === 'Account' ? "bg-secondary hover:bg-secondary/90" : "hover:bg-accent"
+            activePage === 'Account' ? "bg-secondary hover:bg-secondary/90" : "hover:bg-accent",
+            "hidden"
           )}
           onClick={() => setActivePage('Account')}
           aria-current={activePage === 'Account' ? "page" : undefined}

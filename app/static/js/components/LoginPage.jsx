@@ -1,16 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@ui/button';
 import { Input } from '@ui/input';
 import { Label } from '@ui/label';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const LoginPage = () => {
   const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
+
+  useEffect(() => {
+    // Check for password reset success message
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('password_reset') === 'success') {
+      setSuccessMessage('Password reset successful! You can now log in with your new password.');
+    }
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -65,6 +74,14 @@ const LoginPage = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
+              {/* Success Alert */}
+              {successMessage && (
+                <Alert className="bg-green-900/30 border-green-700">
+                  <CheckCircle2 className="h-4 w-4 text-green-400" />
+                  <AlertDescription className="text-gray-300">{successMessage}</AlertDescription>
+                </Alert>
+              )}
+
               {/* Error Alert */}
               {error && (
                 <Alert className="bg-red-900/30 border-red-700">
@@ -118,6 +135,16 @@ const LoginPage = () => {
                   'Login'
                 )}
               </Button>
+
+              {/* Forgot Password Link */}
+              <div className="text-center">
+                <a
+                  href={`/forgot-password${emailOrUsername ? `?email=${encodeURIComponent(emailOrUsername)}` : ''}`}
+                  className="text-xs text-gray-500 hover:text-gray-200"
+                >
+                  Forgot password
+                </a>
+              </div>
 
               {/* OAuth Separator */}
               <div className="relative my-6">

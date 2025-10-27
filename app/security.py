@@ -525,6 +525,47 @@ class CustomSecurityManager(SecurityManager):
             self.appbuilder.add_view_no_menu(oauth_view)
             logger.info("OAuth authentication view registered at /login/<provider>")
 
+    def auth_user_db(self, username, password):
+        """
+        Override auth_user_db to handle OAuth users with NULL passwords.
+
+        OAuth users have password=NULL in the database and cannot login via password.
+        Implements timing attack protection by executing fake hash check for OAuth users
+        and non-existent users, preventing user enumeration via response time analysis.
+
+        Args:
+            username: Username or email to authenticate
+            password: Password attempt
+
+        Returns:
+            User object if authentication succeeds, None if fails
+        """
+        from werkzeug.security import check_password_hash
+
+        # Find user by username or email
+        user = self.find_user(username=username)
+        if not user:
+            user = self.find_user(email=username)
+
+        # Check if this is an OAuth user (password=NULL) or user doesn't exist
+        if not user or user.password is None:
+            # Timing attack protection: Execute fake hash check
+            # to match the timing of real password validation (~100-300ms)
+            # This prevents attackers from enumerating valid usernames by
+            # measuring response time differences
+            fake_hash = 'pbkdf2:sha256:260000$fake$5F9a3b8c2d1e0f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8'
+            check_password_hash(fake_hash, password or '')
+
+            if not user:
+                logger.debug(f"User not found: {username}")
+            else:
+                logger.info(f"Login attempt blocked for OAuth user: {username}")
+
+            return None
+
+        # Normal password check for non-OAuth users
+        return super(CustomSecurityManager, self).auth_user_db(username, password)
+
     def generate_unique_username(self, base_username):
         """
         Generate a unique username by appending a counter if base_username exists.
@@ -597,7 +638,7 @@ class CustomSecurityManager(SecurityManager):
             logger.error("Public role not found - cannot create OAuth user")
             return None
 
-        # Create user
+        # Create user (without password - OAuth users don't have passwords)
         user = self.add_user(
             username=username,
             first_name=userinfo.get('first_name', ''),
@@ -611,6 +652,15 @@ class CustomSecurityManager(SecurityManager):
             return None
 
         logger.info(f"Created OAuth user: {user.username} (id={user.id})")
+
+        # Set password to NULL to mark as OAuth user (can't login with password)
+        try:
+            user.password = None
+            self.appbuilder.session.commit()
+            logger.info(f"Set password=NULL for OAuth user {user.username}")
+        except Exception as e:
+            logger.error(f"Failed to set NULL password for OAuth user: {e}")
+            # Continue anyway - not critical
 
         # Create free subscription for new OAuth user
         try:
