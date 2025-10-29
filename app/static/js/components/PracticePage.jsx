@@ -3372,7 +3372,7 @@ export const PracticePage = () => {
 
 
   return (
-    <div>
+    <div className="max-w-1130px mx-auto border border-gray-700 rounded-lg p-6" style={{maxWidth: '1130px'}}>
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">{routine?.name}</h1>
         <div className="flex flex-col items-end gap-2">
