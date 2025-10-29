@@ -164,9 +164,9 @@ else
     fi
 fi
 
-# Start Flask without auto-reloader (we have a custom Python watcher below)
+# Start Flask with auto-reloader enabled
 echo -e "${GREEN}Starting Flask server...${NC}"
-FLASK_APP=run.py flask run --host=0.0.0.0 --port=5000 --no-reload &
+FLASK_APP=run.py flask run --host=0.0.0.0 --port=5000 &
 FLASK_PID=$!
 PIDS+=($FLASK_PID)
 
@@ -192,38 +192,8 @@ if ! is_process_running $VITE_PID; then
     handle_error "Vite watch failed to start"
 fi
 
-# Start file watcher for Python files with debouncing
-echo -e "${GREEN}Starting Python file watcher...${NC}"
-(
-    while inotifywait -r -e modify --include='.*\.py$' ./app; do
-        echo -e "${YELLOW}Python files changed, waiting for more changes...${NC}"
-        # Debounce: wait 3 seconds for additional changes before restarting
-        sleep 3
-        
-        # Check if more changes occurred during the wait
-        if inotifywait -r -e modify --include='.*\.py$' --timeout 1 ./app 2>/dev/null; then
-            echo -e "${YELLOW}More changes detected, extending wait...${NC}"
-            sleep 2
-        fi
-        
-        echo -e "${YELLOW}Restarting Flask server...${NC}"
-        if is_process_running $FLASK_PID; then
-            kill $FLASK_PID
-            wait $FLASK_PID 2>/dev/null
-        fi
-        FLASK_APP=run.py flask run --host=0.0.0.0 --port=5000 --no-reload &
-        FLASK_PID=$!
-        PIDS+=($FLASK_PID)
-        sleep 2
-        if ! is_process_running $FLASK_PID; then
-            echo -e "${RED}Failed to restart Flask server${NC}"
-        else
-            echo -e "${GREEN}Flask server restarted successfully${NC}"
-        fi
-    done
-) &
-WATCHER_PID=$!
-PIDS+=($WATCHER_PID)
+# Flask's built-in auto-reloader is now enabled (see --no-reload removed above)
+# No custom Python file watcher needed
 
 echo -e "${GREEN}Guitar Practice Routine App is ready!${NC}"
 echo -e "${BLUE}Press Ctrl+C to stop all processes${NC}"

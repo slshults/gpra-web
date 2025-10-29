@@ -54,6 +54,9 @@ export default {
           md: "calc(var(--radius) - 2px)",
           sm: "calc(var(--radius) - 4px)",
         },
+        maxWidth: {
+          "1130px": "1130px",
+        },
       },
     },
     plugins: [require('tailwind-scrollbar')({ nocompatible: true })],

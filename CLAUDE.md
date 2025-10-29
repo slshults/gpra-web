@@ -30,7 +30,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ⏳ Frontend: Account management (partial), billing UI (pending)
 - ✅ Infrastructure: Production configs, proper secrets management
 
-**Current Deployment Status** (as of Oct 26, 2025 - Session 28):
+**Current Deployment Status** (as of Oct 27, 2025 - Session 29):
 - ✅ **FULLY DEPLOYED & TESTED IN PRODUCTION** - All core features working! 🎉
 - ✅ **MULTI-TENANT SYSTEM COMPLETE** - Full data isolation verified in production
 - ✅ **CUSTOM AUTH PAGES COMPLETE** - Login/register pages match GPRA styling
@@ -95,7 +95,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - **Rate Limiting** (Session 28): Email-based (2/min, 5/30min, 10/hour) + IP-based (9 emails/hour)
   - **OAuth Detection** (Session 28): Shows Google sign-in button for OAuth accounts instead of sending email
   - **Security Hardening** (Session 28): OAuth users have `password=NULL` with timing attack protection
-- ⏳ **Next**: Deploy password reset enhancements to production, record GIF demonstrations for tour cards
+- ✅ **GOOGLE ADSENSE IMPLEMENTED** - Auto Ads for free tier users only (Session 29)
+  - Conditional rendering based on subscription tier
+  - Publisher ID: ca-pub-5236095389905910
+  - Auto Ads will show on left/right edges and bottom (same pattern as shakespeare-monologues.org)
+  - Ready for production deployment after Google AdSense domain verification
+- ✅ **FLASK AUTO-RELOAD RE-ENABLED** - Simplified development workflow (Session 29)
+  - Removed custom Python file watcher
+  - Using Flask's built-in auto-reload for faster iteration
+  - Set FLASK_DEBUG=1 in .env for development
+- ⏳ **Next**: Add GPRA to Google AdSense account, deploy AdSense changes to production
 - ⏳ **Future**: Remaining Stripe subscription tier limits (basic/standard/pro/unlimited), billing UI
 - ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (needs migration for proper multi-tenant isolation)
 - See `~/.claude/handoffSummary.md` for detailed session notes

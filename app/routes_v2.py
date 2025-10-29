@@ -31,7 +31,34 @@ def index():
 
     app.logger.info(f"Authenticated user accessing main app: {current_user.username}")
     posthog_key = os.getenv('POSTHOG_API_KEY', '')
-    return render_template('index.html.jinja', posthog_key=posthog_key)
+
+    # Check user's subscription tier to determine if ads should be shown
+    ads_enabled = False  # Default: no ads
+    adsense_publisher_id = os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', '')
+
+    try:
+        with DatabaseTransaction() as tx:
+            # Query user's subscription tier
+            result = tx.execute(text("""
+                SELECT tier
+                FROM subscriptions
+                WHERE user_id = :user_id
+            """), {"user_id": current_user.id})
+
+            tier_row = result.fetchone()
+            if tier_row:
+                tier = tier_row[0]
+                # Only show ads for free tier users
+                ads_enabled = (tier == 'free' and adsense_publisher_id)
+                app.logger.info(f"User {current_user.username} tier: {tier}, ads_enabled: {ads_enabled}")
+    except Exception as e:
+        app.logger.error(f"Failed to check subscription tier for ads: {e}")
+        # On error, default to no ads
+
+    return render_template('index.html.jinja',
+                         posthog_key=posthog_key,
+                         ads_enabled=ads_enabled,
+                         adsense_publisher_id=adsense_publisher_id)
 
 # Custom auth page routes (serve React pages)
 @app.route('/login')
