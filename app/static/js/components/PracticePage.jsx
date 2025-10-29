@@ -3597,7 +3597,7 @@ export const PracticePage = () => {
                                   type="text"
                                   value={section.repeatCount}
                                   onChange={(e) => updateSectionLocal(itemReferenceId, section.id, { repeatCount: e.target.value })}
-                                  className="bg-gray-900 text-white px-2 py-1 rounded text-sm w-6 text-center border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  className="bg-gray-900 text-white px-2 py-1 rounded text-sm w-16 text-center border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                   placeholder="x2"
                                   maxLength="3"
                                 />

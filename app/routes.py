@@ -22,7 +22,6 @@ import math
 from typing import List, Dict
 from datetime import datetime
 import subprocess
-from difflib import get_close_matches
 import re
 import base64
 import json
@@ -1071,66 +1070,6 @@ def open_folder():
 
     except Exception as e:
         app.logger.error(f"Error in open_folder: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/items/update-songbook-paths', methods=['POST'])
-def update_songbook_paths():
-    """Bulk update songbook paths based on folder names matching item titles."""
-    try:
-        folder_paths = request.json.get('paths', [])
-        if not folder_paths:
-            return jsonify({'error': 'No paths provided'}), 400
-
-        # Get all items
-        spread = get_spread()
-        items_sheet = spread.worksheet('Items')
-        items = sheet_to_records(items_sheet, is_routine_worksheet=False)
-
-        # Extract folder names and create a mapping
-        folder_names = [path.split('\\')[-1] for path in folder_paths]
-        
-        # Function to normalize strings for comparison
-        def normalize(s):
-            # Remove special characters and convert to lowercase
-            return re.sub(r'[^\w\s]', '', s).lower().strip()
-
-        # Create normalized versions of folder names for matching
-        norm_folder_map = {normalize(name): path for name, path in zip(folder_names, folder_paths)}
-
-        # Track updates
-        updates = []
-        updated_count = 0
-
-        # Process each item
-        for item in items:
-            title = item['C']  # Column C is Title
-            norm_title = normalize(title)
-            
-            # Try to find a matching folder
-            matches = get_close_matches(norm_title, norm_folder_map.keys(), n=1, cutoff=0.8)
-            
-            if matches:
-                matched_folder = matches[0]
-                folder_path = norm_folder_map[matched_folder]
-                
-                # Update the item's songbook path (Column F)
-                row_idx = items.index(item) + 2  # +2 for 1-based index and header row
-                items_sheet.update(f'F{row_idx}', folder_path)
-                
-                updates.append({
-                    'title': title,
-                    'path': folder_path
-                })
-                updated_count += 1
-
-        return jsonify({
-            'success': True,
-            'updated_count': updated_count,
-            'updates': updates
-        })
-
-    except Exception as e:
-        app.logger.error(f"Error updating songbook paths: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # Chord Charts API endpoints

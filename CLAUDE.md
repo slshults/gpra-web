@@ -30,7 +30,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ⏳ Frontend: Account management (partial), billing UI (pending)
 - ✅ Infrastructure: Production configs, proper secrets management
 
-**Current Deployment Status** (as of Oct 27, 2025 - Session 29):
+**Current Deployment Status** (as of Oct 28, 2025 - Session 31):
 - ✅ **FULLY DEPLOYED & TESTED IN PRODUCTION** - All core features working! 🎉
 - ✅ **MULTI-TENANT SYSTEM COMPLETE** - Full data isolation verified in production
 - ✅ **CUSTOM AUTH PAGES COMPLETE** - Login/register pages match GPRA styling
@@ -104,7 +104,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Removed custom Python file watcher
   - Using Flask's built-in auto-reload for faster iteration
   - Set FLASK_DEBUG=1 in .env for development
-- ⏳ **Next**: Add GPRA to Google AdSense account, deploy AdSense changes to production
+- ✅ **PRACTICE PAGE LAYOUT UPDATE** - Width increased to 1130px with border (Session 30)
+  - Changed from full-width (1400px) to constrained 1130px layout
+  - Added border matching other pages' styling
+  - Tailwind config updated with named `max-w-1130px` utility class
+  - Chord charts display confirmed intact after changes
+- ✅ **NULL USER_ID CHORD CHART FIX** - Fixed RLS filtering issues (Session 30)
+  - Fixed 1 item with NULL user_id on local dev
+  - Synced 107 chord charts with parent items' user_id values on local dev
+  - Synced 76 chord charts with parent items' user_id values on production
+  - Resolved 404 errors when saving chord chart edits
+- ✅ **COMMON_CHORDS MIGRATION COMPLETE** - Production database fully populated (Session 31)
+  - Migrated 12,708 chord records from local dev to production
+  - Autocreate feature now fully functional in production (verified with test)
+  - PDF upload and chord name processing working correctly
+  - Created comprehensive backups before migration (local + production)
+- ✅ **AUTOMATED BACKUP SYSTEM** - Production backups configured (Session 31)
+  - 12-hour rotating backups (midnight & noon UTC)
+  - 7-day retention (14 backups total)
+  - Gzip compression (~80% space savings)
+  - Zero additional cost (well within DreamHost's free 100GB tier)
+  - Script location: `/usr/local/bin/gpra-backup`
+  - Logs: `/var/log/gpra-backup.log`
+- ✅ **UI POLISH** - Section repeat field width increased (Session 31)
+  - Changed from w-6 to w-16 for "x2" placeholder visibility
+  - Fixed in both PracticePage.jsx and ChordChartsModal.jsx
+- ✅ **CODE CLEANUP** - Removed untested bulk songbook update feature (Session 31)
+  - Removed BulkSongbookUpdate component and related code
+  - Removed /api/items/update-songbook-paths endpoint
+- ⏳ **Next**: Deploy Practice page width (1130px), AdSense integration
 - ⏳ **Future**: Remaining Stripe subscription tier limits (basic/standard/pro/unlimited), billing UI
 - ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (needs migration for proper multi-tenant isolation)
 - See `~/.claude/handoffSummary.md` for detailed session notes
@@ -225,6 +253,19 @@ npm run watch           # Watch mode for development
 ```bash
 python run.py           # Start Flask server only (port 5000)
 ```
+
+### Production Server Management
+
+**When working with production server operations**, use the **`dreamhost-dreamcompute` skill** located at `~/.claude/skills/dreamhost-dreamcompute/`. This skill contains:
+
+- **SSH connection details** (correct command with key path and IP)
+- **Database access patterns** for production PostgreSQL
+- **Log viewing commands** (application, Nginx, Gunicorn)
+- **Service management** (restart Gunicorn, Nginx, check status)
+- **Common troubleshooting scenarios** (connection issues, app not responding, database problems)
+- **Links to official DreamHost DreamCompute documentation**
+
+**Quick access:** `ssh -i ~/.ssh/gpra-web.pem ubuntu@208.113.200.79`
 
 ### Playwright MCP Testing
 

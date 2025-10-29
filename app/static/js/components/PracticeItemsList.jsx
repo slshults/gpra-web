@@ -4,7 +4,7 @@ import { trackItemOperation } from '../utils/analytics';
 import { Card, CardHeader, CardTitle, CardContent } from '@ui/card';
 import { Button } from '@ui/button';
 import { Input } from '@ui/input';
-import { ItemEditor, BulkSongbookUpdate } from './ItemEditor';
+import { ItemEditor } from './ItemEditor';
 import ChordChartsModal from './ChordChartsModal';
 import { ChordIcon } from './icons/ChordIcon';
 import {
@@ -245,7 +245,6 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
               <Plus className="mr-2 h-5 w-5" aria-hidden="true" />
               Add item
             </Button>
-            <BulkSongbookUpdate onComplete={onItemsChange} />
           </div>
         </CardHeader>
         <CardContent>
