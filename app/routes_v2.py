@@ -690,11 +690,38 @@ def auth_status():
     """Check authentication status - now uses Flask-AppBuilder auth"""
     # Check if user is authenticated via Flask-AppBuilder
     if current_user.is_authenticated:
+        # Get user's subscription tier
+        tier = 'free'  # Default
+        try:
+            with DatabaseTransaction() as tx:
+                result = tx.execute(text("""
+                    SELECT tier
+                    FROM subscriptions
+                    WHERE user_id = :user_id
+                """), {"user_id": current_user.id})
+                tier_row = result.fetchone()
+                if tier_row:
+                    tier = tier_row[0]
+        except Exception as e:
+            app.logger.error(f"Failed to fetch subscription tier: {e}")
+
+        # Check if user has OAuth providers connected
+        oauth_providers = []
+        if hasattr(current_user, 'oauth_user_id'):
+            # Google OAuth: check if user was created via Google
+            if '@' in current_user.username or 'google' in (current_user.username or '').lower():
+                oauth_providers.append('google')
+        # Tidal OAuth: username pattern is numeric user_id
+        if current_user.username and current_user.username.isdigit():
+            oauth_providers.append('tidal')
+
         return jsonify({
             "authenticated": True,
             "hasSpreadsheetAccess": True,  # Always true for authenticated users
             "user": current_user.username,
             "email": current_user.email,
+            "tier": tier,
+            "oauth_providers": oauth_providers,
             "mode": "flask-appbuilder"
         })
     else:

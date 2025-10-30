@@ -2749,8 +2749,25 @@ export const PracticePage = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`Failed to process manual input: ${response.status} ${response.statusText} - ${errorData}`);
+        // Parse the error response to get detailed message
+        let errorMessage = `Failed to process manual input: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+          // Check if requires API key
+          if (errorData.requires_api_key) {
+            throw new Error('API_KEY_REQUIRED: ' + errorMessage);
+          }
+        } catch (parseError) {
+          if (!parseError.message.startsWith('API_KEY_REQUIRED')) {
+            console.warn('Could not parse error response:', parseError);
+          } else {
+            throw parseError;
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -2787,7 +2804,18 @@ export const PracticePage = () => {
 
     } catch (error) {
       console.error('Error processing manual chord input:', error);
-      setApiError({ message: 'Failed to process manual chord input. Please try again.' });
+
+      // Check if this is an API key required error
+      if (error.message && error.message.startsWith('API_KEY_REQUIRED: ')) {
+        const message = error.message.replace('API_KEY_REQUIRED: ', '');
+        setApiError({
+          message: message,
+          requiresApiKey: true
+        });
+      } else {
+        setApiError({ message: error.message || 'Failed to process manual chord input. Please try again.' });
+      }
+
       setShowApiErrorModal(true);
     } finally {
       setAutocreateProgress(prev => {
@@ -2887,7 +2915,26 @@ export const PracticePage = () => {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to create chord charts: ${response.statusText}`);
+        // Parse the error response to get the detailed message
+        let errorMessage = `Failed to create chord charts: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+          // If it requires an API key, throw special error to trigger the API key modal
+          if (errorData.requires_api_key) {
+            throw new Error('API_KEY_REQUIRED: ' + errorMessage);
+          }
+        } catch (parseError) {
+          // If JSON parsing fails, use the statusText
+          if (!parseError.message.startsWith('API_KEY_REQUIRED')) {
+            console.warn('Could not parse error response:', parseError);
+          } else {
+            throw parseError; // Re-throw API key required errors
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -2994,7 +3041,18 @@ export const PracticePage = () => {
 
     } catch (error) {
       console.error('Error processing YouTube transcript:', error);
-      setApiError({ message: 'Failed to create chord charts from transcript. Please try again.' });
+
+      // Check if this is an API key required error
+      if (error.message && error.message.startsWith('API_KEY_REQUIRED: ')) {
+        const message = error.message.replace('API_KEY_REQUIRED: ', '');
+        setApiError({
+          message: message,
+          requiresApiKey: true
+        });
+      } else {
+        setApiError({ message: error.message || 'Failed to create chord charts from transcript. Please try again.' });
+      }
+
       setShowApiErrorModal(true);
       setAutocreateProgress(prev => {
         const newState = { ...prev };
@@ -3039,12 +3097,28 @@ export const PracticePage = () => {
         method: 'POST',
         body: formData
       });
-      
+
       console.log(`[AUTOCREATE] API response status: ${response.status} ${response.statusText}`);
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to process files');
+        let errorMessage = 'Failed to process files';
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+          // Check if requires API key
+          if (errorData.requires_api_key) {
+            throw new Error('API_KEY_REQUIRED: ' + errorMessage);
+          }
+        } catch (parseError) {
+          if (!parseError.message.startsWith('API_KEY_REQUIRED')) {
+            console.warn('Could not parse error response:', parseError);
+          } else {
+            throw parseError;
+          }
+        }
+        throw new Error(errorMessage);
       }
       
       const result = await response.json();
@@ -3128,7 +3202,24 @@ export const PracticePage = () => {
         stack: error.stack,
         name: error.name
       });
-      setAutocreateProgress({ [itemId]: 'error' });
+
+      // Check if this is an API key required error
+      if (error.message && error.message.startsWith('API_KEY_REQUIRED: ')) {
+        const message = error.message.replace('API_KEY_REQUIRED: ', '');
+        setApiError({
+          message: message,
+          requiresApiKey: true
+        });
+      } else {
+        setApiError({ message: error.message || 'Failed to process files. Please try again.' });
+      }
+
+      setShowApiErrorModal(true);
+      setAutocreateProgress(prev => {
+        const newState = { ...prev };
+        delete newState[itemId];
+        return newState;
+      });
       setMixedContentData(null);
     }
   };
@@ -3331,12 +3422,26 @@ export const PracticePage = () => {
         console.log('Autocreate request was cancelled');
         return;
       }
-      
+
       console.error('Error in autocreate:', error);
-      
+
       // Check if this is an API error that needs special handling
       const errorMsg = error.message || error.toString();
-      if (errorMsg.includes('529') || errorMsg.includes('overloaded') || 
+
+      // Check for API key required error first
+      if (errorMsg.startsWith('API_KEY_REQUIRED: ')) {
+        const message = errorMsg.replace('API_KEY_REQUIRED: ', '');
+        setApiError({
+          message: message,
+          requiresApiKey: true
+        });
+        setShowApiErrorModal(true);
+        setAutocreateProgress(prev => {
+          const newState = { ...prev };
+          delete newState[itemId];
+          return newState;
+        });
+      } else if (errorMsg.includes('529') || errorMsg.includes('overloaded') ||
           errorMsg.includes('429') || errorMsg.includes('rate limit') ||
           errorMsg.includes('500') || errorMsg.includes('502') || errorMsg.includes('503') ||
           errorMsg.includes('timeout')) {
