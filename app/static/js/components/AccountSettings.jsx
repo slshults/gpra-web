@@ -92,14 +92,14 @@ const AccountSettings = () => {
     }
   };
 
-  const getGravatarUrl = (email, size = 128) => {
-    // Create MD5 hash of email for Gravatar
-    const trimmedEmail = (email || '').trim().toLowerCase();
-    // Simple hash for gravatar - using a library would be better but keeping dependencies minimal
-    // For now, we'll use a placeholder pattern. In production, you'd want crypto-js or similar
-    const hash = Array.from(trimmedEmail).reduce((s, c) => Math.imul(31, s) + c.charCodeAt(0) | 0, 0);
-    return `https://www.gravatar.com/avatar/${Math.abs(hash).toString(16)}?s=${size}&d=identicon`;
-  };
+  // const getGravatarUrl = (email, size = 128) => {
+  //   // Create MD5 hash of email for Gravatar
+  //   const trimmedEmail = (email || '').trim().toLowerCase();
+  //   // Simple hash for gravatar - using a library would be better but keeping dependencies minimal
+  //   // For now, we'll use a placeholder pattern. In production, you'd want crypto-js or similar
+  //   const hash = Array.from(trimmedEmail).reduce((s, c) => Math.imul(31, s) + c.charCodeAt(0) | 0, 0);
+  //   return `https://www.gravatar.com/avatar/${Math.abs(hash).toString(16)}?s=${size}&d=identicon`;
+  // };
 
   const validateKey = async () => {
     if (!apiKey.trim()) {
@@ -127,7 +127,7 @@ const AccountSettings = () => {
         setIsValid(false);
         setMessage({ type: 'error', text: data.error || 'Invalid API key' });
       }
-    } catch (error) {
+    } catch {
       setIsValid(false);
       setMessage({ type: 'error', text: 'Error validating API key' });
     } finally {
@@ -163,7 +163,7 @@ const AccountSettings = () => {
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to save API key' });
       }
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Error saving API key' });
     } finally {
       setLoading(false);
@@ -192,7 +192,7 @@ const AccountSettings = () => {
       } else {
         setMessage({ type: 'error', text: 'Failed to delete API key' });
       }
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Error deleting API key' });
     } finally {
       setLoading(false);
@@ -228,7 +228,7 @@ const AccountSettings = () => {
     if (!/[0-9]/.test(password)) {
       return 'Password must contain at least one number';
     }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>?]/.test(password)) {
       return 'Password must contain at least one symbol or punctuation character';
     }
     return null;
@@ -299,7 +299,7 @@ const AccountSettings = () => {
       } else {
         setPasswordMessage({ type: 'error', text: data.error || 'Failed to change password' });
       }
-    } catch (error) {
+    } catch {
       setPasswordMessage({ type: 'error', text: 'Error changing password' });
     } finally {
       setPasswordLoading(false);
