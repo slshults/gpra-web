@@ -144,7 +144,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Icons on all card headers (User, Lock, Link2, Key, Play)
   - Two-column responsive layout (md breakpoint: 768px)
   - Backend: Enhanced /api/auth/status endpoint with tier and oauth_providers fields
-- ⏳ **Next**: Refine Account Settings layout (current 2-column needs better organization), Deploy pending changes
+- ✅ **ACCOUNT SETTINGS REDESIGN** - Compact layout with better organization (Session 33)
+  - Compact overview card at top (~50% less vertical space)
+  - Avatar, username, email, tier badge, usage stats all in one horizontal card
+  - OAuth provider badges shown inline in overview
+  - Two-column action layout: "Security & Access" (left) and "API & Tools" (right)
+  - Section headers with icons (Lock, Key) for clear visual hierarchy
+  - All functionality intact: password change, API key management, guided tour
+  - Gravatar temporarily commented out (ready to uncomment post-launch)
+  - ESLint warnings cleaned up (unused error params, unnecessary escapes)
+- ⏳ **Next**: Deploy pending changes
 - ⏳ **Future**: Remaining Stripe subscription tier limits (basic/standard/pro/unlimited), billing UI
 - ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (needs migration for proper multi-tenant isolation)
 - See `~/.claude/handoffSummary.md` for detailed session notes
