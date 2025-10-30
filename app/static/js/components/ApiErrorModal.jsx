@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { AlertTriangle, Clock, Loader2 } from 'lucide-react';
+import { AlertTriangle, Clock, Loader2, Key } from 'lucide-react';
 
 const ApiErrorModal = ({ isOpen, onClose, error }) => {
   const [countdown, setCountdown] = useState(0);
@@ -105,6 +105,52 @@ const ApiErrorModal = ({ isOpen, onClose, error }) => {
 
   if (!isOpen || !error) return null;
 
+  // Check if this is an API key required error
+  const requiresApiKey = error?.requiresApiKey || false;
+
+  // Special handling for API key required errors
+  if (requiresApiKey) {
+    return (
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="h-6 w-6 text-orange-500" />
+              API Key Required
+            </DialogTitle>
+            <DialogDescription className="text-left space-y-3">
+              <p>{error.message}</p>
+
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Add your Anthropic API key in Account Settings to use the autocreate feature.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                onClose();
+                window.location.href = '#Account';
+              }}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              Go to Account Settings
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => open || handleRetry()}>
       <DialogContent className="sm:max-w-md">
@@ -115,7 +161,7 @@ const ApiErrorModal = ({ isOpen, onClose, error }) => {
           </DialogTitle>
           <DialogDescription className="text-left space-y-3">
             <p>{errorInfo.message}</p>
-            
+
             {countdown > 0 ? (
               <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">
                 <div className="flex items-center gap-2 text-sm">
@@ -123,10 +169,10 @@ const ApiErrorModal = ({ isOpen, onClose, error }) => {
                   <span>Please wait {formatTime(countdown)} before trying again</span>
                 </div>
                 <div className="w-full bg-gray-300 dark:bg-gray-600 rounded-full h-2 mt-2">
-                  <div 
+                  <div
                     className="bg-blue-500 h-2 rounded-full transition-all duration-1000"
-                    style={{ 
-                      width: `${((errorInfo.waitTime - countdown) / errorInfo.waitTime) * 100}%` 
+                    style={{
+                      width: `${((errorInfo.waitTime - countdown) / errorInfo.waitTime) * 100}%`
                     }}
                   />
                 </div>
@@ -140,7 +186,7 @@ const ApiErrorModal = ({ isOpen, onClose, error }) => {
             )}
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="flex justify-end gap-2 mt-4">
           <Button
             onClick={handleRetry}

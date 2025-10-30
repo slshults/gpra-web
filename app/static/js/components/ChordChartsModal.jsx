@@ -1132,8 +1132,33 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       });
 
       if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`Failed to process manual input: ${response.status} ${response.statusText} - ${errorData}`);
+        // Parse the error response to get detailed message
+        let errorMessage = `Failed to process manual input: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+          // Check if requires API key
+          if (errorData.requires_api_key) {
+            // Clear progress state before showing modal
+            setAutocreateProgress(prev => {
+              const newState = { ...prev };
+              delete newState[itemId];
+              return newState;
+            });
+            // Show API key required modal via ApiErrorModal
+            setApiError({
+              message: errorMessage,
+              requiresApiKey: true
+            });
+            setShowApiErrorModal(true);
+            return;
+          }
+        } catch (parseError) {
+          console.warn('Could not parse error response:', parseError);
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -1269,8 +1294,34 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       });
 
       if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`Failed to process YouTube transcript: ${response.status} ${response.statusText} - ${errorData}`);
+        const errorText = await response.text();
+
+        // Try to parse as JSON to check for requires_api_key flag
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (e) {
+          errorData = { error: errorText };
+        }
+
+        // Check if this is an API key requirement error
+        if (errorData.requires_api_key) {
+          // Clear progress state before showing modal
+          setAutocreateProgress(prev => {
+            const newState = { ...prev };
+            delete newState[itemId];
+            return newState;
+          });
+          // Show API key required modal via ApiErrorModal
+          setApiError({
+            message: errorData.error || 'Autocreate requires an API key.',
+            requiresApiKey: true
+          });
+          setShowApiErrorModal(true);
+          return;
+        }
+
+        throw new Error(`Failed to process YouTube transcript: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const result = await response.json();
@@ -1395,6 +1446,42 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         }, 2000);
 
       } else {
+        // Parse error response
+        let errorMessage = `Failed to create chord charts: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+          // Check if requires API key
+          if (errorData.requires_api_key) {
+            // Clear progress state before showing modal
+            setAutocreateProgress(prev => {
+              const newState = { ...prev };
+              delete newState[itemId];
+              return newState;
+            });
+            // Show API key required modal
+            setApiError({
+              message: errorMessage,
+              requiresApiKey: true
+            });
+            setShowApiErrorModal(true);
+            // Clean up abort controller
+            setAutocreateAbortController(prev => {
+              const newState = { ...prev };
+              delete newState[itemId];
+              return newState;
+            });
+            return;
+          }
+        } catch (parseError) {
+          console.warn('Could not parse error response:', parseError);
+        }
+
+        // Show generic error modal for other errors
+        setApiError({ message: errorMessage });
+        setShowApiErrorModal(true);
         setAutocreateProgress(prev => ({ ...prev, [itemId]: 'error' }));
 
         // Clean up abort controller on error (copied from PracticePage)
