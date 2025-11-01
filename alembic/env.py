@@ -10,6 +10,10 @@ from alembic import context
 # Add the app directory to sys.path so we can import our models
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+# Load dotenv BEFORE importing models to ensure DATABASE_URL is set (override existing)
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
 # Import our models for autogenerate support
 from app.models import Base
 
@@ -17,9 +21,7 @@ from app.models import Base
 # access to the values within the .ini file in use.
 config = context.config
 
-# Load database URL from environment variable
-from dotenv import load_dotenv
-load_dotenv()
+# Load database URL from environment variable (already loaded above)
 database_url = os.getenv('DATABASE_URL')
 if database_url:
     # Escape % signs for ConfigParser interpolation

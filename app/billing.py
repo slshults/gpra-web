@@ -70,9 +70,14 @@ def create_checkout_session(db: Session):
                 'metadata': {
                     'user_id': str(user_id),
                     'tier': tier,
-                }
+                    'billing_period': billing_period,  # Add billing period to metadata
+                },
             }
         }
+
+        # Only add proration_behavior for existing customers with active subscriptions
+        if subscription and subscription.stripe_subscription_id and subscription.status in ['active', 'trialing']:
+            checkout_params['subscription_data']['proration_behavior'] = 'create_prorations'
 
         # Use existing customer or create new one
         if subscription and subscription.stripe_customer_id:
@@ -140,6 +145,124 @@ def create_portal_session(db: Session):
     except Exception as e:
         logger.error(f"Error creating portal session: {str(e)}")
         return jsonify({'error': 'Failed to create portal session'}), 500
+
+
+def update_existing_subscription(db: Session):
+    """Update an existing subscription to a new tier/billing period (proper Stripe way)"""
+    try:
+        data = request.json
+        new_tier = data.get('tier')
+        new_billing_period = data.get('billing_period')
+
+        if not new_tier or not new_billing_period:
+            return jsonify({'error': 'Missing tier or billing_period'}), 400
+
+        from flask_login import current_user
+        if not current_user or not current_user.is_authenticated:
+            return jsonify({'error': 'Not authenticated'}), 401
+
+        user_id = current_user.id
+
+        # Get current subscription
+        subscription = db.query(Subscription).filter_by(user_id=user_id).first()
+
+        if not subscription or not subscription.stripe_subscription_id:
+            # No existing subscription - they should use checkout instead
+            return jsonify({'error': 'No active subscription found. Please use checkout.'}), 404
+
+        # Validate new tier
+        if new_tier not in SUBSCRIPTION_TIERS or new_tier == 'free':
+            return jsonify({'error': 'Invalid tier'}), 400
+
+        # Get new price ID
+        tier_config = SUBSCRIPTION_TIERS[new_tier]
+        new_price_id = tier_config.get(f'stripe_price_id_{new_billing_period}')
+
+        if not new_price_id:
+            return jsonify({'error': 'Price ID not configured'}), 400
+
+        # Check if this is actually a change
+        if subscription.stripe_price_id == new_price_id:
+            return jsonify({'message': 'Already on this plan', 'success': True}), 200
+
+        # Retrieve current subscription from Stripe to verify status
+        stripe_sub = stripe.Subscription.retrieve(subscription.stripe_subscription_id)
+
+        if stripe_sub.status not in ['active', 'trialing']:
+            return jsonify({'error': f'Subscription is not active (status: {stripe_sub.status})'}), 400
+
+        # Get the subscription item ID (use stored or fetch from Stripe)
+        subscription_item_id = subscription.stripe_subscription_item_id
+        if not subscription_item_id:
+            # Fallback: get it from Stripe if we don't have it stored
+            subscription_item_id = stripe_sub['items']['data'][0]['id']
+
+        # Store old values for comparison
+        old_tier = subscription.tier
+        old_price_id = subscription.stripe_price_id
+
+        logger.info(f"Updating subscription for user {user_id} from {subscription.tier}/{subscription.stripe_price_id} to {new_tier}/{new_price_id}")
+
+        # Update the subscription using Stripe's proper update method
+        updated_sub = stripe.Subscription.modify(
+            subscription.stripe_subscription_id,
+            items=[{
+                'id': subscription_item_id,
+                'price': new_price_id,
+            }],
+            proration_behavior='always_invoice',  # Immediate proration charge/credit
+            metadata={
+                'user_id': str(user_id),
+                'tier': new_tier,
+                'billing_period': new_billing_period,
+            }
+        )
+
+        logger.info(f"✓ Successfully updated subscription {updated_sub.id} for user {user_id}")
+
+        # Determine what changed
+        tier_changed = old_tier != new_tier
+        period_changed = old_price_id != new_price_id and old_tier == new_tier
+
+        # Get the proration amount from the latest invoice
+        proration_amount = 0
+        try:
+            if updated_sub.latest_invoice:
+                latest_invoice = stripe.Invoice.retrieve(updated_sub.latest_invoice)
+                proration_amount = latest_invoice.amount_due / 100  # Convert from cents to dollars
+        except Exception as e:
+            logger.warning(f"Could not fetch invoice for proration amount: {e}")
+
+        # Get tier config for feature info
+        tier_config = SUBSCRIPTION_TIERS.get(new_tier, {})
+        autocreate_enabled = tier_config.get('autocreate_enabled', False)
+
+        # The customer.subscription.updated webhook will update our database automatically
+
+        return jsonify({
+            'success': True,
+            'message': 'Subscription updated successfully',
+            'subscription_id': updated_sub.id,
+            'details': {
+                'old_tier': old_tier,
+                'new_tier': new_tier,
+                'tier_changed': tier_changed,
+                'period_changed': period_changed,
+                'billing_period': new_billing_period,
+                'proration_amount': proration_amount,
+                'autocreate_enabled': autocreate_enabled,
+            }
+        })
+
+    except stripe.error.InvalidRequestError as e:
+        logger.error(f"Invalid request updating subscription: {str(e)}")
+        return jsonify({'error': f'Invalid request: {str(e)}'}), 400
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe error updating subscription: {str(e)}")
+        return jsonify({'error': f'Stripe error: {str(e)}'}), 400
+    except Exception as e:
+        logger.error(f"Error updating subscription: {str(e)}")
+        return jsonify({'error': 'Failed to update subscription'}), 500
 
 
 def handle_stripe_webhook(db: Session):
@@ -261,6 +384,7 @@ def handle_subscription_created(db: Session, stripe_subscription):
     subscription.stripe_subscription_id = stripe_subscription['id']
     subscription.stripe_customer_id = stripe_subscription['customer']
     subscription.stripe_price_id = stripe_subscription['items']['data'][0]['price']['id']
+    subscription.stripe_subscription_item_id = stripe_subscription['items']['data'][0]['id']  # Store item ID for updates
     subscription.tier = tier
     subscription.status = stripe_subscription['status']
     subscription.current_period_start = timestamp_to_datetime(stripe_subscription.get('current_period_start'))
@@ -302,6 +426,7 @@ def handle_subscription_updated(db: Session, stripe_subscription):
 
     # Update subscription
     subscription.stripe_price_id = price_id
+    subscription.stripe_subscription_item_id = stripe_subscription['items']['data'][0]['id']  # Store item ID for updates
     subscription.tier = tier
     subscription.status = stripe_subscription['status']
     subscription.current_period_start = timestamp_to_datetime(stripe_subscription.get('current_period_start'))

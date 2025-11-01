@@ -22,7 +22,7 @@ const AccountSettings = () => {
   const [validating, setValidating] = useState(false);
   const [message, setMessage] = useState(null);
   const [isValid, setIsValid] = useState(null);
-  const [userProfile, setUserProfile] = useState({ username: '', email: '', tier: 'free', oauth_providers: [] });
+  const [userProfile, setUserProfile] = useState({ username: '', email: '', tier: 'free', billing_period: null, oauth_providers: [] });
   const [routineCount, setRoutineCount] = useState(0);
   const [routineLimit, setRoutineLimit] = useState(1);
 
@@ -63,6 +63,7 @@ const AccountSettings = () => {
           username: data.user || '',
           email: data.email || '',
           tier: data.tier || 'free',
+          billing_period: data.billing_period || null,
           oauth_providers: data.oauth_providers || []
         });
 
@@ -698,7 +699,7 @@ const AccountSettings = () => {
 
       {/* Subscription & Billing Section */}
       <div id="subscription-plans" className="mt-8">
-        <PricingSection currentTier={userProfile.tier} />
+        <PricingSection currentTier={userProfile.tier} currentBillingPeriod={userProfile.billing_period} />
       </div>
 
       {/* Guided Tour Card - At bottom */}

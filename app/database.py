@@ -3,11 +3,16 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.pool import StaticPool
 import os
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env file (override existing)
+load_dotenv(override=True)
+
 from app.models import Base
 
 # Database URL from environment
 DATABASE_URL = os.getenv(
-    'DATABASE_URL', 
+    'DATABASE_URL',
     'postgresql://gpra:***REMOVED***@localhost:5432/gpra_dev'
 )
 

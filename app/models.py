@@ -204,6 +204,7 @@ class Subscription(Base):
     user_id = Column(Integer, nullable=False, index=True)
     stripe_customer_id = Column(String(255), unique=True, nullable=True)  # Stripe Customer ID (cus_xxx)
     stripe_subscription_id = Column(String(255), unique=True, nullable=True)  # Stripe Subscription ID (sub_xxx)
+    stripe_subscription_item_id = Column(String(255), nullable=True)  # Stripe Subscription Item ID (si_xxx) for updates
     stripe_price_id = Column(String(255), nullable=True)  # Current price ID
     tier = Column(String(50), nullable=False, default='free')  # 'free', 'basic', 'thegoods', 'moregoods', 'themost'
     status = Column(String(50), nullable=False, default='active')  # 'active', 'canceled', 'past_due', 'trialing', 'incomplete'
