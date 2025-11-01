@@ -202,9 +202,10 @@ class Subscription(Base):
     # NOTE: user_id references ab_user.id but NO ForeignKey constraint due to Base mismatch issues
     # Referential integrity enforced at application level + PostgreSQL trigger
     user_id = Column(Integer, nullable=False, index=True)
-    stripe_subscription_id = Column(String(255), unique=True, nullable=True)
-    stripe_price_id = Column(String(255), nullable=True)
-    tier = Column(String(50), nullable=False, default='free')  # 'free', 'basic', 'standard', 'pro', 'unlimited'
+    stripe_customer_id = Column(String(255), unique=True, nullable=True)  # Stripe Customer ID (cus_xxx)
+    stripe_subscription_id = Column(String(255), unique=True, nullable=True)  # Stripe Subscription ID (sub_xxx)
+    stripe_price_id = Column(String(255), nullable=True)  # Current price ID
+    tier = Column(String(50), nullable=False, default='free')  # 'free', 'basic', 'thegoods', 'moregoods', 'themost'
     status = Column(String(50), nullable=False, default='active')  # 'active', 'canceled', 'past_due', 'trialing', 'incomplete'
     mrr = Column(Numeric(10, 2), default=0.00, nullable=False)  # Monthly recurring revenue
     current_period_start = Column(DateTime(timezone=True), nullable=True)

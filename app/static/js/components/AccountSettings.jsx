@@ -11,6 +11,7 @@ import {
 } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
 import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink, Play, Lock, Key } from 'lucide-react';
+import PricingSection from './PricingSection';
 
 const AccountSettings = () => {
   const [apiKey, setApiKey] = useState('');
@@ -69,9 +70,9 @@ const AccountSettings = () => {
         const tierLimits = {
           free: 1,
           basic: 5,
-          standard: 25,
-          pro: 100,
-          unlimited: 50
+          thegoods: 10,
+          moregoods: 25,
+          themost: 50
         };
         setRoutineLimit(tierLimits[data.tier] || 1);
       }
@@ -234,13 +235,24 @@ const AccountSettings = () => {
     return null;
   };
 
+  const getTierDisplayName = (tier) => {
+    const names = {
+      free: 'Free',
+      basic: 'Basic',
+      thegoods: 'The Goods',
+      moregoods: 'More Goods',
+      themost: 'The Most'
+    };
+    return names[tier] || 'Free';
+  };
+
   const getTierBadgeColor = (tier) => {
     const colors = {
       free: 'bg-gray-600 text-gray-200',
       basic: 'bg-blue-600 text-blue-100',
-      standard: 'bg-green-600 text-green-100',
-      pro: 'bg-purple-600 text-purple-100',
-      unlimited: 'bg-orange-600 text-orange-100'
+      thegoods: 'bg-green-600 text-green-100',
+      moregoods: 'bg-purple-600 text-purple-100',
+      themost: 'bg-orange-600 text-orange-100'
     };
     return colors[tier] || colors.free;
   };
@@ -352,9 +364,20 @@ const AccountSettings = () => {
             {/* Tier & Usage Stats */}
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
               <div className="text-center sm:text-right">
-                <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getTierBadgeColor(userProfile.tier)} mb-1`}>
-                  {userProfile.tier.charAt(0).toUpperCase() + userProfile.tier.slice(1)} Tier
-                </div>
+                <button
+                  onClick={() => {
+                    const element = document.getElementById('subscription-plans');
+                    if (element) {
+                      const offset = 80; // Keep "Subscription Plans" heading visible below main menu
+                      const elementPosition = element.getBoundingClientRect().top;
+                      const offsetPosition = elementPosition + window.pageYOffset - offset;
+                      window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+                    }
+                  }}
+                  className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getTierBadgeColor(userProfile.tier)} mb-1 hover:opacity-80 transition-opacity cursor-pointer`}
+                >
+                  {getTierDisplayName(userProfile.tier)}
+                </button>
                 <p className={`text-sm font-medium ${getUsageColor(routineCount, routineLimit)}`}>
                   {routineCount} / {routineLimit === Infinity ? '∞' : routineLimit} routines
                   {routineCount >= routineLimit && routineLimit !== Infinity && (
@@ -530,7 +553,7 @@ const AccountSettings = () => {
                   <h3 className="text-sm font-semibold text-blue-300 mb-2">About API Keys</h3>
                   <ul className="text-sm text-gray-300 space-y-1 list-disc list-inside">
                     <li><strong>Free/Basic tiers:</strong> Provide your own key to unlock autocreate</li>
-                    <li><strong>Standard+ tiers:</strong> Optionally use your own key to save costs</li>
+                    <li><strong>The Goods+ tiers:</strong> Autocreate included! Optionally use your own key to save costs</li>
                     <li>Your key is encrypted and stored securely</li>
                     <li>
                       Get your API key from{' '}
@@ -669,26 +692,34 @@ const AccountSettings = () => {
               </CardContent>
             </Card>
 
-            {/* Guided Tour Card */}
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-gray-100">Guided Tour</CardTitle>
-                <CardDescription className="text-gray-400">
-                  Take the interactive tour again to learn about GPRA features
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  onClick={restartTour}
-                  className="bg-orange-600 hover:bg-orange-700 w-full"
-                >
-                  <Play className="w-4 h-4 mr-2" />
-                  Restart Tour
-                </Button>
-              </CardContent>
-            </Card>
           </div>
         </div>
+      </div>
+
+      {/* Subscription & Billing Section */}
+      <div id="subscription-plans" className="mt-8">
+        <PricingSection currentTier={userProfile.tier} />
+      </div>
+
+      {/* Guided Tour Card - At bottom */}
+      <div className="mt-6">
+        <Card className="bg-gray-800 border-gray-700 max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle className="text-gray-100">Guided tour</CardTitle>
+            <CardDescription className="text-gray-400">
+              Take the interactive tour again to learn about GPRA features
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={restartTour}
+              className="bg-orange-600 hover:bg-orange-700 w-full"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Restart Tour
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

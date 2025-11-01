@@ -7,8 +7,8 @@ const NavigationContext = createContext(undefined);
 export const NavigationProvider = ({ children }) => {
   // Initialize from URL hash or default to 'Practice'
   const getInitialPage = () => {
-    const hash = window.location.hash.slice(1); // Remove the #
-    const validPages = ['Practice', 'Routines', 'Items'];
+    const hash = window.location.hash.slice(1).split('?')[0]; // Remove the # and any query params
+    const validPages = ['Practice', 'Routines', 'Items', 'Account'];
     return validPages.includes(hash) ? hash : 'Practice';
   };
 
