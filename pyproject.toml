@@ -28,7 +28,9 @@ dependencies = [
     "alembic",
     "authlib",
     "requests",
-    "itsdangerous"
+    "itsdangerous",
+    "stripe",
+    "flask-appbuilder"
 ]
 
 [tool.setuptools]

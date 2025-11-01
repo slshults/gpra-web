@@ -2,11 +2,15 @@ import { useState } from 'react';
 import { Button } from '@ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@ui/card';
 import { Loader2, Check, CreditCard } from 'lucide-react';
+import SubscriptionModal from './SubscriptionModal';
 
-const PricingSection = ({ currentTier = 'free' }) => {
-  const [billingPeriod, setBillingPeriod] = useState('monthly');
+const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) => {
+  // Initialize billing period from current user's subscription, default to monthly
+  const [billingPeriod, setBillingPeriod] = useState(currentBillingPeriod || 'monthly');
   const [loading, setLoading] = useState(null);
   const [error, setError] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalContent, setModalContent] = useState({ title: '', message: '' });
 
   const tiers = [
     {
@@ -62,6 +66,72 @@ const PricingSection = ({ currentTier = 'free' }) => {
     },
   ];
 
+  const getSubscriptionUpdateMessage = (details) => {
+    const { old_tier, new_tier, tier_changed, period_changed, billing_period, proration_amount, autocreate_enabled } = details;
+
+    // Tier names for display
+    const tierNames = {
+      'free': 'Free',
+      'basic': 'Basic',
+      'thegoods': 'The Goods',
+      'moregoods': 'More Goods',
+      'themost': 'The Most'
+    };
+
+    const newTierName = tierNames[new_tier] || new_tier;
+    const oldTierName = tierNames[old_tier] || old_tier;
+
+    // Billing period change (same tier, different period)
+    if (period_changed && !tier_changed) {
+      const periodName = billing_period === 'yearly' ? 'yearly' : 'monthly';
+      const nextBilling = billing_period === 'yearly' ? 'one year' : 'one month';
+
+      return {
+        title: '✅ Billing Updated',
+        message: `Cool, you're upgraded to ${periodName} billing${proration_amount > 0 ? `, with a prorated charge of $${proration_amount.toFixed(2)} usd` : ''}. We'll bill you again in ${nextBilling}, unless you use the "Manage Subscription" button to downgrade or cancel before then. 🤘Rock on!`
+      };
+    }
+
+    // Tier upgrade (with or without period change)
+    if (tier_changed && new_tier !== 'basic') {
+      const baseMessage = `Right on, you've upgraded to ${newTierName}!`;
+
+      if (autocreate_enabled && old_tier === 'basic') {
+        return {
+          title: '🎉 Upgraded!',
+          message: `${baseMessage} You're ready to add more items, organize more routines, and have your chord charts autocreated! 🤘Rock on!`
+        };
+      } else {
+        return {
+          title: '🎉 Upgraded!',
+          message: `${baseMessage} You're ready to add more items and organize more routines! 🤘Rock on!`
+        };
+      }
+    }
+
+    // Tier downgrade
+    if (tier_changed && (old_tier !== 'basic' && new_tier === 'basic')) {
+      return {
+        title: 'Plan Changed',
+        message: `You've downgraded to ${newTierName}. Your new limits will take effect immediately. Thanks for sticking with us! 🎸`
+      };
+    }
+
+    // Generic tier change
+    if (tier_changed) {
+      return {
+        title: 'Plan Updated',
+        message: `You've switched to ${newTierName}. Rock on! 🤘`
+      };
+    }
+
+    // Fallback
+    return {
+      title: 'Subscription Updated',
+      message: 'Your subscription has been updated successfully. 🎸'
+    };
+  };
+
   const handleUpgrade = async (tierId, billingPeriodOverride = null) => {
     if (tierId === 'free') return;
 
@@ -72,8 +142,16 @@ const PricingSection = ({ currentTier = 'free' }) => {
     const period = billingPeriodOverride || billingPeriod;
 
     try {
-      const response = await fetch('/api/billing/create-checkout-session', {
+      // Check if user already has a subscription (not on free tier)
+      const hasSubscription = currentTier !== 'free';
+
+      const endpoint = hasSubscription
+        ? '/api/billing/update-subscription'  // Existing customers - update in place
+        : '/api/billing/create-checkout-session';  // New customers - use checkout
+
+      const response = await fetch(endpoint, {
         method: 'POST',
+        credentials: 'include',  // Include cookies for authentication
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tier: tierId,
@@ -83,17 +161,42 @@ const PricingSection = ({ currentTier = 'free' }) => {
 
       const data = await response.json();
 
-      if (response.ok && data.url) {
-        // Redirect to Stripe Checkout
-        window.location.href = data.url;
-      } else {
-        setError(data.error || 'Failed to create checkout session');
+      if (!response.ok) {
+        setError(data.error || 'Failed to process request');
         setLoading(null);
+        return;
       }
-    } catch (_err) {
-      setError('Error connecting to payment system');
+
+      if (hasSubscription) {
+        // Subscription updated in-place, show custom modal
+        const modalContent = getSubscriptionUpdateMessage(data.details || {});
+        setModalContent(modalContent);
+        setModalOpen(true);
+        setLoading(null);
+      } else {
+        // New checkout session, redirect to Stripe
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          setError('Failed to get checkout URL');
+          setLoading(null);
+        }
+      }
+    } catch (err) {
+      // Use modal for errors too
+      setModalContent({
+        title: '❌ Error',
+        message: `Error: ${err.message || 'Error connecting to payment system'}`
+      });
+      setModalOpen(true);
       setLoading(null);
     }
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    // Reload page to refresh subscription status
+    window.location.reload();
   };
 
   const handleManageSubscription = async () => {
@@ -153,7 +256,10 @@ const PricingSection = ({ currentTier = 'free' }) => {
       {/* Pricing Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {tiers.map((tier, index) => {
-          const price = billingPeriod === 'monthly' ? tier.priceMonthly : tier.priceYearly;
+          // For the current tier card, show prices based on actual billing period
+          // For other cards, show prices based on the selected toggle in the header
+          const displayPeriod = tier.id === currentTier && currentBillingPeriod ? currentBillingPeriod : billingPeriod;
+          const price = displayPeriod === 'monthly' ? tier.priceMonthly : tier.priceYearly;
           const isCurrent = tier.id === currentTier;
           const isLoadingThis = loading === tier.id;
 
@@ -188,7 +294,7 @@ const PricingSection = ({ currentTier = 'free' }) => {
                     <div className="text-3xl font-bold text-gray-100">
                       ${price}
                       <span className="text-sm text-gray-400 font-normal">
-                        usd/{billingPeriod === 'monthly' ? 'mo' : 'yr'}
+                        usd/{displayPeriod === 'monthly' ? 'mo' : 'yr'}
                       </span>
                     </div>
                   )}
@@ -229,23 +335,33 @@ const PricingSection = ({ currentTier = 'free' }) => {
                           onClick={() => handleUpgrade(currentTier, 'monthly')}
                           disabled={loading === currentTier}
                           className={`flex-1 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
-                            billingPeriod === 'monthly'
+                            currentBillingPeriod === 'monthly'
                               ? 'bg-orange-600 text-white'
                               : 'text-gray-400 hover:text-gray-300'
                           } disabled:opacity-50`}
                         >
                           Monthly
+                          {currentBillingPeriod === 'yearly' && tier.priceMonthly > 0 && (
+                            <span className="block text-[10px] opacity-90">
+                              (Pay ${(tier.priceMonthly - (tier.priceYearly / 12)).toFixed(2)} more/mo)
+                            </span>
+                          )}
                         </button>
                         <button
                           onClick={() => handleUpgrade(currentTier, 'yearly')}
                           disabled={loading === currentTier}
                           className={`flex-1 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
-                            billingPeriod === 'yearly'
+                            currentBillingPeriod === 'yearly'
                               ? 'bg-orange-600 text-white'
                               : 'text-gray-400 hover:text-gray-300'
                           } disabled:opacity-50`}
                         >
-                          Yearly (Save {savingsPercent}%/${savings})
+                          Yearly
+                          {currentBillingPeriod === 'monthly' && savingsPercent > 0 && (
+                            <span className="block text-[10px] opacity-90">
+                              (Save {savingsPercent}%/${savings})
+                            </span>
+                          )}
                         </button>
                       </div>
                     ) : (
@@ -309,6 +425,14 @@ const PricingSection = ({ currentTier = 'free' }) => {
           </CardContent>
         </Card>
       )}
+
+      {/* Subscription Update Modal */}
+      <SubscriptionModal
+        isOpen={modalOpen}
+        onClose={handleModalClose}
+        title={modalContent.title}
+        message={modalContent.message}
+      />
     </div>
   );
 };

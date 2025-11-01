@@ -3,12 +3,17 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.pool import StaticPool
 import os
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env file (override existing)
+load_dotenv(override=True)
+
 from app.models import Base
 
 # Database URL from environment
 DATABASE_URL = os.getenv(
-    'DATABASE_URL', 
-    'postgresql://gpra:^66*B^mzg6Y6e#@localhost:5432/gpra_dev'
+    'DATABASE_URL',
+    'postgresql://gpra:%5E66%2AB%5Emzg6Y6e%23@localhost:5432/gpra_dev'
 )
 
 # Create engine with connection pooling

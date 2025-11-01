@@ -2764,6 +2764,23 @@ def create_portal_session():
         db.close()
 
 
+@app.route('/api/billing/test', methods=['GET'])
+def test_route():
+    """Test route"""
+    return jsonify({'message': 'Test route works'})
+
+
+@app.route('/api/billing/update-subscription', methods=['POST'])
+def update_subscription_route():
+    """Update existing subscription (upgrades/downgrades for existing customers)"""
+    from app.database import get_db
+    db = get_db()
+    try:
+        return billing.update_existing_subscription(db)
+    finally:
+        db.close()
+
+
 @app.route('/api/webhooks/stripe', methods=['POST'])
 def stripe_webhook():
     """Handle Stripe webhook events"""

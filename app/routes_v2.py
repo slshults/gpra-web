@@ -730,18 +730,32 @@ def auth_status():
     """Check authentication status - now uses Flask-AppBuilder auth"""
     # Check if user is authenticated via Flask-AppBuilder
     if current_user.is_authenticated:
-        # Get user's subscription tier
+        # Get user's subscription tier and billing period
         tier = 'free'  # Default
+        billing_period = None  # Default for free tier
         try:
             with DatabaseTransaction() as tx:
                 result = tx.execute(text("""
-                    SELECT tier
+                    SELECT tier, stripe_price_id
                     FROM subscriptions
                     WHERE user_id = :user_id
                 """), {"user_id": current_user.id})
-                tier_row = result.fetchone()
-                if tier_row:
-                    tier = tier_row[0]
+                sub_row = result.fetchone()
+                if sub_row:
+                    tier = sub_row[0]
+                    stripe_price_id = sub_row[1]
+
+                    # Determine billing period from price ID
+                    if stripe_price_id:
+                        # Import here to avoid circular imports
+                        from app.subscription_tiers import SUBSCRIPTION_TIERS
+                        for tier_key, tier_config in SUBSCRIPTION_TIERS.items():
+                            if stripe_price_id == tier_config.get('stripe_price_id_monthly'):
+                                billing_period = 'monthly'
+                                break
+                            elif stripe_price_id == tier_config.get('stripe_price_id_yearly'):
+                                billing_period = 'yearly'
+                                break
         except Exception as e:
             app.logger.error(f"Failed to fetch subscription tier: {e}")
 
@@ -761,6 +775,7 @@ def auth_status():
             "user": current_user.username,
             "email": current_user.email,
             "tier": tier,
+            "billing_period": billing_period,
             "oauth_providers": oauth_providers,
             "mode": "flask-appbuilder"
         })
@@ -4213,6 +4228,17 @@ def create_portal_session():
     db = SessionLocal()
     try:
         return billing.create_portal_session(db)
+    finally:
+        db.close()
+
+
+@app.route('/api/billing/update-subscription', methods=['POST'])
+def update_subscription_route():
+    """Update existing subscription (upgrades/downgrades for existing customers)"""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return billing.update_existing_subscription(db)
     finally:
         db.close()
 
