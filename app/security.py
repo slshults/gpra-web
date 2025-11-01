@@ -875,8 +875,8 @@ class CustomSecurityManager(SecurityManager):
             # Use user_id as username (e.g., "tidal_185352085")
             username = f"tidal_{user_id}"
 
-            # Generate placeholder email (not a real email, just for database)
-            email = f"tidal_{user_id}@gpra.local"
+            # Generate placeholder email (users can update via Stripe Customer Portal)
+            email = f"tidal_{user_id}@gpra.app"
 
             return {
                 'email': email,

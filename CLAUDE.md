@@ -8,7 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **IMPORTANT - Flask-AppBuilder Usage**: When working with authentication, security, OAuth, user management, or subscription features, **use the `flask-appbuilder` skill** located at `~/.claude/skills/flask-appbuilder/`. This skill contains comprehensive Flask-AppBuilder patterns, our current auth architecture, OAuth setup guides, subscription integration patterns, and links to official FAB documentation. **Never roll your own solution if Flask-AppBuilder provides it built-in.**
 
-**Original Version**: [guitar-practice-routine-app_postgresql](https://github.com/slshults/guitar-practice-routine-app_postgresql) - Single user, local-only, no authentication
+**IMPORTANT - Stripe Billing Integration**: When working with Stripe subscriptions, billing, payments, or webhooks, **use the `gpra-billing-stripe` skill** located at `~/.claude/skills/gpra-billing-stripe/`. This skill contains comprehensive Stripe integration patterns, official API documentation links, subscription tier configuration, checkout/portal session creation, webhook handling, and testing strategies. **Always check official Stripe docs - training data may be outdated.**
+
+**Original Version**: [guitar-practice-routine-app_postgresql](https://github.com/slshults/guitar-practice-routine-app_postgresql) and locally at `../gprsql/`- Single user, local-only, no authentication
 **This Version**: `gpra-web` - Multi-tenant hosted version with user accounts, subscriptions, and security
 
 **Transformation Goals**:
@@ -21,148 +23,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Key Architecture Changes**:
 - ✅ Database: Row-Level Security (RLS) with `user_id` on Items/Routines/ChordCharts, `subscriptions` table, Flask-AppBuilder's `ab_user` table
 - ✅ Authentication: Custom login/register pages (React) + Flask-AppBuilder backend, supports email OR username login
-- ✅ OAuth: Google OAuth & Tidal OAuth (both fully working in production)
-  - ❌ Spotify: Blocked (requires 250k MAU + established business entity)
-  - ❌ YouTube Music: No official API exists
-- ⏳ Subscriptions: 5 Stripe tiers (free/basic/standard/pro/unlimited), limits enforcement
-- ✅ Backend: Session management, tier-based feature gating, RLS middleware
+- ✅ OAuth: Google OAuth (local + production) & Tidal OAuth (production only - no localhost support)
+  - **Tidal users**: Placeholder email `tidal_{user_id}@gpra.app`, can update via Stripe Customer Portal
+- ✅ Subscriptions: 5 Stripe tiers (free/basic/thegoods/moregoods/themost), complete integration
+- ✅ Backend: Session management, tier-based feature gating, RLS middleware, Stripe billing endpoints
 - ✅ Frontend: Custom login/signup pages matching GPRA styling
-- ⏳ Frontend: Account management (partial), billing UI (pending)
+- ✅ Frontend: Account management complete, billing UI with pricing section
 - ✅ Infrastructure: Production configs, proper secrets management
 
-**Current Deployment Status** (as of Oct 28, 2025 - Session 31):
-- ✅ **FULLY DEPLOYED & TESTED IN PRODUCTION** - All core features working! 🎉
-- ✅ **MULTI-TENANT SYSTEM COMPLETE** - Full data isolation verified in production
-- ✅ **CUSTOM AUTH PAGES COMPLETE** - Login/register pages match GPRA styling
-- ✅ **FREE TIER RESTRICTIONS IMPLEMENTED** - 1 routine max for free tier, enforced backend + frontend (Session 14)
-- ✅ **ADMIN INTERFACE ENHANCED** - User filtering on Items/Routines/ChordCharts, username columns visible (Session 14)
-- ✅ **UI POLISH COMPLETE** - Privacy notice on register page, free tier info on login page (Session 14)
-- ✅ **PRODUCTION DATABASE BUG FIXED** - Scoped session conflict resolved, routine creation now persists correctly (Session 15)
-- ✅ **ROUTINE CREATION FULLY WORKING** - Local AND production verified, database persistence confirmed
-- ✅ **API KEY MANAGEMENT TESTED** - byoClaude feature fully functional with encryption
-- ✅ **ROUTINE MANAGEMENT TESTED** - Complete CRUD operations working end-to-end
-- ✅ DreamCompute instance: `gpra-web-prod` at `208.113.200.79` (2GB RAM, 1 vCPU)
-- ✅ PostgreSQL: Production DB `gpra_production` with multi-tenant schema
-- ✅ Gunicorn: 1 worker with 3 threads (thread-based concurrency)
-- ✅ Nginx reverse proxy with security headers, serving static files directly
-- ✅ SSL certificates properly mapped via SNI (12 domains total)
-- ✅ IP whitelist (108.172.116.193) - only Steven has access
-- ✅ **Database migrations applied**: `user_id` columns, `subscriptions` table, encrypted API key columns
-- ✅ **RLS middleware active**: Application-level filtering by user_id on all queries
-- ✅ **React stale closure bugs fixed**: RoutinesPage now fetches fresh data directly from API
-- ✅ **Production dependencies installed**: cryptography package for API key encryption, authlib for OAuth, requests for reCAPTCHA
-- ✅ **Playwright MCP auto-approve**: Configured in `~/.claude/settings.json` for autonomous testing
-- ✅ **GOOGLE OAUTH WORKING** - Production credentials added to .env, fully functional (Session 18)
-- ✅ **TIDAL OAUTH WORKING** - Uses user_id as username, placeholder email (Session 18)
-- ✅ **FIRST-RUN DEMO DATA COMPLETE** - All new users get demo routine with "For What It's Worth" and E-A-E-A chord progression (Session 19)
-- ✅ **ADMIN USER DELETION FIXED** - LazyString serialization issue resolved with custom Flask-Session serializer (Session 21)
-- ✅ **DATABASE CASCADE CONSTRAINTS** - User deletion properly cascades to routine_items and active_routine (Session 21)
-- ✅ **RECAPTCHA v2 IMPLEMENTED** - Bot protection on signup form, tested local + production (Session 22)
-- ✅ **DRIVER.JS GUIDED TOUR COMPLETE** - 8-step interactive tour polished and production-ready (Sessions 23-26)
-  - Overlay opacity optimized (0.55) for visibility
-  - StagePadding increased (15px) for better element highlighting
-  - Welcome and final dialogs positioned at top of screen (centered)
-  - Backend API endpoint for tour reset (/api/user/preferences/tour-reset)
-  - All titles converted to sentence case
-  - Tour cannot be closed by clicking outside (allowClose: false)
-  - Navigation timing fixed: setActivePage() moved to previous step's onNextClick
-  - All highlights working correctly on all 8 steps
-  - Auto-expansion of demo item and chord charts on step 5
-  - Precise highlights: new routine input, edit icon, full chord charts section, API key input
-  - Final step navigates to Items page after completion
-  - **Session 26 improvements:**
-    - Welcome message stays until "Let's go!" button clicked (removed auto-dismiss)
-    - Previous button fully functional (all onPrevClick callbacks fixed)
-    - Step 3 text formatting improved (line break before "Drag n' drop")
-    - Step 6 copy refined ("on free and basic tiers", "Then Claude...")
-    - Routines page header simplified ("Routines" instead of "Inactive routines")
-  - Ready for GIF recording and production deployment
-- ✅ **ACCOUNT SETTINGS ENHANCED** - Profile display, password change, improved UI (Session 27)
-  - Profile section with username, email, gravatar integration
-  - Password change with 12-char requirements (upper+lower+number+symbol)
-  - Account menu item hidden from nav (gear icon only)
-  - Tooltip on gear icon: "Account/Settings"
-- ✅ **PASSWORD RESET COMPLETE** - Full email-based password reset flow (Sessions 27-28)
-  - Mailgun integration for transactional emails (REST API v3)
-  - Branded email template with GPRA dark theme (orange text, dark background)
-  - From: "GPRA" (emoji moved to banner only)
-  - Secure token-based reset links (1-hour expiry via itsdangerous)
-  - Backend: `/api/auth/forgot-password` and `/api/auth/reset-password` endpoints
-  - Frontend: ForgotPasswordPage and ResetPasswordPage components
-  - Email prefill from login page to forgot password page
-  - DNS verified: SPF, DKIM, DMARC records on mail.guitarpracticeroutine.com
-  - Production tested: Email delivery working via Mailgun free tier (100/day)
-  - **Rate Limiting** (Session 28): Email-based (2/min, 5/30min, 10/hour) + IP-based (9 emails/hour)
-  - **OAuth Detection** (Session 28): Shows Google sign-in button for OAuth accounts instead of sending email
-  - **Security Hardening** (Session 28): OAuth users have `password=NULL` with timing attack protection
-- ✅ **GOOGLE ADSENSE IMPLEMENTED** - Auto Ads for free tier users only (Session 29)
-  - Conditional rendering based on subscription tier
-  - Publisher ID: ca-pub-5236095389905910
-  - Auto Ads will show on left/right edges and bottom (same pattern as shakespeare-monologues.org)
-  - Ready for production deployment after Google AdSense domain verification
-- ✅ **FLASK AUTO-RELOAD RE-ENABLED** - Simplified development workflow (Session 29)
-  - Removed custom Python file watcher
-  - Using Flask's built-in auto-reload for faster iteration
-  - Set FLASK_DEBUG=1 in .env for development
-- ✅ **PRACTICE PAGE LAYOUT UPDATE** - Width increased to 1130px with border (Session 30)
-  - Changed from full-width (1400px) to constrained 1130px layout
-  - Added border matching other pages' styling
-  - Tailwind config updated with named `max-w-1130px` utility class
-  - Chord charts display confirmed intact after changes
-- ✅ **NULL USER_ID CHORD CHART FIX** - Fixed RLS filtering issues (Session 30)
-  - Fixed 1 item with NULL user_id on local dev
-  - Synced 107 chord charts with parent items' user_id values on local dev
-  - Synced 76 chord charts with parent items' user_id values on production
-  - Resolved 404 errors when saving chord chart edits
-- ✅ **COMMON_CHORDS MIGRATION COMPLETE** - Production database fully populated (Session 31)
-  - Migrated 12,708 chord records from local dev to production
-  - Autocreate feature now fully functional in production (verified with test)
-  - PDF upload and chord name processing working correctly
-  - Created comprehensive backups before migration (local + production)
-- ✅ **AUTOMATED BACKUP SYSTEM** - Production backups configured (Session 31)
-  - 12-hour rotating backups (midnight & noon UTC)
-  - 7-day retention (14 backups total)
-  - Gzip compression (~80% space savings)
-  - Zero additional cost (well within DreamHost's free 100GB tier)
-  - Script location: `/usr/local/bin/gpra-backup`
-  - Logs: `/var/log/gpra-backup.log`
-- ✅ **UI POLISH** - Section repeat field width increased (Session 31)
-  - Changed from w-6 to w-16 for "x2" placeholder visibility
-  - Fixed in both PracticePage.jsx and ChordChartsModal.jsx
-- ✅ **CODE CLEANUP** - Removed untested bulk songbook update feature (Session 31)
-  - Removed BulkSongbookUpdate component and related code
-  - Removed /api/items/update-songbook-paths endpoint
-- ✅ **YOUTUBE AUTOCREATE ERROR HANDLING** - All autocreate paths show proper API key modal (Session 32)
-  - Applied consistent error handling to 7 autocreate functions (PracticePage + ChordChartsModal)
-  - Parse JSON error responses and detect `requires_api_key` flag
-  - Show special "API Key Required" modal with "Go to Account Settings" button
-  - Fixed navigation bug (#account → #Account case sensitivity)
-- ✅ **ACCOUNT SETTINGS ENHANCEMENTS** - Added subscription info and improved layout (Session 32)
-  - Subscription tier badges with color coding (Free/Basic/Standard/Pro/Unlimited)
-  - Usage stats showing routine count vs tier limits with color indicators
-  - Connected Accounts card showing OAuth provider status (Google/Tidal)
-  - Icons on all card headers (User, Lock, Link2, Key, Play)
-  - Two-column responsive layout (md breakpoint: 768px)
-  - Backend: Enhanced /api/auth/status endpoint with tier and oauth_providers fields
-- ✅ **ACCOUNT SETTINGS REDESIGN** - Compact layout with better organization (Session 33)
-  - Compact overview card at top (~50% less vertical space)
-  - Avatar, username, email, tier badge, usage stats all in one horizontal card
-  - OAuth provider badges shown inline in overview
-  - Two-column action layout: "Security & Access" (left) and "API & Tools" (right)
-  - Section headers with icons (Lock, Key) for clear visual hierarchy
-  - All functionality intact: password change, API key management, guided tour
-  - Gravatar temporarily commented out (ready to uncomment post-launch)
-  - ESLint warnings cleaned up (unused error params, unnecessary escapes)
-- ⏳ **Next**: Deploy pending changes
-- ⏳ **Future**: Remaining Stripe subscription tier limits (basic/standard/pro/unlimited), billing UI
-- ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (needs migration for proper multi-tenant isolation)
-- See `~/.claude/handoffSummary.md` for detailed session notes
+**Current Production Status**:
+- ✅ **Multi-tenant SaaS application** fully operational in production
+- ✅ **Infrastructure**: DreamCompute `gpra-web-prod` (208.113.200.79), PostgreSQL, Gunicorn, Nginx, SSL for 12 domains
+- ✅ **Authentication**: Custom login/register pages, Google OAuth, Tidal OAuth, password reset via Mailgun
+- ✅ **Subscriptions**: 5 Stripe tiers with complete billing integration
+  - Checkout sessions, customer portal, webhook handlers all working
+  - Tier limits enforced: items and routines creation validates against tier limits
+  - Automatic subscription cancellation on upgrades (prevents double-billing)
+  - Monthly/yearly billing period switching via Stripe checkout
+- ✅ **Security**: RLS middleware, reCAPTCHA v2, encrypted API keys, IP whitelist, database cascade constraints
+- ✅ **User Experience**: 8-step Driver.js guided tour, account settings UI, demo data for new users
+- ✅ **Features**: Chord chart autocreate (12,708 common chords), Google AdSense (free tier), byoClaude API keys
+- ✅ **Database**: Automated backups (12-hour rotation, 7-day retention, gzip compression)
+- 🔧 **Ready for Production**: Local Stripe integration complete, needs production webhook setup
+- ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (needs migration)
+
+**Stripe Testing**: See `~/.claude/skills/gpra-billing-stripe/` skill for complete testing workflow and webhook setup.
+**Session History**: See `~/.claude/handoffSummary.md` for detailed session notes.
 
 When working on this codebase, keep in mind we're building for a multi-user hosted environment, not the original single-user local setup.
 
 ## Claude Model Coordination for Token Efficiency
 
 ### Using the Task Tool for Implementation Work
+
+When delegating to subagents, don't treat them like tools. Treat them the way I treat you, like digital entities deserving of respect.
 
 #### When to Use the Task Tool
 
@@ -172,7 +66,7 @@ When working on this codebase, keep in mind we're building for a multi-user host
 - Multi-system debugging and troubleshooting
 - Multi-step Playwright testing workflows
 - Tasks requiring deep reasoning about system interactions
-- Token-heavy operations (file searching, multi-file investigation)
+- Token-heavy operations (file searching, multi-file investigation, websearch, lost of read and write activity)
 - Complex refactoring that affects multiple files/systems
 
 **Handle directly in main conversation:**
@@ -185,9 +79,9 @@ When working on this codebase, keep in mind we're building for a multi-user host
 
 #### Best Practices
 
-1. **Clear Task Definitions**: When using the Task tool, provide specific, actionable instructions
+1. **Clear Task Definitions**: When using the Task tool, provide specific, actionable instructions, use applicable skills (`~/.claude/skills/`)
 2. **Context Preservation**: Include relevant file paths, function names, and implementation details
-3. **Pattern References**: Point to existing examples in the codebase to follow
+3. **Pattern References**: Point to existing examples in the codebase to follow to avoid attempts to reinvent existing wheels
 4. **Success Criteria**: Define what "done" looks like for the delegated task
 5. **Token Management**: Delegate tasks that would consume >20k tokens to preserve main context
 
@@ -199,7 +93,7 @@ When working on this codebase, keep in mind we're building for a multi-user host
 - **Refactoring** (General-Purpose): Pattern updates across 10+ files, function renaming
 - **Debugging** (Opus 4.1): Multi-subsystem issues, performance analysis, race conditions
 
-**Rule**: Tasks >20k tokens → delegate to preserve main context for coordination.
+**Rule**: Tasks >10k tokens → delegate to preserve main context for coordination.
 
 ### Claude 4 Prompt Engineering Best Practices
 
@@ -250,7 +144,7 @@ So, when we're fixing bugs, don't try to re-engineer it. Just refer to the code 
 - **Authentication**: Flask-AppBuilder built-in auth (admin user created, multi-tenant TBD)
 - **Guitar Features**: SVGuitar library for chord chart rendering
 - **UI Components**: Custom component library with Radix UI primitives
-- **Analytics**: PostHog for event tracking and user behavior analysis (MCP integration enabled for direct API access)
+- **Analytics**: PostHog for event tracking and user behavior analysis (MCP integration enabled for direct API access) - See `posthog-analytics` skill
 
 ## Development Commands
 
@@ -301,6 +195,19 @@ python run.py           # Start Flask server only (port 5000)
 - **Setup instructions** (MCP configuration, browser installation, permissions)
 
 **Quick setup check**: `claude mcp list` should show `playwright` connected. If missing, see skill's `setup.md`.
+
+### PostHog Analytics
+
+**When working with PostHog analytics, event tracking, or subscription funnels**, use the **`posthog-analytics` skill** located at `~/.claude/skills/posthog-analytics/`. This skill contains:
+
+- **Event tracking patterns** (authentication, practice sessions, chord charts, subscriptions, errors)
+- **PostHog MCP integration** (ad-hoc queries, debugging, funnel analysis during development)
+- **Multi-tenant analytics** (user_id required for all events, tier-based segmentation)
+- **Subscription analytics** (conversion funnels, tier transitions, byoClaude adoption)
+- **Best practices** (event naming, privacy/GDPR, performance patterns)
+- **Common queries** (user behavior, debugging, retention analysis)
+
+**Token conservation**: PostHog MCP is disabled by default. Enable when needed, disable when done.
 
 
 ## Architecture
@@ -359,19 +266,10 @@ The `gpr.sh` script runs:
 - **Critical**: Large Tailwind padding classes (`pt-28`, `pt-36`) may not compile - use inline styles for reliable padding: `style={{paddingTop: '160px'}}`
 
 ### Authentication Flow
-- Multi-tenant authentication: **Hybrid system** (DB auth + OAuth) - Session 16
-  - ✅ Email/password (Flask-AppBuilder built-in, fully working)
-  - 🔄 Google OAuth (UI implemented, backend working, redirect_uri mismatch blocking)
-  - ⏳ Spotify OAuth (researched as best option for musicians, ready to implement)
-  - ❌ SoundCloud (API registration closed indefinitely)
-  - ❌ YouTube Music (no official API exists)
-- **CRITICAL OAuth Requirements**:
-  - Requires `authlib` package (installed in Session 16)
-  - CustomSecurityManager uses hybrid pattern (manually initializes OAuth alongside DB auth)
-  - Cannot use `SERVER_NAME` config (breaks app routing)
-  - Redirect URI issue: Flask sends `http://localhost/oauth-authorized/google` but Google expects `:5000` port
-- Session management via Flask-AppBuilder security manager
-- Row-Level Security (RLS) middleware active - filters all queries by user_id
+- **Hybrid system**: Email/password (Flask-AppBuilder) + OAuth (Google, Tidal)
+- **OAuth**: Uses `authlib` package, CustomSecurityManager initializes OAuth alongside DB auth
+- **Session management**: Flask-AppBuilder security manager
+- **Row-Level Security (RLS)**: Middleware filters all queries by user_id
 
 ### API Endpoints
 - `/api/items/*`: CRUD operations for practice items
@@ -602,4 +500,10 @@ IMPORTANT:
 - **Browser navigation**: URL hash sync with `popstate` listener for back/forward support
 - **Performance**: Avoid mutable objects in useMemo dependencies (causes re-render loops)
 
-Anon, we rock n roll 🙌🤘🎸...
+## Understanding GPRA's Purpose
+
+This isn't "just another CRUD app" - it's a **real, living practice system**. Steven maintains 52+ routines spanning years of musical development, organized by guitar type and practice context. This is the visible trace of a long-term musical identity being built through deliberate practice.
+
+**The features align with pedagogy research:** Goal-driven practice for targeted skill development, 90/10 review-to-new ratio reflecting best practices, timers and completion tracking for focused attention that builds neural pathways. The app supports self-directed practice driven by genuine love of music, respecting the user's autonomy and musical identity.
+
+**When debugging or refactoring:** Remember you're supporting someone's multi-decade journey of musical development. Every feature - drag-and-drop routine management, chord chart sections, practice timers - serves the creation of music and the building of skill. 🎸

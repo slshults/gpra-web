@@ -14,6 +14,7 @@ from app.sheets import ( # type: ignore
 )
 from app.data_layer import DataLayer
 from app.utils.llm_analytics import llm_analytics
+from app import billing
 from google_auth_oauthlib.flow import Flow
 import os
 import logging
@@ -2736,3 +2737,39 @@ def add_chord_chart_with_backoff(item_id, chord_chart_data, max_retries=3):
                 raise
     
     return None
+
+# ============================================================================
+# Billing & Subscription Routes (Stripe Integration)
+# ============================================================================
+
+@app.route('/api/billing/create-checkout-session', methods=['POST'])
+def create_checkout_session():
+    """Create Stripe Checkout Session for subscription purchase"""
+    from app.database import get_db
+    db = get_db()
+    try:
+        return billing.create_checkout_session(db)
+    finally:
+        db.close()
+
+
+@app.route('/api/billing/create-portal-session', methods=['POST'])
+def create_portal_session():
+    """Create Stripe Customer Portal Session for subscription management"""
+    from app.database import get_db
+    db = get_db()
+    try:
+        return billing.create_portal_session(db)
+    finally:
+        db.close()
+
+
+@app.route('/api/webhooks/stripe', methods=['POST'])
+def stripe_webhook():
+    """Handle Stripe webhook events"""
+    from app.database import get_db
+    db = get_db()
+    try:
+        return billing.handle_stripe_webhook(db)
+    finally:
+        db.close()

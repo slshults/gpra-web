@@ -4,9 +4,10 @@ Drop-in replacement for existing routes.py during migration.
 """
 from flask import render_template, request, jsonify, redirect, session, url_for
 from flask_login import current_user
-from app import app
+from app import app, billing
 from app.data_layer import data_layer
 from app.database import DatabaseTransaction
+from app.subscription_tiers import get_tier_limits
 from sqlalchemy import text
 import logging
 import os
@@ -102,7 +103,46 @@ def items():
     elif request.method == 'POST':
         if not request.is_json:
             return jsonify({"error": "Request must be JSON"}), 400
-            
+
+        # Check subscription tier limits for item creation
+        from app.database import SessionLocal
+        db = SessionLocal()
+        try:
+            # Get user's subscription tier
+            subscription = db.execute(text("""
+                SELECT tier FROM subscriptions WHERE user_id = :user_id
+            """), {'user_id': current_user.id}).fetchone()
+
+            # Default to 'free' tier if no subscription
+            tier = subscription[0] if subscription else 'free'
+            app.logger.info(f"User {current_user.id} has subscription tier: {tier}")
+
+            # Get tier limits
+            tier_config = get_tier_limits(tier)
+            items_limit = tier_config['items_limit']
+
+            # Count existing items for this user
+            item_count = db.execute(text("""
+                SELECT COUNT(*) FROM items WHERE user_id = :user_id
+            """), {'user_id': current_user.id}).fetchone()[0]
+
+            app.logger.info(f"User {current_user.id} has {item_count} items (tier '{tier}' limit: {items_limit})")
+
+            # Check if limit reached
+            if item_count >= items_limit:
+                app.logger.warning(f"User {current_user.id} reached item limit: {item_count}/{items_limit}")
+                return jsonify({
+                    "error": "Item limit reached",
+                    "message": f"You've reached the {items_limit} item limit for the {tier_config['display_name']} tier. Please upgrade to add more items.",
+                    "tier": tier,
+                    "limit": items_limit,
+                    "current": item_count
+                }), 403
+        finally:
+            db.close()
+            # Remove scoped session from thread-local storage
+            SessionLocal.remove()
+
         new_item = request.json
         result = data_layer.add_item(new_item)
         return jsonify(result)
@@ -1772,30 +1812,31 @@ def routines():
                     SELECT tier FROM subscriptions WHERE user_id = :user_id
                 """), {'user_id': current_user.id}).fetchone()
 
-                if subscription:
-                    tier = subscription[0]
-                    app.logger.info(f"User {current_user.id} has subscription tier: {tier}")
+                # Default to 'free' tier if no subscription
+                tier = subscription[0] if subscription else 'free'
+                app.logger.info(f"User {current_user.id} has subscription tier: {tier}")
 
-                    # Free tier is limited to 1 routine
-                    if tier == 'free':
-                        # Count existing routines for this user
-                        routine_count = db.execute(text("""
-                            SELECT COUNT(*) FROM routines WHERE user_id = :user_id
-                        """), {'user_id': current_user.id}).fetchone()[0]
+                # Get tier limits
+                tier_config = get_tier_limits(tier)
+                routines_limit = tier_config['routines_limit']
 
-                        app.logger.info(f"User {current_user.id} has {routine_count} routines (free tier limit: 1)")
+                # Count existing routines for this user
+                routine_count = db.execute(text("""
+                    SELECT COUNT(*) FROM routines WHERE user_id = :user_id
+                """), {'user_id': current_user.id}).fetchone()[0]
 
-                        if routine_count >= 1:
-                            app.logger.warning(f"Free tier user {current_user.id} attempted to create routine #{routine_count + 1}")
-                            return jsonify({
-                                "error": "Free tier limit reached",
-                                "message": "Free tier is limited to 1 routine. Please upgrade to create more routines.",
-                                "tier": "free",
-                                "limit": 1,
-                                "current": routine_count
-                            }), 403
-                else:
-                    app.logger.warning(f"No subscription found for user {current_user.id}")
+                app.logger.info(f"User {current_user.id} has {routine_count} routines (tier '{tier}' limit: {routines_limit})")
+
+                # Check if limit reached
+                if routine_count >= routines_limit:
+                    app.logger.warning(f"User {current_user.id} reached routine limit: {routine_count}/{routines_limit}")
+                    return jsonify({
+                        "error": "Routine limit reached",
+                        "message": f"You've reached the {routines_limit} routine limit for the {tier_config['display_name']} tier. Please upgrade to create more routines.",
+                        "tier": tier,
+                        "limit": routines_limit,
+                        "current": routine_count
+                    }), 403
             finally:
                 db.close()
                 # CRITICAL: Remove scoped session from thread-local storage
@@ -4150,3 +4191,38 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
         app.logger.error(f"[AUTOCREATE] OCR trustworthiness assessment failed: {str(e)}")
         # Default to untrusted on error - better safe than sorry
         return {'trustworthy': False, 'reason': f'Assessment error: {str(e)}'}
+# ============================================================================
+# Billing & Subscription Routes (Stripe Integration)
+# ============================================================================
+
+@app.route('/api/billing/create-checkout-session', methods=['POST'])
+def create_checkout_session():
+    """Create Stripe Checkout Session for subscription purchase"""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return billing.create_checkout_session(db)
+    finally:
+        db.close()
+
+
+@app.route('/api/billing/create-portal-session', methods=['POST'])
+def create_portal_session():
+    """Create Stripe Customer Portal Session for subscription management"""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return billing.create_portal_session(db)
+    finally:
+        db.close()
+
+
+@app.route('/api/webhooks/stripe', methods=['POST'])
+def stripe_webhook():
+    """Handle Stripe webhook events"""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return billing.handle_stripe_webhook(db)
+    finally:
+        db.close()
