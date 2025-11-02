@@ -437,7 +437,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
 
             {/* CTA Button */}
             <Button
-              onClick={() => window.open('https://github.com/slshults/guitar-practice-routine-app_postgresql', '_blank')}
+              onClick={() => window.open('https://github.com/slshults/guitar-practice-routine-app_postgresql/blob/main/README.md', '_blank')}
               className="w-full bg-gray-700 hover:bg-gray-600 border border-gray-600"
             >
               Get it from GitHub
