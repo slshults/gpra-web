@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@ui/card';
 import { Plus, Pencil, X, CheckCircle2, GripVertical } from 'lucide-react';
 import { RoutineEditor } from './RoutineEditor';
 import ChordChartsModal from './ChordChartsModal';
+import TierLimitModal from './TierLimitModal';
 import { ChordIcon } from './icons/ChordIcon';
 import {
   DndContext,
@@ -167,6 +168,15 @@ const RoutinesPage = () => {
   const [chordChartsModalOpen, setChordChartsModalOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [selectedItemTitle, setSelectedItemTitle] = useState('');
+
+  // Tier limit modal state
+  const [tierLimitModalOpen, setTierLimitModalOpen] = useState(false);
+  const [tierLimitData, setTierLimitData] = useState({
+    limitType: 'routines',
+    currentTier: 'free',
+    currentCount: 0,
+    limitAmount: 1,
+  });
 
   // Debounce timer for routine order updates
   const routineOrderDebounceRef = useRef(null);
@@ -332,11 +342,17 @@ const RoutinesPage = () => {
       });
 
       if (!response.ok) {
-        // Check if this is a free tier limit error
+        // Check if this is a tier limit error
         if (response.status === 403) {
           const errorData = await response.json();
-          if (errorData.error === 'Free tier limit reached') {
-            setError(`${errorData.message} You currently have ${errorData.current} routine${errorData.current !== 1 ? 's' : ''}.`);
+          if (errorData.error === 'Routine limit reached') {
+            setTierLimitData({
+              limitType: 'routines',
+              currentTier: errorData.tier || 'free',
+              currentCount: errorData.current || 0,
+              limitAmount: errorData.limit || 1,
+            });
+            setTierLimitModalOpen(true);
             return;
           }
         }
@@ -870,6 +886,15 @@ const RoutinesPage = () => {
         onClose={() => setChordChartsModalOpen(false)}
         itemId={selectedItemId}
         itemTitle={selectedItemTitle}
+      />
+
+      <TierLimitModal
+        isOpen={tierLimitModalOpen}
+        onClose={() => setTierLimitModalOpen(false)}
+        limitType={tierLimitData.limitType}
+        currentTier={tierLimitData.currentTier}
+        currentCount={tierLimitData.currentCount}
+        limitAmount={tierLimitData.limitAmount}
       />
     </>
   );

@@ -2781,6 +2781,28 @@ def update_subscription_route():
         db.close()
 
 
+@app.route('/api/billing/resume-subscription', methods=['POST'])
+def resume_subscription_route():
+    """Resume lapsed subscription by updating payment method"""
+    from app.database import get_db
+    db = get_db()
+    try:
+        return billing.resume_subscription(db)
+    finally:
+        db.close()
+
+
+@app.route('/api/billing/set-unplugged', methods=['POST'])
+def set_unplugged_route():
+    """Set user to unplugged mode (free tier with limited access)"""
+    from app.database import get_db
+    db = get_db()
+    try:
+        return billing.set_unplugged_mode(db)
+    finally:
+        db.close()
+
+
 @app.route('/api/webhooks/stripe', methods=['POST'])
 def stripe_webhook():
     """Handle Stripe webhook events"""

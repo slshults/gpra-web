@@ -36,16 +36,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **Infrastructure**: DreamCompute `gpra-web-prod` (208.113.200.79), PostgreSQL, Gunicorn, Nginx, SSL for 12 domains
 - ✅ **Authentication**: Custom login/register pages, Google OAuth, Tidal OAuth, password reset via Mailgun
 - ✅ **Subscriptions**: 5 Stripe tiers with complete billing integration
-  - Checkout sessions, customer portal, webhook handlers all working
+  - Checkout sessions for NEW customers, Subscription Update API for EXISTING customers (prevents double-billing)
+  - Custom modal dialogs for subscription updates with personalized messaging
   - Tier limits enforced: items and routines creation validates against tier limits
-  - Automatic subscription cancellation on upgrades (prevents double-billing)
-  - Monthly/yearly billing period switching via Stripe checkout
+  - Tier limit modals with "Upgrade" and "Nope" buttons (friendly UX)
+  - Proration handling for mid-month upgrades/downgrades
+  - Monthly/yearly billing period switching with cost difference display in UI
+  - **Lapsed subscription handling**: Complete flow with 90-day visible countdown (120-day total retention)
+  - **Unplugged mode**: Free tier access to saved active routine, lapsed modal on every login, navigation blocking
+  - **Renewal flow**: Canceled subscriptions resume via new checkout session (Stripe requirement), webhooks clear unplugged_mode
 - ✅ **Security**: RLS middleware, reCAPTCHA v2, encrypted API keys, IP whitelist, database cascade constraints
-- ✅ **User Experience**: 8-step Driver.js guided tour, account settings UI, demo data for new users
-- ✅ **Features**: Chord chart autocreate (12,708 common chords), Google AdSense (free tier), byoClaude API keys
+- ✅ **User Experience**: 8-step Driver.js guided tour, account settings UI, demo data for new users, custom modals throughout
+- ✅ **Features**: Chord chart autocreate (12,708 common chords), Google AdSense (free tier + unplugged mode), byoClaude API keys
 - ✅ **Database**: Automated backups (12-hour rotation, 7-day retention, gzip compression)
-- 🔧 **Ready for Production**: Local Stripe integration complete, needs production webhook setup
-- ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (needs migration)
+- 🔧 **Ready for Production**: Stripe integration fully tested locally, needs production webhook endpoint configuration
+- ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (workaround in place, formal migration TBD)
 
 **Stripe Testing**: See `~/.claude/skills/gpra-billing-stripe/` skill for complete testing workflow and webhook setup.
 **Session History**: See `~/.claude/handoffSummary.md` for detailed session notes.
@@ -230,9 +235,12 @@ The application has been **migrated to PostgreSQL as its database** with a **Dat
 
 ### Backend Structure
 - `run.py`: Flask application runner
-- `app/routes.py`: API endpoints and HTTP request handling
-- `app/sheets.py`: Google Sheets data layer (acts as ORM)
+- **`app/routes_v2.py`**: **ACTIVE** API routes file - all billing, auth, and CRUD endpoints
+- `app/routes.py`: Legacy routes file (routes_v2.py is active)
+- `app/billing.py`: Stripe integration functions (checkout, portal, webhooks, lapsed subscriptions)
+- `app/data_layer.py`: DataLayer abstraction for database operations
 - `app/__init__.py`: Flask app initialization and OAuth setup
+- `app/sheets.py`: Legacy Google Sheets data layer (fallback mode)
 
 ## Key Files and Locations
 
@@ -275,13 +283,21 @@ The `gpr.sh` script runs:
 - `/api/items/*`: CRUD operations for practice items
 - `/api/routines/*`: CRUD operations for practice routines
 - `/api/practice/active-routine`: Get/set active practice routine
-- `/api/auth/status`: Check authentication status
+- `/api/auth/status`: Check authentication status (includes subscription/billing info)
 - `/api/items/<id>/chord-charts`: Get/create chord charts for practice items
 - `/api/chord-charts/<id>`: Delete chord charts
 - `/api/items/<id>/chord-charts/order`: Reorder chord charts
 - `/api/autocreate-chord-charts`: Upload files for AI-powered chord chart creation
 - `/api/user/api-key`: GET (check status), POST (save), DELETE (remove) user's API key
 - `/api/user/api-key/validate`: POST - validate API key without saving
+- **Billing Endpoints** (all in `routes_v2.py`):
+  - `/api/billing/create-checkout-session`: Create Stripe checkout for NEW customers
+  - `/api/billing/update-subscription`: Update existing subscription (tier/period changes)
+  - `/api/billing/create-portal-session`: Access Stripe Customer Portal
+  - `/api/billing/resume-subscription`: Resume lapsed subscription (creates NEW checkout session - Stripe requirement)
+  - `/api/billing/set-unplugged`: Set lapsed user to unplugged/free mode
+  - `/api/billing/last-payment`: GET - Fetch last successful payment amount and date from Stripe
+  - `/api/stripe/webhook`: Stripe webhook handler (subscription events)
 
 ## Special Considerations
 

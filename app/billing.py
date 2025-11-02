@@ -399,6 +399,14 @@ def handle_subscription_created(db: Session, stripe_subscription):
     else:
         subscription.mrr = amount
 
+    # Clear lapsed subscription fields when subscription becomes active
+    if stripe_subscription['status'] in ['active', 'trialing']:
+        subscription.unplugged_mode = False
+        subscription.lapse_date = None
+        subscription.data_deletion_date = None
+        subscription.last_active_routine_id = None
+        logger.info(f"Cleared lapse fields for renewed user {user_id}")
+
     db.commit()
     logger.info(f"Updated subscription for user {user_id}: tier={tier}, status={subscription.status}")
 
@@ -441,6 +449,14 @@ def handle_subscription_updated(db: Session, stripe_subscription):
     else:
         subscription.mrr = amount
 
+    # Clear lapsed subscription fields when subscription becomes active
+    if stripe_subscription['status'] in ['active', 'trialing']:
+        subscription.unplugged_mode = False
+        subscription.lapse_date = None
+        subscription.data_deletion_date = None
+        subscription.last_active_routine_id = None
+        logger.info(f"Cleared lapse fields for renewed user {subscription.user_id}")
+
     db.commit()
     logger.info(f"Updated subscription for user {subscription.user_id}: tier={tier}, status={subscription.status}")
 
@@ -482,8 +498,13 @@ def handle_payment_succeeded(db: Session, invoice):
 
         if subscription and subscription.status != 'active':
             subscription.status = 'active'
+            # Clear lapsed subscription fields when payment succeeds
+            subscription.unplugged_mode = False
+            subscription.lapse_date = None
+            subscription.data_deletion_date = None
+            subscription.last_active_routine_id = None
             db.commit()
-            logger.info(f"Reactivated subscription for user {subscription.user_id}")
+            logger.info(f"Reactivated subscription for user {subscription.user_id}, cleared lapse fields")
 
 
 def handle_payment_failed(db: Session, invoice):
@@ -500,3 +521,182 @@ def handle_payment_failed(db: Session, invoice):
             subscription.status = 'past_due'
             db.commit()
             logger.warning(f"Subscription for user {subscription.user_id} is past due")
+
+
+def resume_subscription(db: Session):
+    """Resume lapsed subscription by creating NEW subscription (Stripe requirement)
+
+    Per Stripe docs (2025): Canceled subscriptions cannot be resumed.
+    You must create a new subscription instead via checkout session.
+
+    This creates a checkout session for the user's previous tier/billing period.
+    """
+    from flask_login import current_user
+    if not current_user or not current_user.is_authenticated:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    user_id = current_user.id
+    subscription = db.query(Subscription).filter_by(user_id=user_id).first()
+
+    if not subscription or not subscription.stripe_customer_id:
+        return jsonify({'error': 'No subscription found'}), 404
+
+    try:
+        # Get the tier they were on before cancellation
+        previous_tier = subscription.tier if subscription.tier != 'free' else 'basic'
+
+        # Determine billing period from last price ID (default to monthly)
+        billing_period = 'monthly'
+        if subscription.stripe_price_id:
+            for tier_key, tier_config in SUBSCRIPTION_TIERS.items():
+                if subscription.stripe_price_id == tier_config.get('stripe_price_id_yearly'):
+                    billing_period = 'yearly'
+                    break
+
+        # Get price ID for their previous tier
+        tier_config = SUBSCRIPTION_TIERS.get(previous_tier, SUBSCRIPTION_TIERS['basic'])
+        price_id = tier_config.get(f'stripe_price_id_{billing_period}')
+
+        if not price_id:
+            return jsonify({'error': 'Price configuration error'}), 500
+
+        # Create NEW checkout session (not portal session)
+        # Canceled subscriptions require creating a new subscription, not resuming old one
+        checkout_session = stripe.checkout.Session.create(
+            customer=subscription.stripe_customer_id,
+            line_items=[{
+                'price': price_id,
+                'quantity': 1,
+            }],
+            mode='subscription',
+            success_url=f"{request.host_url}#Practice?renewal=success",
+            cancel_url=f"{request.host_url}#Practice?renewal=cancelled",
+            metadata={
+                'user_id': str(user_id),
+                'tier': previous_tier,
+            },
+            subscription_data={
+                'metadata': {
+                    'user_id': str(user_id),
+                    'tier': previous_tier,
+                    'billing_period': billing_period,
+                },
+            }
+        )
+
+        logger.info(f"Created renewal checkout session for user {user_id}, tier {previous_tier}/{billing_period}")
+        return jsonify({'url': checkout_session.url})
+
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe error creating renewal checkout: {str(e)}")
+        return jsonify({'error': f'Stripe error: {str(e)}'}), 400
+    except Exception as e:
+        logger.error(f"Error creating renewal checkout: {str(e)}")
+        return jsonify({'error': 'Failed to create checkout session'}), 500
+
+
+def set_unplugged_mode(db: Session):
+    """Set user to unplugged mode (free tier with ads, limited to active routine)"""
+    from flask_login import current_user
+    if not current_user or not current_user.is_authenticated:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    user_id = current_user.id
+    subscription = db.query(Subscription).filter_by(user_id=user_id).first()
+
+    if not subscription:
+        return jsonify({'error': 'No subscription found'}), 404
+
+    try:
+        from app.models import ActiveRoutine, Routine
+
+        # Set unplugged mode
+        subscription.unplugged_mode = True
+
+        # Get ACTUAL active routine (if set) or fall back to newest
+        active_routine_record = db.query(ActiveRoutine).first()
+        active_routine_id = None
+
+        if active_routine_record and active_routine_record.routine_id:
+            # Check if that routine belongs to this user
+            active = db.query(Routine).filter_by(
+                id=active_routine_record.routine_id,
+                user_id=user_id
+            ).first()
+            if active:
+                active_routine_id = active.id
+                logger.info(f"User {user_id} set to unplugged mode with active routine {active_routine_id}")
+
+        # Fallback: use newest routine if no active routine found
+        if not active_routine_id:
+            newest = db.query(Routine).filter_by(user_id=user_id).order_by(Routine.created_at.desc()).first()
+            if newest:
+                active_routine_id = newest.id
+                logger.info(f"User {user_id} set to unplugged mode with newest routine {active_routine_id}")
+            else:
+                logger.warning(f"User {user_id} set to unplugged mode but has no routines")
+
+        subscription.last_active_routine_id = active_routine_id
+
+        db.commit()
+        return jsonify({'success': True})
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error setting unplugged mode: {str(e)}")
+        return jsonify({'error': 'Failed to set unplugged mode'}), 500
+
+
+def get_last_payment(db: Session):
+    """Get the last successful payment amount and date from Stripe (excluding $0 payments)"""
+    from flask_login import current_user
+    if not current_user or not current_user.is_authenticated:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    user_id = current_user.id
+    subscription = db.query(Subscription).filter_by(user_id=user_id).first()
+
+    if not subscription or not subscription.stripe_customer_id:
+        return jsonify({'error': 'No subscription found'}), 404
+
+    try:
+        # Fetch paid invoices for this customer (get more to filter out $0 ones)
+        invoices = stripe.Invoice.list(
+            customer=subscription.stripe_customer_id,
+            status='paid',
+            limit=10  # Get more to filter for non-zero payments
+        )
+
+        if not invoices.data:
+            return jsonify({'error': 'No payment history found'}), 404
+
+        # Find the first invoice with amount > 0
+        latest_real_payment = None
+        for invoice in invoices.data:
+            amount_cents = invoice.amount_paid
+            if amount_cents > 0:  # Only consider actual payments, not $0 invoices
+                latest_real_payment = invoice
+                break
+
+        if not latest_real_payment:
+            # User has invoices but all are $0 (promos, tests, etc.)
+            return jsonify({'error': 'No payment history found'}), 404
+
+        # Amount is in cents, convert to dollars
+        amount = latest_real_payment.amount_paid / 100
+        # Stripe timestamps are Unix timestamps
+        payment_date = datetime.utcfromtimestamp(latest_real_payment.status_transitions.paid_at)
+
+        logger.info(f"Retrieved last payment for user {user_id}: ${amount} on {payment_date.isoformat()}")
+
+        return jsonify({
+            'amount': f"{amount:.2f}",
+            'date': payment_date.isoformat()
+        })
+
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe error fetching last payment: {str(e)}")
+        return jsonify({'error': f'Stripe error: {str(e)}'}), 400
+    except Exception as e:
+        logger.error(f"Error fetching last payment: {str(e)}")
+        return jsonify({'error': 'Failed to fetch payment history'}), 500
