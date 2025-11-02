@@ -13,6 +13,7 @@ import { Input } from '@ui/input';
 import { Textarea } from '@ui/textarea';
 import { Label } from '@ui/label';
 import { Loader2 } from 'lucide-react';
+import TierLimitModal from './TierLimitModal';
 
 export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) => {
   const [formData, setFormData] = useState({
@@ -25,6 +26,13 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
   });
   const [error, setError] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [tierLimitModalOpen, setTierLimitModalOpen] = useState(false);
+  const [tierLimitData, setTierLimitData] = useState({
+    limitType: 'items',
+    currentTier: 'free',
+    currentCount: 0,
+    limitAmount: 15,
+  });
 
   // Clear error and load item data when modal opens
   useEffect(() => {
@@ -111,6 +119,21 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
+
+        // Check if this is a tier limit error
+        if (response.status === 403) {
+          if (errorData?.error === 'Item limit reached') {
+            setTierLimitData({
+              limitType: 'items',
+              currentTier: errorData.tier || 'free',
+              currentCount: errorData.current || 0,
+              limitAmount: errorData.limit || 15,
+            });
+            setTierLimitModalOpen(true);
+            return;
+          }
+        }
+
         throw new Error(errorData?.error || 'Failed to save item');
       }
 
@@ -150,6 +173,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl bg-gray-800">
         <DialogHeader>
@@ -318,6 +342,16 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
         </form>
       </DialogContent>
     </Dialog>
+
+    {open && <TierLimitModal
+      isOpen={tierLimitModalOpen}
+      onClose={() => setTierLimitModalOpen(false)}
+      limitType={tierLimitData.limitType}
+      currentTier={tierLimitData.currentTier}
+      currentCount={tierLimitData.currentCount}
+      limitAmount={tierLimitData.limitAmount}
+    />}
+    </>
   );
 };
 

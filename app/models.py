@@ -215,6 +215,12 @@ class Subscription(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
+    # Lapsed subscription tracking
+    lapse_date = Column(DateTime(timezone=True), nullable=True)  # When subscription lapsed (current_period_end)
+    unplugged_mode = Column(Boolean, default=False, nullable=False)  # User chose "Unplugged"
+    data_deletion_date = Column(DateTime(timezone=True), nullable=True)  # lapse_date + 120 days
+    last_active_routine_id = Column(Integer, nullable=True)  # Last routine they had active before lapse
+
     __table_args__ = (
         Index('idx_subscriptions_user_id', 'user_id'),
         Index('idx_subscriptions_status', 'status'),

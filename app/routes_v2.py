@@ -733,10 +733,18 @@ def auth_status():
         # Get user's subscription tier and billing period
         tier = 'free'  # Default
         billing_period = None  # Default for free tier
+        is_lapsed = False
+        unplugged_mode = False
+        days_remaining = None
+        days_until_90 = None  # Visible countdown (90 days)
+        lapse_date = None
+
         try:
+            from datetime import datetime, timedelta, timezone
             with DatabaseTransaction() as tx:
                 result = tx.execute(text("""
-                    SELECT tier, stripe_price_id
+                    SELECT tier, stripe_price_id, status, current_period_end,
+                           lapse_date, unplugged_mode, data_deletion_date
                     FROM subscriptions
                     WHERE user_id = :user_id
                 """), {"user_id": current_user.id})
@@ -744,6 +752,11 @@ def auth_status():
                 if sub_row:
                     tier = sub_row[0]
                     stripe_price_id = sub_row[1]
+                    status = sub_row[2]
+                    current_period_end = sub_row[3]
+                    stored_lapse_date = sub_row[4]
+                    unplugged_mode = sub_row[5] or False
+                    data_deletion_date = sub_row[6]
 
                     # Determine billing period from price ID
                     if stripe_price_id:
@@ -756,6 +769,46 @@ def auth_status():
                             elif stripe_price_id == tier_config.get('stripe_price_id_yearly'):
                                 billing_period = 'yearly'
                                 break
+
+                    # Check if subscription is lapsed
+                    if status in ['canceled', 'past_due', 'unpaid']:
+                        is_lapsed = True
+
+                        # Set lapse_date if not already set
+                        if not stored_lapse_date:
+                            lapse_date = current_period_end or datetime.now(timezone.utc)
+                            deletion_date = lapse_date + timedelta(days=120)
+
+                            tx.execute(text("""
+                                UPDATE subscriptions
+                                SET lapse_date = :lapse_date,
+                                    data_deletion_date = :deletion_date
+                                WHERE user_id = :user_id
+                            """), {
+                                "user_id": current_user.id,
+                                "lapse_date": lapse_date,
+                                "deletion_date": deletion_date
+                            })
+                            tx.commit()
+                        else:
+                            lapse_date = stored_lapse_date
+
+                        # Calculate days remaining until deletion (120 days total)
+                        if data_deletion_date:
+                            days_remaining = (data_deletion_date - datetime.now(timezone.utc)).days
+
+                            # If past deletion date, could trigger data deletion here
+                            if days_remaining < 0:
+                                app.logger.warning(f"User {current_user.id} subscription data deletion date passed ({days_remaining} days ago)")
+                                # TODO: Trigger data deletion (create separate endpoint/task for this)
+
+                        # Calculate days until 90-day visible deadline
+                        # (The additional 30 days is an invisible grace period)
+                        days_until_90 = None
+                        if lapse_date:
+                            ninety_day_mark = lapse_date + timedelta(days=90)
+                            days_until_90 = max(0, (ninety_day_mark - datetime.now(timezone.utc)).days)
+
         except Exception as e:
             app.logger.error(f"Failed to fetch subscription tier: {e}")
 
@@ -777,6 +830,11 @@ def auth_status():
             "tier": tier,
             "billing_period": billing_period,
             "oauth_providers": oauth_providers,
+            "is_lapsed": is_lapsed,
+            "unplugged_mode": unplugged_mode,
+            "days_remaining": days_remaining,  # Total days until deletion (120)
+            "days_until_90": days_until_90,  # Visible countdown (90 days)
+            "lapse_date": lapse_date.isoformat() if lapse_date else None,
             "mode": "flask-appbuilder"
         })
     else:
@@ -2050,18 +2108,43 @@ def active_routine():
 
 @app.route('/api/practice/active-routine/lightweight', methods=['GET'])
 def get_active_routine_lightweight():
-    """Get lightweight active routine data"""
-    active = data_layer.get_active_routine()
-    if not active:
+    """Get lightweight active routine data - supports unplugged mode"""
+    from flask_login import current_user
+    from app.database import DatabaseTransaction
+    from sqlalchemy import text
+
+    # Check if user is in unplugged mode
+    routine_id = None
+    with DatabaseTransaction() as tx:
+        result = tx.execute(text("""
+            SELECT unplugged_mode, last_active_routine_id
+            FROM subscriptions
+            WHERE user_id = :user_id
+        """), {"user_id": current_user.id})
+        sub_row = result.fetchone()
+
+        if sub_row:
+            unplugged_mode, last_active_routine_id = sub_row
+
+            if unplugged_mode and last_active_routine_id:
+                # Unplugged mode: use saved routine from subscription
+                routine_id = last_active_routine_id
+                app.logger.info(f"Unplugged user {current_user.id} using saved routine {routine_id}")
+            else:
+                # Normal mode: get from active_routine table
+                active = data_layer.get_active_routine()
+                if active:
+                    routine_id = int(active.get("A"))
+
+    if not routine_id:
         return jsonify({"active_id": None, "items": []})
-    
+
     # Get routine with items
-    routine_id = int(active.get("A"))
     routine_with_items = data_layer.get_routine_with_items(routine_id)
-    
+
     if not routine_with_items:
         return jsonify({"active_id": None, "items": []})
-    
+
     # Format the response to match what the frontend expects
     items_with_minimal_details = []
     for item in routine_with_items.get("items", []):
@@ -2082,7 +2165,7 @@ def get_active_routine_lightweight():
                 "C": item_details.get("C", "")   # Item title
             }
         })
-    
+
     return jsonify({
         "active_id": str(routine_id),
         "name": routine_with_items.get("B", ""),  # Column B contains routine name
@@ -4239,6 +4322,39 @@ def update_subscription_route():
     db = SessionLocal()
     try:
         return billing.update_existing_subscription(db)
+    finally:
+        db.close()
+
+
+@app.route('/api/billing/resume-subscription', methods=['POST'])
+def resume_subscription_route():
+    """Resume lapsed subscription by updating payment method"""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return billing.resume_subscription(db)
+    finally:
+        db.close()
+
+
+@app.route('/api/billing/set-unplugged', methods=['POST'])
+def set_unplugged_route():
+    """Set user to unplugged mode (free tier with limited access)"""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return billing.set_unplugged_mode(db)
+    finally:
+        db.close()
+
+
+@app.route('/api/billing/last-payment', methods=['GET'])
+def last_payment_route():
+    """Get the last successful payment amount and date"""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return billing.get_last_payment(db)
     finally:
         db.close()
 
