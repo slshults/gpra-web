@@ -14,9 +14,9 @@ const TierLimitModal = ({ isOpen, onClose, limitType, currentTier, currentCount,
 
   const getMessage = () => {
     if (limitType === 'routines') {
-      return `The ${currentTier} tier is limited to ${limitAmount} routine${limitAmount !== 1 ? 's' : ''}. You currently have ${currentCount}.`;
+      return `Your plan only includes ${limitAmount} routine${limitAmount !== 1 ? 's' : ''}, you're at the max. Pick a button:`;
     } else {
-      return `The ${currentTier} tier is limited to ${limitAmount} item${limitAmount !== 1 ? 's' : ''}. You currently have ${currentCount}.`;
+      return `Your plan only includes ${limitAmount} item${limitAmount !== 1 ? 's' : ''}, you're at the max. Pick a button:`;
     }
   };
 
@@ -24,6 +24,21 @@ const TierLimitModal = ({ isOpen, onClose, limitType, currentTier, currentCount,
     onClose();
     // Navigate to Account/Settings page using hash routing
     window.location.hash = '#Account';
+
+    // Wait for navigation and DOM update, then scroll to subscription plans section
+    setTimeout(() => {
+      const subscriptionSection = document.getElementById('subscription-plans');
+      if (subscriptionSection) {
+        // Get element position and scroll with offset to keep heading visible
+        const elementPosition = subscriptionSection.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.pageYOffset - 100; // 100px offset for header
+
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth'
+        });
+      }
+    }, 100);
   };
 
   return (
@@ -36,7 +51,7 @@ const TierLimitModal = ({ isOpen, onClose, limitType, currentTier, currentCount,
           </DialogTitle>
           <DialogDescription className="text-left space-y-3 text-base mt-4">
             <div className="text-gray-700 dark:text-gray-300">
-              {getMessage()} Please visit your Account/Settings page to upgrade.
+              {getMessage()}
             </div>
           </DialogDescription>
         </DialogHeader>

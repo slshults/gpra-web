@@ -279,6 +279,19 @@ The `gpr.sh` script runs:
 - **Session management**: Flask-AppBuilder security manager
 - **Row-Level Security (RLS)**: Middleware filters all queries by user_id
 
+### Stripe Appearance Customization
+**Checkout Sessions (API-configured):**
+- Implemented in `app/billing.py` via `branding_settings` parameter
+- Applied to: `create_checkout_session()` and `resume_subscription()`
+- Colors: orange buttons (#ea580c), dark background (configurable)
+- Font: Roboto, border style: rounded
+
+**Customer Portal (Dashboard-configured):**
+- Location: Stripe Dashboard → Settings → Business → Branding
+- Navigate to: `https://dashboard.stripe.com/settings/branding`
+- Configure: Brand color, accent color, icon/logo
+- Applies to: Customer Portal, invoices, receipts, emails
+
 ### API Endpoints
 - `/api/items/*`: CRUD operations for practice items
 - `/api/routines/*`: CRUD operations for practice routines
@@ -515,6 +528,7 @@ IMPORTANT:
 - **Responsive buttons**: `flex flex-col sm:flex-row` for mobile stacking
 - **Browser navigation**: URL hash sync with `popstate` listener for back/forward support
 - **Performance**: Avoid mutable objects in useMemo dependencies (causes re-render loops)
+- **Text casing**: Always use sentence case for headings, buttons, and UI text (not Title Case). Exceptions: proper nouns, brand names, and single-word exclamations like "Oops!"
 
 ## Understanding GPRA's Purpose
 
