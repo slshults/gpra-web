@@ -72,6 +72,14 @@ def create_checkout_session(db: Session):
                     'tier': tier,
                     'billing_period': billing_period,  # Add billing period to metadata
                 },
+            },
+            # Custom branding to match GPRA's dark theme
+            'branding_settings': {
+                'display_name': 'Guitar Practice Routine App',
+                'font_family': 'roboto',
+                'border_style': 'rounded',
+                'background_color': '#1f2937',  # gray-800 - matches GPRA dark background
+                'button_color': '#ea580c',      # orange-600 - matches GPRA primary buttons
             }
         }
 
@@ -225,11 +233,14 @@ def update_existing_subscription(db: Session):
         period_changed = old_price_id != new_price_id and old_tier == new_tier
 
         # Get the proration amount from the latest invoice
+        # Use amount_paid instead of amount_due because with proration_behavior='always_invoice',
+        # the invoice is immediately charged and paid
         proration_amount = 0
         try:
             if updated_sub.latest_invoice:
                 latest_invoice = stripe.Invoice.retrieve(updated_sub.latest_invoice)
-                proration_amount = latest_invoice.amount_due / 100  # Convert from cents to dollars
+                proration_amount = latest_invoice.amount_paid / 100  # Convert from cents to dollars
+                logger.info(f"Proration calculation: invoice_id={latest_invoice.id}, amount_paid={latest_invoice.amount_paid} cents, proration_amount=${proration_amount}")
         except Exception as e:
             logger.warning(f"Could not fetch invoice for proration amount: {e}")
 
@@ -581,6 +592,14 @@ def resume_subscription(db: Session):
                     'tier': previous_tier,
                     'billing_period': billing_period,
                 },
+            },
+            # Custom branding to match GPRA's dark theme
+            branding_settings={
+                'display_name': 'Guitar Practice Routine App',
+                'font_family': 'roboto',
+                'border_style': 'rounded',
+                'background_color': '#1f2937',  # gray-800 - matches GPRA dark background
+                'button_color': '#ea580c',      # orange-600 - matches GPRA primary buttons
             }
         )
 

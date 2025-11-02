@@ -95,16 +95,17 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
     // Tier upgrade (with or without period change)
     if (tier_changed && new_tier !== 'basic') {
       const baseMessage = `Right on, you've upgraded to ${newTierName}!`;
+      const proratedText = proration_amount > 0 ? ` Your card was charged a prorated amount of $${proration_amount.toFixed(2)} usd.` : '';
 
       if (autocreate_enabled && old_tier === 'basic') {
         return {
           title: '🎉 Upgraded!',
-          message: `${baseMessage} You're ready to add more items, organize more routines, and have your chord charts autocreated! 🤘Rock on!`
+          message: `${baseMessage}${proratedText} You're ready to add more items, organize more routines, and have your chord charts autocreated! 🤘Rock on!`
         };
       } else {
         return {
           title: '🎉 Upgraded!',
-          message: `${baseMessage} You're ready to add more items and organize more routines! 🤘Rock on!`
+          message: `${baseMessage}${proratedText} You're ready to add more items and organize more routines! 🤘Rock on!`
         };
       }
     }
@@ -254,7 +255,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
       )}
 
       {/* Pricing Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
         {tiers.map((tier, index) => {
           // For the current tier card, show prices based on actual billing period
           // For other cards, show prices based on the selected toggle in the header
@@ -271,7 +272,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
               }`}
             >
 
-              <CardHeader className="pb-4">
+              <CardHeader className="pb-2">
                 <CardTitle className="text-gray-100 text-lg flex items-center gap-2">
                   {tier.name}
                   {isCurrent && (
@@ -280,14 +281,14 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
                     </span>
                   )}
                 </CardTitle>
-                <CardDescription className="text-gray-400 text-xs h-8">
+                <CardDescription className="text-gray-400 text-xs">
                   {tier.description}
                 </CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 {/* Price */}
-                <div className="text-center py-4">
+                <div className="text-center py-2">
                   {price === 0 ? (
                     <div className="text-3xl font-bold text-gray-100">Free</div>
                   ) : (
@@ -314,6 +315,12 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
                     <li className="flex items-start gap-2">
                       <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
                       <span className="font-medium text-orange-400">Includes Autocreate for chord charts</span>
+                    </li>
+                  )}
+                  {tier.id === 'themost' && (
+                    <li className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                      <span>Goes to 11</span>
                     </li>
                   )}
                 </ul>
@@ -391,6 +398,52 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
             </Card>
           );
         })}
+
+        {/* Roll your own card */}
+        <Card className="relative bg-gray-800 border-gray-700">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-gray-100 text-lg">Roll your own</CardTitle>
+            <CardDescription className="text-gray-400 text-xs">
+              Local-only, on your laptop or desktop
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-3">
+            {/* Price */}
+            <div className="text-center py-2">
+              <div className="text-2xl font-bold text-gray-100">Time and effort</div>
+            </div>
+
+            {/* Requirements */}
+            <div className="text-xs font-semibold text-gray-400 mb-1">Requirements:</div>
+            <ul className="space-y-2 text-sm text-gray-300">
+              <li className="flex items-start gap-2">
+                <span className="text-gray-500">•</span>
+                <span>Familiarity with Linux CLI</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-gray-500">•</span>
+                <span>Familiarity with GitHub</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-gray-500">•</span>
+                <span>Familiarity with using APIs</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-gray-500">•</span>
+                <span>Familiarity with being a nerd</span>
+              </li>
+            </ul>
+
+            {/* CTA Button */}
+            <Button
+              onClick={() => window.open('https://github.com/slshults/guitar-practice-routine-app_postgresql', '_blank')}
+              className="w-full bg-gray-700 hover:bg-gray-600 border border-gray-600"
+            >
+              Get it from GitHub
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Manage Subscription Button (for paid users) */}

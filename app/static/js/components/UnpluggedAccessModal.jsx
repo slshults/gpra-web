@@ -24,9 +24,9 @@ export default function UnpluggedAccessModal({ isOpen, onClose, daysRemaining, t
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Still Unplugged</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Still unplugged</h2>
 
         <p className="text-gray-700 mb-6">
           We're still saving your {targetPage === 'routines' ? 'routines' : 'items'} for another {daysRemaining} days

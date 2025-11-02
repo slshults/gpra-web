@@ -116,7 +116,7 @@ export default function LapsedSubscriptionModal({ isOpen, onClose, daysUntil90, 
       >
         <div className="bg-gray-700 rounded-lg p-4 mb-6">
           <p className="text-white text-lg font-semibold mb-2">
-            Sorry, but we need to talk about money.
+            Caution, potential discomfort ahead: Money talk
           </p>
           {!paymentLoading && lastPayment && (
             <p className="text-gray-200 text-sm">
