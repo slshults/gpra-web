@@ -4344,12 +4344,13 @@ export const PracticePage = () => {
                     <div className="mt-4">
                       <div className="flex items-center justify-between">
                         {/* Songbook folder link - show for desktop OR mobile */}
-                        {itemDetails?.['F'] && (supportsFolderOpening() || isMobileDevice()) && (
+                        {(itemDetails?.['I'] || itemDetails?.['F']) && (supportsFolderOpening() || isMobileDevice()) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
 
-                              const folderPath = itemDetails['F'];
+                              // Column I = Songbook path (new items), Column F = Description (legacy items with path)
+                              const folderPath = itemDetails['I'] || itemDetails['F'];
                               const itemName = itemDetails?.['C'] || `Item ${routineItem['A']}`;
 
                               // Track songbook link click

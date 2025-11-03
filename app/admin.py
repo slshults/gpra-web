@@ -109,6 +109,8 @@ def init_admin(app: Flask, db_session):
             'username': 'Username',
             'user_id': 'User ID'
         }
+        # Exclude 'username' from sortable columns (it's a @property, not a DB column)
+        order_columns = ['id', 'item_id', 'title', 'duration', 'tuning', 'user_id', 'created_at']
 
     class RoutineModelView(BaseModelView):
         datamodel = SQLAInterface(Routine)
@@ -120,6 +122,8 @@ def init_admin(app: Flask, db_session):
             'username': 'Username',
             'user_id': 'User ID'
         }
+        # Exclude 'username' from sortable columns (it's a @property, not a DB column)
+        order_columns = ['id', 'name', 'user_id', 'created_at', 'order']
 
     class RoutineItemModelView(BaseModelView):
         datamodel = SQLAInterface(RoutineItem)
@@ -138,6 +142,8 @@ def init_admin(app: Flask, db_session):
             'username': 'Username',
             'user_id': 'User ID'
         }
+        # Exclude 'username' and 'section_label' from sortable columns (they're @property, not DB columns)
+        order_columns = ['chord_id', 'item_id', 'title', 'user_id', 'created_at']
 
     class CommonChordModelView(BaseModelView):
         datamodel = SQLAInterface(CommonChord)
@@ -169,6 +175,8 @@ def init_admin(app: Flask, db_session):
             'email': 'Email'
         }
         base_order = ('id', 'desc')
+        # Exclude 'username' and 'email' from sortable columns (they're @property, not DB columns)
+        order_columns = ['id', 'user_id', 'tier', 'status', 'mrr', 'created_at']
 
     # Register views with AppBuilder
     appbuilder.add_view(
@@ -207,11 +215,11 @@ def init_admin(app: Flask, db_session):
         icon="fa-play-circle",
         category="Practice Data"
     )
+    # Subscriptions as top-level menu item (no category)
     appbuilder.add_view(
         SubscriptionModelView,
         "Subscriptions",
-        icon="fa-credit-card",
-        category="User Management"
+        icon="fa-credit-card"
     )
 
     return appbuilder

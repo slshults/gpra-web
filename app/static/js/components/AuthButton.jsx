@@ -43,19 +43,16 @@ const AuthButton = () => {
             logout
           </Button>
         </div>
+      ) : checking ? (
+        // Don't show anything during brief auth check (user is already authenticated or will be redirected to login)
+        null
       ) : (
         <Button
           onClick={handleLogin}
           variant="default"
           className="bg-blue-600 hover:bg-blue-700 text-gray-100"
-          disabled={checking}
         >
-          {checking ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Checking auth...
-            </>
-          ) : error ? (
+          {error ? (
             "Auth Error - Click to retry"
           ) : (
             <>

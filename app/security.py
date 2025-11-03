@@ -259,8 +259,8 @@ class CustomAuthOAuthView(AuthOAuthView):
             flash(as_unicode("OAuth login failed"), "danger")
             return redirect('/login')
 
-        # Login user
-        login_user(user, remember=False)
+        # Login user (remember=True keeps session persistent across browser restarts)
+        login_user(user, remember=True)
         logger.info(f"User logged in via OAuth: {user.username}")
 
         # Redirect to main app instead of /admin/
@@ -314,9 +314,9 @@ class CustomAuthDBView(AuthDBView):
                     return redirect(f'/login/?next={next_url}')
                 return redirect('/login/')
 
-            # Login successful
+            # Login successful (remember=True keeps session persistent across browser restarts)
             logger.info(f"Login successful for user: {user.username}")
-            login_user(user, remember=False)
+            login_user(user, remember=True)
 
             # Check for next parameter, otherwise redirect to main app
             next_url = request.args.get("next", "/")
@@ -514,6 +514,9 @@ class CustomSecurityManager(SecurityManager):
         Flask-AppBuilder's default implementation only registers ONE auth view
         based on AUTH_TYPE. We want to register BOTH authdbview (for email/password)
         AND authoauthview (for Google OAuth).
+
+        Also customizes built-in menu category names:
+        - 'Security' → 'Info & Perms'
         """
         # Call parent to register all standard views (including authdbview)
         super(CustomSecurityManager, self).register_views()
@@ -524,6 +527,18 @@ class CustomSecurityManager(SecurityManager):
             oauth_view = self.authoauthview()
             self.appbuilder.add_view_no_menu(oauth_view)
             logger.info("OAuth authentication view registered at /login/<provider>")
+
+        # Rename 'Security' menu to 'Info & Perms'
+        # Flask-AppBuilder stores menu items in appbuilder.menu
+        # We need to update both the category name and label
+        for item in self.appbuilder.menu.menu:
+            if item.name == 'Security':
+                logger.info("Renaming 'Security' menu to 'Info & Perms'")
+                item.name = 'Info & Perms'
+                # Also update the label for display
+                if hasattr(item, 'label'):
+                    item.label = 'Info & Perms'
+                break
 
     def auth_user_db(self, username, password):
         """
@@ -714,7 +729,7 @@ class CustomSecurityManager(SecurityManager):
                     '5',
                     'Work on smooth transitions between E and A chords. Focus on strumming pattern and timing.',
                     0, 'EADGBE',
-                    'D:\\Users\\Steven\\Documents\\Guitar\\Songbook\\ForWhatItsWorth',
+                    'D:\\Users\\YourUserNameHere\\Documents\\Guitar\\Songbook\\ForWhatItsWorth',
                     :user_id, NOW(), NOW())
                 RETURNING id, item_id
             """), {'user_id': user.id})

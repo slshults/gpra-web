@@ -4,7 +4,7 @@ import { Input } from '@ui/input';
 import { Label } from '@ui/label';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
-import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
 const RECAPTCHA_SITE_KEY = '6LcjIvQrAAAAAM4psu6wJT3NlL8RIwH4tNiiAJ6C';
 
@@ -13,6 +13,7 @@ const RegisterPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPasswords, setShowPasswords] = useState(false); // Single state for both password fields
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -172,7 +173,11 @@ const RegisterPage = () => {
       <div className="w-full max-w-md">
         {/* App Title */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-orange-500 mb-2">Guitar Practice Routine App</h1>
+          <h1 className="text-3xl font-bold text-orange-500 mb-2" style={{lineHeight: '1.2'}}>
+            <span className="whitespace-nowrap">Guitar Practice</span>
+            {' '}
+            <span className="whitespace-nowrap">Routine App</span>
+          </h1>
           <p className="text-gray-400">Create your account</p>
         </div>
 
@@ -230,16 +235,27 @@ const RegisterPage = () => {
               {/* Password Input */}
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-gray-200">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="bg-gray-900 border-gray-600 text-gray-100"
-                  disabled={loading}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPasswords ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
+                    disabled={loading}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords(!showPasswords)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 z-10"
+                    disabled={loading}
+                    tabIndex={-1}
+                  >
+                    {showPasswords ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
                 <p className="text-xs text-gray-500">
                   Must be 12+ characters with uppercase, lowercase, number, and symbol
                 </p>
@@ -248,16 +264,27 @@ const RegisterPage = () => {
               {/* Confirm Password Input */}
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword" className="text-gray-200">Confirm Password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="bg-gray-900 border-gray-600 text-gray-100"
-                  disabled={loading}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showPasswords ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
+                    disabled={loading}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords(!showPasswords)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 z-10"
+                    disabled={loading}
+                    tabIndex={-1}
+                  >
+                    {showPasswords ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
 
               {/* reCAPTCHA Widget */}
