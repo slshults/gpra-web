@@ -4,11 +4,12 @@ import { Input } from '@ui/input';
 import { Label } from '@ui/label';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
-import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
 const LoginPage = () => {
   const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
@@ -60,7 +61,11 @@ const LoginPage = () => {
       <div className="w-full max-w-md">
         {/* App Title */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-orange-500 mb-2">Guitar Practice Routine App</h1>
+          <h1 className="text-3xl font-bold text-orange-500 mb-2" style={{lineHeight: '1.2'}}>
+            <span className="whitespace-nowrap">Guitar Practice</span>
+            {' '}
+            <span className="whitespace-nowrap">Routine App</span>
+          </h1>
           <p className="text-gray-400">Sign in to continue</p>
         </div>
 
@@ -108,16 +113,27 @@ const LoginPage = () => {
               {/* Password Input */}
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-gray-200">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="bg-gray-900 border-gray-600 text-gray-100"
-                  disabled={loading}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
+                    disabled={loading}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 z-10"
+                    disabled={loading}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
 
               {/* Login Button */}

@@ -34,25 +34,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Current Production Status**:
 - ✅ **Multi-tenant SaaS application** fully operational in production
 - ✅ **Infrastructure**: DreamCompute `gpra-web-prod` (208.113.200.79), PostgreSQL, Gunicorn, Nginx, SSL for 12 domains
-- ✅ **Authentication**: Custom login/register pages, Google OAuth, Tidal OAuth, password reset via Mailgun
-- ✅ **Subscriptions**: 5 Stripe tiers with complete billing integration
+- ✅ **Authentication**: Custom login/register pages, Google OAuth, Tidal OAuth, password reset via Mailgun, session persistence enabled
+- ✅ **Subscriptions**: 5 Stripe tiers with complete billing integration (test mode - ready for live mode)
   - Checkout sessions for NEW customers, Subscription Update API for EXISTING customers (prevents double-billing)
   - Custom modal dialogs for subscription updates with personalized messaging
   - Tier limits enforced: items and routines creation validates against tier limits
-  - Tier limit modals with "Upgrade" and "Nope" buttons (friendly UX)
-  - Proration handling for mid-month upgrades/downgrades
+  - Tier limit modals with "Upgrade" and "Nope" buttons, auto-scroll to subscription section (friendly UX)
+  - Proration handling for mid-month upgrades/downgrades with amount display in modals
   - Monthly/yearly billing period switching with cost difference display in UI
   - **Lapsed subscription handling**: Complete flow with 90-day visible countdown (120-day total retention)
   - **Unplugged mode**: Free tier access to saved active routine, lapsed modal on every login, navigation blocking
   - **Renewal flow**: Canceled subscriptions resume via new checkout session (Stripe requirement), webhooks clear unplugged_mode
-- ✅ **Security**: RLS middleware, reCAPTCHA v2, encrypted API keys, IP whitelist, database cascade constraints
+  - **Webhook integration**: Fully configured and tested, Nginx exception allows Stripe IPs through whitelist
+- ✅ **Security**: RLS middleware, reCAPTCHA v2, encrypted API keys, IP whitelist (with webhook exception), database cascade constraints
 - ✅ **User Experience**: 8-step Driver.js guided tour, account settings UI, demo data for new users, custom modals throughout
 - ✅ **Features**: Chord chart autocreate (12,708 common chords), Google AdSense (free tier + unplugged mode), byoClaude API keys
-- ✅ **Database**: Automated backups (12-hour rotation, 7-day retention, gzip compression)
-- 🔧 **Ready for Production**: Stripe integration fully tested locally, needs production webhook endpoint configuration
+- ✅ **Database**: Automated backups (12-hour rotation, 7-day retention, gzip compression), lapsed subscription fields migrated
+- ✅ **Admin Interface**: Flask-AppBuilder menu customizations ("Security" → "Info & Perms", "Subscriptions" top-level)
+- 🚀 **Ready for Live Mode**: All billing flows tested in Stripe test mode, webhooks working, ready to switch to live API keys
 - ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (workaround in place, formal migration TBD)
 
 **Stripe Testing**: See `~/.claude/skills/gpra-billing-stripe/` skill for complete testing workflow and webhook setup.
+**Stripe Webhooks**: Production Nginx configured with `/api/webhooks/stripe` exception to allow Stripe IPs through IP whitelist. Webhook endpoint: `https://guitarpracticeroutine.com/api/webhooks/stripe`
 **Session History**: See `~/.claude/handoffSummary.md` for detailed session notes.
 
 When working on this codebase, keep in mind we're building for a multi-user hosted environment, not the original single-user local setup.
@@ -324,6 +327,7 @@ The `gpr.sh` script runs:
 ### File Path Handling
 - WSL-friendly path mapping for Windows folders (see `app/routes.py`)
 - Local songbook folder linking supported
+- **Songbook path backward compatibility**: Column I = songbook path (new items), Column F = description (legacy items may have path here). PracticePage checks both: `itemDetails['I'] || itemDetails['F']`
 
 ### Guitar-Specific Features
 - SVGuitar integration for chord chart rendering
