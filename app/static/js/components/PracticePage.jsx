@@ -4769,7 +4769,7 @@ export const PracticePage = () => {
 
       {/* Folder Path Copy Modal */}
       <AlertDialog open={showFolderPathModal} onOpenChange={setShowFolderPathModal}>
-        <AlertDialogContent className="bg-gray-800 border-gray-700">
+        <AlertDialogContent className="bg-gray-800 border-gray-700 max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-gray-100">
               {isMobileDevice() ? 'Songbook Folder Path' : 'Path Copied to Clipboard'}
