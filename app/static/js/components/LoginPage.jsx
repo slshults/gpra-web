@@ -222,7 +222,7 @@ const LoginPage = () => {
                   Sign up
                 </a>
                 <div className="text-xs text-gray-500 mt-1">
-                  (Free for 1 routine)
+                  (No card needed for 1 free routine)
                 </div>
               </div>
             </form>

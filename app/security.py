@@ -187,12 +187,16 @@ class CustomAuthOAuthView(AuthOAuthView):
 
         logger.info(f"Initiating OAuth login with provider: {provider}")
 
-        # Generate state for CSRF protection
-        random_state = generate_random_string()
-        state = jwt.encode(
-            request.args.to_dict(flat=False), random_state, algorithm="HS256"
-        )
-        session["oauth_state"] = random_state
+        # Generate state for CSRF protection - include intent=login
+        # Use app secret key for JWT (no need to store random secret in session)
+        # This prevents conflicts with authlib's internal state management
+        from flask import current_app
+        state_data = request.args.to_dict(flat=False)
+        state_data['intent'] = ['login']  # Mark this as login flow
+        state = jwt.encode(state_data, current_app.config['SECRET_KEY'], algorithm="HS256")
+
+        # DO NOT set session["oauth_state"] - let authlib handle its own state internally
+        # authlib uses _state_{provider}_{state_value} pattern which conflicts with our custom key
 
         # Determine redirect_uri
         is_production = os.getenv('FLASK_ENV') == 'production'
@@ -209,22 +213,86 @@ class CustomAuthOAuthView(AuthOAuthView):
 
         try:
             # Call authorize_redirect with our explicit redirect_uri
+            # Temporarily removed prompt='select_account' to debug CSRF issues
             return self.appbuilder.sm.oauth_remotes[provider].authorize_redirect(
                 redirect_uri=redirect_uri,
-                state=state.decode("ascii") if isinstance(state, bytes) else state,
+                state=state.decode("ascii") if isinstance(state, bytes) else state
             )
         except Exception as e:
             logger.error(f"Error on OAuth authorize: {e}")
             flash(as_unicode(self.invalid_login_message), "warning")
             return redirect('/')
 
+    @expose('/oauth-signup/<provider>')
+    def signup(self, provider=None):
+        """
+        OAuth signup endpoint - always creates new users and shows tour.
+
+        This is separate from /login/<provider> to distinguish signup vs login intent.
+        If user already exists, logs them in and shows tour anyway.
+        """
+        from flask import g, session, request, url_for
+        from flask_appbuilder.security.views import generate_random_string
+        import jwt
+
+        # If already authenticated, redirect to main app
+        if g.user is not None and g.user.is_authenticated:
+            logger.debug(f"Already authenticated: {g.user}")
+            return redirect('/')
+
+        if provider is None:
+            # Redirect to register page if no provider specified
+            return redirect('/register')
+
+        logger.info(f"Initiating OAuth signup with provider: {provider}")
+
+        # Generate state for CSRF protection - include intent=signup
+        # Use app secret key for JWT (no need to store random secret in session)
+        # This prevents conflicts with authlib's internal state management
+        from flask import current_app
+        state_data = request.args.to_dict(flat=False)
+        state_data['intent'] = ['signup']  # Mark this as signup flow
+        state = jwt.encode(state_data, current_app.config['SECRET_KEY'], algorithm="HS256")
+
+        # DO NOT set session["oauth_state"] - let authlib handle its own state internally
+        # authlib uses _state_{provider}_{state_value} pattern which conflicts with our custom key
+
+        # Determine redirect_uri
+        is_production = os.getenv('FLASK_ENV') == 'production'
+
+        if is_production:
+            # Production: Use url_for to auto-generate HTTPS redirect_uri based on request domain
+            # ProxyFix middleware ensures url_for generates HTTPS URLs correctly
+            redirect_uri = url_for(".oauth_authorized", provider=provider, _external=True)
+            logger.info(f"OAuth production mode: auto-generated redirect_uri = {redirect_uri}")
+        else:
+            # Development: Force localhost:5000 to match Google Console whitelist
+            redirect_uri = f'http://localhost:5000/oauth-authorized/{provider}'
+            logger.info(f"OAuth development mode: forcing redirect_uri = {redirect_uri}")
+
+        try:
+            # Call authorize_redirect with our explicit redirect_uri
+            # Temporarily removed prompt='select_account' to debug CSRF issues
+            return self.appbuilder.sm.oauth_remotes[provider].authorize_redirect(
+                redirect_uri=redirect_uri,
+                state=state.decode("ascii") if isinstance(state, bytes) else state
+            )
+        except Exception as e:
+            logger.error(f"Error on OAuth authorize: {e}")
+            flash(as_unicode("OAuth signup failed. Please try again."), "warning")
+            return redirect('/register')
+
     @expose('/oauth-authorized/<provider>')
     def oauth_authorized(self, provider):
         """
-        OAuth callback handler - redirects to main app instead of /admin/ after successful login.
+        OAuth callback handler - handles both login and signup flows.
+
+        Checks the 'intent' in the JWT state to determine if this was initiated
+        from /login/<provider> (login-only) or /oauth-signup/<provider> (signup).
         """
         from flask import g, request, session
         from flask_login import login_user
+        import jwt
 
         logger.info(f"OAuth callback from provider: {provider}")
 
@@ -233,7 +301,7 @@ class CustomAuthOAuthView(AuthOAuthView):
             resp = self.appbuilder.sm.oauth_remotes[provider].authorize_access_token()
         except Exception as e:
             logger.error(f"OAuth token error: {e}")
-            flash(as_unicode(f"OAuth login failed: {e}"), "danger")
+            flash(as_unicode(f"OAuth authentication failed: {e}"), "danger")
             return redirect('/login')
 
         # Get user info from OAuth provider
@@ -243,28 +311,70 @@ class CustomAuthOAuthView(AuthOAuthView):
 
         logger.info(f"OAuth token received from {provider}")
 
+        # Decode state to check intent (login vs signup)
+        # State JWT is signed with app SECRET_KEY (not stored in session)
+        intent = 'login'  # Default to login
+        try:
+            if request.args.get('state'):
+                from flask import current_app
+                state_jwt = request.args.get('state')
+                # Decode using static SECRET_KEY (same as in login/signup methods)
+                decoded_state = jwt.decode(state_jwt, current_app.config['SECRET_KEY'], algorithms=["HS256"])
+                intent_list = decoded_state.get('intent', ['login'])
+                intent = intent_list[0] if isinstance(intent_list, list) else intent_list
+                logger.info(f"OAuth intent: {intent}")
+        except Exception as e:
+            logger.warning(f"Could not decode OAuth state, defaulting to login: {e}")
+
         # Extract user info
         userinfo = self.appbuilder.sm.oauth_user_info(provider, resp)
 
         if userinfo is None or not userinfo.get('email'):
             flash(as_unicode("Failed to retrieve user information"), "danger")
-            return redirect('/login')
+            redirect_url = '/register' if intent == 'signup' else '/login'
+            return redirect(redirect_url)
 
         logger.info(f"OAuth user info: {userinfo.get('email')}")
 
-        # Find or create user
-        user = self.appbuilder.sm.auth_user_oauth(userinfo)
+        # Check if user already exists
+        existing_user = self.appbuilder.sm.find_user(email=userinfo.get('email'))
 
-        if user is None:
-            flash(as_unicode("OAuth login failed"), "danger")
-            return redirect('/login')
+        if intent == 'login':
+            # LOGIN FLOW: Only authenticate existing users
+            if not existing_user:
+                logger.info(f"OAuth login failed - no account found for: {userinfo.get('email')}")
+                flash(as_unicode("No account found. Please sign up first."), "warning")
+                return redirect('/register')
 
-        # Login user (remember=True keeps session persistent across browser restarts)
-        login_user(user, remember=True)
-        logger.info(f"User logged in via OAuth: {user.username}")
+            # User exists - log them in (no tour)
+            user = existing_user
+            login_user(user, remember=True)
+            logger.info(f"User logged in via OAuth: {user.username}")
+            return redirect('/')
 
-        # Redirect to main app instead of /admin/
-        return redirect('/')
+        else:
+            # SIGNUP FLOW: Create new user OR login existing (both get tour)
+            if existing_user:
+                # User already exists - log them in AND show tour
+                logger.info(f"OAuth signup - user already exists: {userinfo.get('email')}")
+                user = existing_user
+                login_user(user, remember=True)
+                logger.info(f"Existing user logged in via OAuth signup: {user.username}")
+                # Redirect with show_tour flag
+                return redirect('/?show_tour=true')
+            else:
+                # Create new user
+                user = self.appbuilder.sm.auth_user_oauth(userinfo)
+
+                if user is None:
+                    flash(as_unicode("OAuth signup failed"), "danger")
+                    return redirect('/register')
+
+                # Login user (remember=True keeps session persistent across browser restarts)
+                login_user(user, remember=True)
+                logger.info(f"New user created and logged in via OAuth: {user.username}")
+                # Redirect with show_tour flag
+                return redirect('/?show_tour=true')
 
 
 class CustomAuthDBView(AuthDBView):
@@ -340,12 +450,28 @@ class CustomAuthDBView(AuthDBView):
     def logout(self):
         """
         Override logout to redirect to /login instead of /admin/.
+        Clears Flask session, remember-me cookie, and logs out user.
         """
         from flask_login import logout_user
+        from flask import session, current_app, make_response
 
+        # Log out the user (clears Flask-Login session)
         logout_user()
+
+        # Clear the entire Flask session to remove any OAuth state
+        session.clear()
+
+        # Create response and force session save
+        response = make_response(redirect('/login'))
+        current_app.session_interface.save_session(current_app, session, response)
+
+        # Explicitly delete the remember-me cookie (Flask-Login sets this with remember=True)
+        # This prevents automatic re-login on next request
+        response.set_cookie('remember_token', '', expires=0, max_age=0)
+        response.set_cookie('session', '', expires=0, max_age=0)
+
         flash(as_unicode('You have been logged out.'), 'info')
-        return redirect('/login')
+        return response
 
 
 class CustomRegisterUserDBView_OLD(AuthDBView):
@@ -821,17 +947,14 @@ class CustomSecurityManager(SecurityManager):
 
             logger.info(f"Created 4 chord charts (E, A, E, A)")
 
-            # 5. Set as active routine
-            # NOTE: ActiveRoutine table doesn't have user_id yet (needs migration for multi-tenant)
-            # For now, just set it without user_id - will be filtered by RLS when user queries
+            # 5. Set demo routine as active in subscriptions.last_active_routine_id (per-user)
             db.execute(text("""
-                INSERT INTO active_routine (id, routine_id, updated_at)
-                VALUES (1, :routine_id, NOW())
-                ON CONFLICT (id) DO UPDATE
-                SET routine_id = :routine_id, updated_at = NOW()
-            """), {'routine_id': routine_id})
+                UPDATE subscriptions
+                SET last_active_routine_id = :routine_id
+                WHERE user_id = :user_id
+            """), {'routine_id': routine_id, 'user_id': user.id})
 
-            logger.info(f"Set demo routine as active")
+            logger.info(f"Set demo routine as active (routine_id={routine_id})")
 
             db.commit()
             logger.info(f"Demo data creation complete for user {user.id}")
