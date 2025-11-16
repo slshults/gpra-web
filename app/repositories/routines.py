@@ -1,9 +1,11 @@
 from typing import List, Optional, Dict, Any
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, text
 from sqlalchemy.orm import joinedload
 from app.models import Routine, RoutineItem, Item, ActiveRoutine
 from app.repositories.base import BaseRepository
 from app.middleware.rls import filter_by_user
+from app.database import DatabaseTransaction
+from flask_login import current_user
 import logging
 
 class RoutineRepository(BaseRepository):
@@ -285,45 +287,58 @@ class ActiveRoutineRepository(BaseRepository):
         super().__init__(ActiveRoutine, db_session)
     
     def get_active_routine(self) -> Optional[Dict[str, Any]]:
-        """Get the currently active routine."""
-        active = self.db.query(ActiveRoutine).first()
-        if active and active.routine_id:
-            query = self.db.query(Routine).filter(Routine.id == active.routine_id)
-            query = filter_by_user(query, Routine)
-            routine = query.first()
-            if routine:
-                return {
-                    'A': str(routine.id),
-                    'B': routine.name
-                }
-        return None
+        """Get the currently active routine from subscriptions.last_active_routine_id."""
+        try:
+            with DatabaseTransaction() as tx:
+                result = tx.execute(text("""
+                    SELECT last_active_routine_id
+                    FROM subscriptions
+                    WHERE user_id = :user_id
+                """), {"user_id": current_user.id})
+                sub_row = result.fetchone()
+
+                if sub_row and sub_row[0]:
+                    routine_id = sub_row[0]
+                    # Verify this routine exists and belongs to the user
+                    query = self.db.query(Routine).filter(Routine.id == routine_id)
+                    query = filter_by_user(query, Routine)
+                    routine = query.first()
+                    if routine:
+                        return {
+                            'A': str(routine.id),
+                            'B': routine.name
+                        }
+                return None
+        except Exception as e:
+            logging.error(f"Error getting active routine: {e}")
+            return None
     
     def set_active_routine(self, routine_id: int) -> bool:
-        """Set the active routine."""
+        """Set the active routine in subscriptions.last_active_routine_id."""
         try:
-            # Check if there's already an active routine record
-            active = self.db.query(ActiveRoutine).first()
-            
-            if active:
-                active.routine_id = routine_id
-            else:
-                active = ActiveRoutine(id=1, routine_id=routine_id)
-                self.db.add(active)
-            
-            self.db.commit()
+            with DatabaseTransaction() as tx:
+                tx.execute(text("""
+                    UPDATE subscriptions
+                    SET last_active_routine_id = :routine_id
+                    WHERE user_id = :user_id
+                """), {"routine_id": routine_id, "user_id": current_user.id})
+                tx.commit()
             return True
-        except Exception:
-            self.db.rollback()
+        except Exception as e:
+            logging.error(f"Error setting active routine: {e}")
             return False
     
     def clear_active_routine(self) -> bool:
-        """Clear the active routine."""
+        """Clear the active routine by setting subscriptions.last_active_routine_id to NULL."""
         try:
-            active = self.db.query(ActiveRoutine).first()
-            if active:
-                active.routine_id = None
-                self.db.commit()
+            with DatabaseTransaction() as tx:
+                tx.execute(text("""
+                    UPDATE subscriptions
+                    SET last_active_routine_id = NULL
+                    WHERE user_id = :user_id
+                """), {"user_id": current_user.id})
+                tx.commit()
             return True
-        except Exception:
-            self.db.rollback()
+        except Exception as e:
+            logging.error(f"Error clearing active routine: {e}")
             return False

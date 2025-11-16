@@ -216,7 +216,7 @@ const RegisterPage = () => {
 
               {/* OAuth Buttons */}
               <div className="space-y-3">
-                <a href="/login/google" className="block">
+                <a href="/oauth-signup/google" className="block">
                   <Button
                     type="button"
                     className="w-full bg-white hover:bg-gray-100 text-gray-900 border border-gray-300"
@@ -243,7 +243,7 @@ const RegisterPage = () => {
                     Sign up with Google
                   </Button>
                 </a>
-                <a href="/login/tidal" className="block">
+                <a href="/oauth-signup/tidal" className="block">
                   <Button
                     type="button"
                     className="w-full bg-black hover:bg-gray-900 text-white border border-gray-700"
@@ -330,6 +330,30 @@ const RegisterPage = () => {
                 </p>
               </div>
 
+              {/* Password Requirements Checklist - Only show when user starts typing in password field */}
+              {password.length > 0 && (
+                <div className="text-xs space-y-1">
+                  <p className="text-gray-400 mb-1">Password requirements:</p>
+                  <div className="space-y-0.5">
+                    <div className={`flex items-center ${passwordRequirements.length ? 'text-green-400' : 'text-gray-500'}`}>
+                      {passwordRequirements.length ? '✓' : '○'} At least 12 characters
+                    </div>
+                    <div className={`flex items-center ${passwordRequirements.uppercase ? 'text-green-400' : 'text-gray-500'}`}>
+                      {passwordRequirements.uppercase ? '✓' : '○'} One uppercase letter
+                    </div>
+                    <div className={`flex items-center ${passwordRequirements.lowercase ? 'text-green-400' : 'text-gray-500'}`}>
+                      {passwordRequirements.lowercase ? '✓' : '○'} One lowercase letter
+                    </div>
+                    <div className={`flex items-center ${passwordRequirements.number ? 'text-green-400' : 'text-gray-500'}`}>
+                      {passwordRequirements.number ? '✓' : '○'} One number
+                    </div>
+                    <div className={`flex items-center ${passwordRequirements.symbol ? 'text-green-400' : 'text-gray-500'}`}>
+                      {passwordRequirements.symbol ? '✓' : '○'} One symbol or punctuation
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Confirm Password Input */}
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword" className="text-gray-200">Confirm Password</Label>
@@ -360,30 +384,6 @@ const RegisterPage = () => {
                   <p className="text-xs text-red-400">
                     Passwords don't match
                   </p>
-                )}
-
-                {/* Password Requirements Checklist */}
-                {password.length > 0 && (
-                  <div className="text-xs space-y-1 mt-2">
-                    <p className="text-gray-400 mb-1">Password requirements:</p>
-                    <div className="space-y-0.5">
-                      <div className={`flex items-center ${passwordRequirements.length ? 'text-green-400' : 'text-gray-500'}`}>
-                        {passwordRequirements.length ? '✓' : '○'} At least 12 characters
-                      </div>
-                      <div className={`flex items-center ${passwordRequirements.uppercase ? 'text-green-400' : 'text-gray-500'}`}>
-                        {passwordRequirements.uppercase ? '✓' : '○'} One uppercase letter
-                      </div>
-                      <div className={`flex items-center ${passwordRequirements.lowercase ? 'text-green-400' : 'text-gray-500'}`}>
-                        {passwordRequirements.lowercase ? '✓' : '○'} One lowercase letter
-                      </div>
-                      <div className={`flex items-center ${passwordRequirements.number ? 'text-green-400' : 'text-gray-500'}`}>
-                        {passwordRequirements.number ? '✓' : '○'} One number
-                      </div>
-                      <div className={`flex items-center ${passwordRequirements.symbol ? 'text-green-400' : 'text-gray-500'}`}>
-                        {passwordRequirements.symbol ? '✓' : '○'} One symbol or punctuation
-                      </div>
-                    </div>
-                  </div>
                 )}
               </div>
 

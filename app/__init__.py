@@ -97,13 +97,17 @@ class LazyStringSafeSerializer:
             self.app.logger.error(f"Failed to deserialize session data: {e}")
             raise
 
+# Use Redis sessions everywhere (dev + production) for reliable OAuth state persistence
+# Filesystem sessions have timing issues where state isn't flushed before OAuth redirect
 app.config['SESSION_TYPE'] = 'redis'
-app.config['SESSION_PERMANENT'] = False
-app.config['SESSION_USE_SIGNER'] = True
 app.config['SESSION_KEY_PREFIX'] = 'gpra:'
 app.config['SESSION_REDIS'] = redis.from_url(
     os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 )
+app.logger.info("Using Redis sessions (fixes OAuth CSRF timing issues)")
+
+app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_USE_SIGNER'] = True
 
 # Monkey-patch Flask-Session to use our custom serializer
 # Strategy: Wrap the original __init__ and replace serializer immediately after creation

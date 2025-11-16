@@ -42,8 +42,8 @@ export const useAuth = () => {
   const handleLogout = () => {
     // Clear the lapsed modal dismissed flag so it shows on next login
     sessionStorage.removeItem('lapsedModalDismissed');
-    // Custom logout endpoint that redirects to /login
-    window.location.href = '/logout';
+    // Custom logout endpoint that redirects to /login (trailing slash required by Flask route)
+    window.location.href = '/logout/';
   };
 
   return {

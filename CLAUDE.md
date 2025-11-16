@@ -27,14 +27,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - **Tidal users**: Placeholder email `tidal_{user_id}@gpra.app`, can update via Stripe Customer Portal
 - ✅ Subscriptions: 5 Stripe tiers (free/basic/thegoods/moregoods/themost), complete integration
 - ✅ Backend: Session management, tier-based feature gating, RLS middleware, Stripe billing endpoints
-- ✅ Frontend: Custom login/signup pages matching GPRA styling
+- ✅ Frontend: Custom login/signup pages with OAuth-first layout, real-time password validation with visual checklist
 - ✅ Frontend: Account management complete, billing UI with pricing section
 - ✅ Infrastructure: Production configs, proper secrets management
 
 **Current Production Status**:
 - ✅ **Multi-tenant SaaS application** fully operational in production
 - ✅ **Infrastructure**: DreamCompute `gpra-web-prod` (208.113.200.79), PostgreSQL, Gunicorn, Nginx, SSL for 12 domains
-- ✅ **Authentication**: Custom login/register pages, Google OAuth, Tidal OAuth, password reset via Mailgun, session persistence enabled
+- ✅ **Authentication**: Custom login/register pages with OAuth-first UX, real-time password strength validation, Google OAuth, Tidal OAuth, password reset via Mailgun, session persistence enabled
+  - **OAuth Flow Split**: Login page (`/login/<provider>`) only logs in existing users, signup page (`/oauth-signup/<provider>`) creates accounts and triggers guided tour
+  - **Active Routine Persistence**: Fixed to use `subscriptions.last_active_routine_id` per user (local confirmed working, production TBD)
 - ✅ **Subscriptions**: 5 Stripe tiers with complete billing integration (test mode - ready for live mode)
   - Checkout sessions for NEW customers, Subscription Update API for EXISTING customers (prevents double-billing)
   - Custom modal dialogs for subscription updates with personalized messaging
@@ -47,12 +49,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - **Renewal flow**: Canceled subscriptions resume via new checkout session (Stripe requirement), webhooks clear unplugged_mode
   - **Webhook integration**: Fully configured and tested, Nginx exception allows Stripe IPs through whitelist
 - ✅ **Security**: RLS middleware, reCAPTCHA v2, encrypted API keys, IP whitelist (with webhook exception), database cascade constraints
-- ✅ **User Experience**: 8-step Driver.js guided tour, account settings UI, demo data for new users, custom modals throughout
+- ✅ **User Experience**: 8-step Driver.js guided tour (triggered by OAuth signup + email/password registration), account settings UI, demo data for new users, responsive modals (songbook path modal: max-w-2xl)
 - ✅ **Features**: Chord chart autocreate (12,708 common chords), Google AdSense (free tier + unplugged mode), byoClaude API keys
 - ✅ **Database**: Automated backups (12-hour rotation, 7-day retention, gzip compression), lapsed subscription fields migrated
 - ✅ **Admin Interface**: Flask-AppBuilder menu customizations ("Security" → "Info & Perms", "Subscriptions" top-level)
 - 🚀 **Ready for Live Mode**: All billing flows tested in Stripe test mode, webhooks working, ready to switch to live API keys
-- ⚠️ **Known Issue**: `active_routine` table missing `user_id` column (workaround in place, formal migration TBD)
 
 **Stripe Testing**: See `~/.claude/skills/gpra-billing-stripe/` skill for complete testing workflow and webhook setup.
 **Stripe Webhooks**: Production Nginx configured with `/api/webhooks/stripe` exception to allow Stripe IPs through IP whitelist. Webhook endpoint: `https://guitarpracticeroutine.com/api/webhooks/stripe`
@@ -279,8 +280,12 @@ The `gpr.sh` script runs:
 ### Authentication Flow
 - **Hybrid system**: Email/password (Flask-AppBuilder) + OAuth (Google, Tidal)
 - **OAuth**: Uses `authlib` package, CustomSecurityManager initializes OAuth alongside DB auth
-- **Session management**: Flask-AppBuilder security manager
+  - **Login flow** (`/login/<provider>`): Only authenticates existing users, redirects to signup if account not found
+  - **Signup flow** (`/oauth-signup/<provider>`): Creates new accounts OR logs in existing, always triggers guided tour via `/?show_tour=true`
+  - **Intent tracking**: Uses JWT state encoding to distinguish login vs signup flows in OAuth callback
+- **Session management**: Flask-AppBuilder security manager, `session.clear()` on logout for proper OAuth state cleanup
 - **Row-Level Security (RLS)**: Middleware filters all queries by user_id
+- **Active Routine Persistence**: Stored in `subscriptions.last_active_routine_id` (per-user), not in shared `active_routine` table
 
 ### Stripe Appearance Customization
 **Checkout Sessions (API-configured):**
