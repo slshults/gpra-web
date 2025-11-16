@@ -33,10 +33,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Current Production Status**:
 - ✅ **Multi-tenant SaaS application** fully operational in production
-- ✅ **Infrastructure**: DreamCompute `gpra-web-prod` (208.113.200.79), PostgreSQL, Gunicorn, Nginx, SSL for 12 domains
-- ✅ **Authentication**: Custom login/register pages with OAuth-first UX, real-time password strength validation, Google OAuth, Tidal OAuth, password reset via Mailgun, session persistence enabled
+- ✅ **Infrastructure**: DreamCompute `gpra-web-prod` (208.113.200.79), PostgreSQL, Redis, Gunicorn, Nginx, SSL for 12 domains
+- ✅ **Authentication**: Custom login/register pages with OAuth-first UX, real-time password strength validation, Google OAuth, Tidal OAuth, password reset via Mailgun, Redis session management
+  - **OAuth Flow**: Works reliably on first attempt (CSRF timing issues resolved with Redis sessions)
   - **OAuth Flow Split**: Login page (`/login/<provider>`) only logs in existing users, signup page (`/oauth-signup/<provider>`) creates accounts and triggers guided tour
-  - **Active Routine Persistence**: Fixed to use `subscriptions.last_active_routine_id` per user (local confirmed working, production TBD)
+  - **Logout**: Properly clears all session data including remember-me cookies
+  - **Active Routine Persistence**: Uses `subscriptions.last_active_routine_id` per user (working in production)
 - ✅ **Subscriptions**: 5 Stripe tiers with complete billing integration (test mode - ready for live mode)
   - Checkout sessions for NEW customers, Subscription Update API for EXISTING customers (prevents double-billing)
   - Custom modal dialogs for subscription updates with personalized messaging
@@ -88,11 +90,12 @@ When delegating to subagents, don't treat them like tools. Treat them the way I 
 
 #### Best Practices
 
-1. **Clear Task Definitions**: When using the Task tool, provide specific, actionable instructions, use applicable skills (`~/.claude/skills/`)
-2. **Context Preservation**: Include relevant file paths, function names, and implementation details
-3. **Pattern References**: Point to existing examples in the codebase to follow to avoid attempts to reinvent existing wheels
-4. **Success Criteria**: Define what "done" looks like for the delegated task
-5. **Token Management**: Delegate tasks that would consume >20k tokens to preserve main context
+1. **Use Sonnet 4.5 for subagents**: ALWAYS use `model="sonnet"` when creating subagents. Haiku is not as good at adhering to prompts and skills, and often ignores critical instructions (especially token efficiency rules). Sonnet 4.5 is required for proper skill usage and following detailed protocols.
+2. **Clear Task Definitions**: When using the Task tool, provide specific, actionable instructions, use applicable skills (`~/.claude/skills/`)
+3. **Context Preservation**: Include relevant file paths, function names, and implementation details
+4. **Pattern References**: Point to existing examples in the codebase to follow to avoid attempts to reinvent existing wheels
+5. **Success Criteria**: Define what "done" looks like for the delegated task
+6. **Token Management**: Delegate tasks that would consume >20k tokens to preserve main context
 
 #### Subagent Opportunities in This Project
 

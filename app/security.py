@@ -199,21 +199,16 @@ class CustomAuthOAuthView(AuthOAuthView):
         # authlib uses _state_{provider}_{state_value} pattern which conflicts with our custom key
 
         # Determine redirect_uri
-        is_production = os.getenv('FLASK_ENV') == 'production'
-
-        if is_production:
-            # Production: Use url_for to auto-generate HTTPS redirect_uri based on request domain
-            # ProxyFix middleware ensures url_for generates HTTPS URLs correctly
-            redirect_uri = url_for(".oauth_authorized", provider=provider, _external=True)
-            logger.info(f"OAuth production mode: auto-generated redirect_uri = {redirect_uri}")
-        else:
-            # Development: Force localhost:5000 to match Google Console whitelist
-            redirect_uri = f'http://localhost:5000/oauth-authorized/{provider}'
-            logger.info(f"OAuth development mode: forcing redirect_uri = {redirect_uri}")
+        # IMPORTANT: Always use url_for to match the incoming request domain
+        # This prevents session loss when user arrives via one domain but OAuth redirects to another
+        # (e.g., 127.0.0.1 → localhost, or guitarpracticeroutine.net → guitarpracticeroutine.com)
+        redirect_uri = url_for(".oauth_authorized", provider=provider, _external=True)
+        logger.info(f"OAuth redirect_uri (matches incoming domain): {redirect_uri}")
 
         try:
             # Call authorize_redirect with our explicit redirect_uri
-            # Temporarily removed prompt='select_account' to debug CSRF issues
+            # prompt='select_account' is configured in client_kwargs (app/__init__.py)
+            # authorize_redirect handles state saving automatically via save_authorize_data()
             return self.appbuilder.sm.oauth_remotes[provider].authorize_redirect(
                 redirect_uri=redirect_uri,
                 state=state.decode("ascii") if isinstance(state, bytes) else state
@@ -258,21 +253,16 @@ class CustomAuthOAuthView(AuthOAuthView):
         # authlib uses _state_{provider}_{state_value} pattern which conflicts with our custom key
 
         # Determine redirect_uri
-        is_production = os.getenv('FLASK_ENV') == 'production'
-
-        if is_production:
-            # Production: Use url_for to auto-generate HTTPS redirect_uri based on request domain
-            # ProxyFix middleware ensures url_for generates HTTPS URLs correctly
-            redirect_uri = url_for(".oauth_authorized", provider=provider, _external=True)
-            logger.info(f"OAuth production mode: auto-generated redirect_uri = {redirect_uri}")
-        else:
-            # Development: Force localhost:5000 to match Google Console whitelist
-            redirect_uri = f'http://localhost:5000/oauth-authorized/{provider}'
-            logger.info(f"OAuth development mode: forcing redirect_uri = {redirect_uri}")
+        # IMPORTANT: Always use url_for to match the incoming request domain
+        # This prevents session loss when user arrives via one domain but OAuth redirects to another
+        # (e.g., 127.0.0.1 → localhost, or guitarpracticeroutine.net → guitarpracticeroutine.com)
+        redirect_uri = url_for(".oauth_authorized", provider=provider, _external=True)
+        logger.info(f"OAuth redirect_uri (matches incoming domain): {redirect_uri}")
 
         try:
             # Call authorize_redirect with our explicit redirect_uri
-            # Temporarily removed prompt='select_account' to debug CSRF issues
+            # prompt='select_account' is configured in client_kwargs (app/__init__.py)
+            # authorize_redirect handles state saving automatically via save_authorize_data()
             return self.appbuilder.sm.oauth_remotes[provider].authorize_redirect(
                 redirect_uri=redirect_uri,
                 state=state.decode("ascii") if isinstance(state, bytes) else state
@@ -348,6 +338,11 @@ class CustomAuthOAuthView(AuthOAuthView):
 
             # User exists - log them in (no tour)
             user = existing_user
+
+            # Mark session as permanent to persist across browser restarts
+            from flask import session
+            session.permanent = True
+
             login_user(user, remember=True)
             logger.info(f"User logged in via OAuth: {user.username}")
             return redirect('/')
@@ -358,6 +353,11 @@ class CustomAuthOAuthView(AuthOAuthView):
                 # User already exists - log them in AND show tour
                 logger.info(f"OAuth signup - user already exists: {userinfo.get('email')}")
                 user = existing_user
+
+                # Mark session as permanent to persist across browser restarts
+                from flask import session
+                session.permanent = True
+
                 login_user(user, remember=True)
                 logger.info(f"Existing user logged in via OAuth signup: {user.username}")
                 # Redirect with show_tour flag
@@ -369,6 +369,10 @@ class CustomAuthOAuthView(AuthOAuthView):
                 if user is None:
                     flash(as_unicode("OAuth signup failed"), "danger")
                     return redirect('/register')
+
+                # Mark session as permanent to persist across browser restarts
+                from flask import session
+                session.permanent = True
 
                 # Login user (remember=True keeps session persistent across browser restarts)
                 login_user(user, remember=True)
@@ -426,6 +430,11 @@ class CustomAuthDBView(AuthDBView):
 
             # Login successful (remember=True keeps session persistent across browser restarts)
             logger.info(f"Login successful for user: {user.username}")
+
+            # Mark session as permanent to persist across browser restarts
+            from flask import session
+            session.permanent = True
+
             login_user(user, remember=True)
 
             # Check for next parameter, otherwise redirect to main app
