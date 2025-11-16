@@ -106,7 +106,7 @@ app.config['SESSION_REDIS'] = redis.from_url(
 )
 app.logger.info("Using Redis sessions (fixes OAuth CSRF timing issues)")
 
-app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_PERMANENT'] = True  # Persist sessions across browser restarts
 app.config['SESSION_USE_SIGNER'] = True
 
 # Monkey-patch Flask-Session to use our custom serializer
@@ -173,18 +173,16 @@ oauth_remote_app = {
     'client_secret': os.getenv('GOOGLE_CLIENT_SECRET'),
     'api_base_url': 'https://www.googleapis.com/oauth2/v2/',
     'client_kwargs': {
-        'scope': 'email profile'
+        'scope': 'email profile',
+        'prompt': 'select_account'  # Force account selection dialog
     },
     'access_token_url': 'https://accounts.google.com/o/oauth2/token',
     'authorize_url': 'https://accounts.google.com/o/oauth2/auth'
 }
 
-# Add hardcoded redirect_uri only for local development
-if not IS_PRODUCTION:
-    oauth_remote_app['redirect_uri'] = 'http://localhost:5000/oauth-authorized/google'
-    app.logger.info(f"OAuth development mode: using hardcoded redirect_uri = {oauth_remote_app['redirect_uri']}")
-else:
-    app.logger.info("OAuth production mode: authlib will auto-generate redirect_uri")
+# OAuth redirect_uri is dynamically generated in security.py using url_for()
+# This ensures the redirect matches the incoming domain (prevents session loss)
+app.logger.info("OAuth: redirect_uri will be dynamically generated to match incoming request domain")
 
 # Build Tidal OAuth config
 tidal_remote_app = {
