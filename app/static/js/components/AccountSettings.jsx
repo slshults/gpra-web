@@ -26,6 +26,11 @@ const AccountSettings = () => {
   const [routineCount, setRoutineCount] = useState(0);
   const [routineLimit, setRoutineLimit] = useState(1);
 
+  // Practice data download state
+  const [showExpirationWarning, setShowExpirationWarning] = useState(false);
+  const [expirationDays, setExpirationDays] = useState(0);
+  const [downloadingData, setDownloadingData] = useState(false);
+
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -35,10 +40,11 @@ const AccountSettings = () => {
   const [passwordMessage, setPasswordMessage] = useState(null);
 
   useEffect(() => {
-    // Fetch current API key status, user profile, and routine count
+    // Fetch current API key status, user profile, routine count, and expiration warning
     fetchApiKeyStatus();
     fetchUserProfile();
     fetchRoutineCount();
+    fetchExpirationWarning();
   }, []);
 
   const fetchApiKeyStatus = async () => {
@@ -198,6 +204,52 @@ const AccountSettings = () => {
       setMessage({ type: 'error', text: 'Error deleting API key' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Practice data download handlers
+  const fetchExpirationWarning = async () => {
+    try {
+      const response = await fetch('/api/user/practice-data/expiration-warning');
+      const data = await response.json();
+      if (data.has_expiring_data && data.days_until_expiration <= 7) {
+        setShowExpirationWarning(true);
+        setExpirationDays(data.days_until_expiration);
+      }
+    } catch (error) {
+      console.error('Error fetching expiration warning:', error);
+    }
+  };
+
+  const downloadPracticeData = async (format = 'csv') => {
+    setDownloadingData(true);
+    try {
+      const response = await fetch(`/api/user/practice-data/download?format=${format}`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `practice-data-${new Date().toISOString().split('T')[0]}.${format}`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      setShowExpirationWarning(false);
+    } catch (error) {
+      console.error('Download failed:', error);
+    } finally {
+      setDownloadingData(false);
+    }
+  };
+
+  const dismissReminder = async (days) => {
+    try {
+      await fetch('/api/user/practice-data/dismiss-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dismiss_duration_days: days })
+      });
+      setShowExpirationWarning(false);
+    } catch (error) {
+      console.error('Error dismissing reminder:', error);
     }
   };
 
@@ -690,6 +742,78 @@ const AccountSettings = () => {
                     </Button>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Practice Data Download Card */}
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-gray-100">Practice data download</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Download your practice history (last 90 days)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Expiration Warning */}
+                {showExpirationWarning && (
+                  <Alert className="bg-orange-900/30 border-orange-700">
+                    <AlertDescription className="text-gray-300">
+                      You have practice data that will be deleted in {expirationDays} days. Download it to keep your records!
+                      <div className="flex gap-2 mt-3 flex-wrap">
+                        <Button onClick={() => downloadPracticeData('csv')} size="sm" className="bg-orange-600 hover:bg-orange-700">
+                          Download now
+                        </Button>
+                        <Button onClick={() => dismissReminder(1)} variant="outline" size="sm" className="border-gray-600">
+                          Remind me tomorrow
+                        </Button>
+                        <Button onClick={() => dismissReminder(90)} variant="outline" size="sm" className="border-gray-600">
+                          Don't care
+                        </Button>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Download Buttons */}
+                <div className="flex gap-3 flex-col sm:flex-row">
+                  <Button
+                    onClick={() => downloadPracticeData('csv')}
+                    disabled={downloadingData}
+                    className="bg-orange-600 hover:bg-orange-700 flex-1"
+                  >
+                    {downloadingData ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Downloading...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        Download CSV
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => downloadPracticeData('json')}
+                    disabled={downloadingData}
+                    variant="outline"
+                    className="bg-gray-700 hover:bg-gray-600 border-gray-600 flex-1"
+                  >
+                    {downloadingData ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Downloading...
+                      </>
+                    ) : (
+                      'Download JSON'
+                    )}
+                  </Button>
+                </div>
+
+                {/* Info note */}
+                <p className="text-xs text-gray-400">
+                  Practice data is automatically deleted after 90 days. Download your data regularly to keep permanent records.
+                </p>
               </CardContent>
             </Card>
 

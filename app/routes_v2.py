@@ -1492,6 +1492,265 @@ def validate_user_api_key():
     else:
         return jsonify({"valid": False, "error": error_message})
 
+# Practice Data Download Routes
+@app.route('/api/user/practice-events', methods=['POST'])
+def log_practice_event():
+    """
+    Log a practice event to database for later download.
+
+    Request body:
+        {
+            "event_type": "timer_started|timer_stopped|marked_done|practice_page_visited",
+            "item_name": "...",
+            "routine_name": "...",
+            "duration_seconds": 123,  // Optional
+            "additional_data": {...}  // Optional
+        }
+
+    Returns:
+        {"success": true}
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.json
+    event_type = data.get('event_type')
+
+    if not event_type:
+        return jsonify({"error": "event_type is required"}), 400
+
+    try:
+        from app import appbuilder
+        from app.models import PracticeEvent
+
+        db = appbuilder.session
+        user_id = current_user.id
+
+        # Create new practice event
+        event = PracticeEvent(
+            user_id=user_id,
+            event_type=event_type,
+            item_name=data.get('item_name'),
+            routine_name=data.get('routine_name'),
+            duration_seconds=data.get('duration_seconds'),
+            additional_data=data.get('additional_data')
+        )
+        db.add(event)
+        db.commit()
+
+        return jsonify({"success": True})
+
+    except Exception as e:
+        app.logger.error(f"Error logging practice event for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        db.rollback()
+        return jsonify({"error": "Failed to log practice event"}), 500
+
+@app.route('/api/user/practice-data/download', methods=['GET'])
+def download_practice_data():
+    """
+    Download user's practice data as CSV or JSON.
+
+    Query params:
+        format: 'csv' or 'json' (default: csv)
+
+    Returns: File download with Content-Disposition header
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from app import appbuilder
+        from app.models import PracticeEvent, UserPreferences
+        from datetime import datetime
+        import csv
+        from io import StringIO
+
+        db = appbuilder.session
+        user_id = current_user.id
+        format_type = request.args.get('format', 'csv').lower()
+
+        # Fetch all practice events for user (last 90 days enforced by trigger)
+        events = db.query(PracticeEvent).filter_by(user_id=user_id).order_by(PracticeEvent.created_at.desc()).all()
+
+        if format_type == 'json':
+            # Format as JSON
+            events_data = [{
+                'event_type': event.event_type,
+                'item_name': event.item_name,
+                'routine_name': event.routine_name,
+                'duration_seconds': event.duration_seconds,
+                'additional_data': event.additional_data,
+                'created_at': event.created_at.isoformat()
+            } for event in events]
+
+            # Update last download timestamp
+            preferences = db.query(UserPreferences).filter_by(user_id=user_id).first()
+            if preferences:
+                preferences.last_data_download_at = datetime.utcnow()
+                db.commit()
+
+            response = jsonify(events_data)
+            response.headers['Content-Disposition'] = f'attachment; filename=practice-data-{datetime.utcnow().date()}.json'
+            return response
+
+        else:  # CSV (default)
+            # Create CSV in memory
+            si = StringIO()
+            writer = csv.writer(si)
+
+            # Write header
+            writer.writerow(['Event Type', 'Item Name', 'Routine Name', 'Duration (seconds)', 'Created At'])
+
+            # Write data rows
+            for event in events:
+                writer.writerow([
+                    event.event_type,
+                    event.item_name or '',
+                    event.routine_name or '',
+                    event.duration_seconds or '',
+                    event.created_at.isoformat()
+                ])
+
+            # Update last download timestamp
+            preferences = db.query(UserPreferences).filter_by(user_id=user_id).first()
+            if preferences:
+                preferences.last_data_download_at = datetime.utcnow()
+                db.commit()
+
+            output = si.getvalue()
+            response = app.response_class(
+                response=output,
+                mimetype='text/csv'
+            )
+            response.headers['Content-Disposition'] = f'attachment; filename=practice-data-{datetime.utcnow().date()}.csv'
+            return response
+
+    except Exception as e:
+        app.logger.error(f"Error downloading practice data for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to download practice data"}), 500
+
+@app.route('/api/user/practice-data/expiration-warning', methods=['GET'])
+def get_expiration_warning():
+    """
+    Check if user has data that will expire soon.
+
+    Returns:
+        {
+            "has_expiring_data": boolean,
+            "days_until_expiration": integer,
+            "oldest_event_date": ISO timestamp,
+            "reminder_dismissed_until": ISO timestamp or null
+        }
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from app import appbuilder
+        from app.models import PracticeEvent, UserPreferences
+        from datetime import datetime, timedelta
+
+        db = appbuilder.session
+        user_id = current_user.id
+
+        # Get oldest event
+        oldest_event = db.query(PracticeEvent).filter_by(user_id=user_id).order_by(PracticeEvent.created_at.asc()).first()
+
+        if not oldest_event:
+            return jsonify({
+                "has_expiring_data": False,
+                "days_until_expiration": 0,
+                "oldest_event_date": None,
+                "reminder_dismissed_until": None
+            })
+
+        # Calculate days until expiration (90 days from creation)
+        event_age = datetime.utcnow() - oldest_event.created_at.replace(tzinfo=None)
+        days_until_expiration = 90 - event_age.days
+
+        # Check if reminder dismissed
+        preferences = db.query(UserPreferences).filter_by(user_id=user_id).first()
+        reminder_dismissed = None
+        if preferences and preferences.data_expiration_reminder_dismissed_until:
+            reminder_dismissed = preferences.data_expiration_reminder_dismissed_until.isoformat()
+            # Only show warning if dismissed_until has passed
+            if preferences.data_expiration_reminder_dismissed_until > datetime.utcnow():
+                return jsonify({
+                    "has_expiring_data": False,
+                    "days_until_expiration": days_until_expiration,
+                    "oldest_event_date": oldest_event.created_at.isoformat(),
+                    "reminder_dismissed_until": reminder_dismissed
+                })
+
+        return jsonify({
+            "has_expiring_data": days_until_expiration <= 7,  # Show warning if 7 days or less
+            "days_until_expiration": days_until_expiration,
+            "oldest_event_date": oldest_event.created_at.isoformat(),
+            "reminder_dismissed_until": reminder_dismissed
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error checking expiration warning for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to check expiration warning"}), 500
+
+@app.route('/api/user/practice-data/dismiss-reminder', methods=['POST'])
+def dismiss_expiration_reminder():
+    """
+    Dismiss expiration reminder.
+
+    Request body:
+        {
+            "dismiss_duration_days": 1 (tomorrow) or 90 (don't care)
+        }
+
+    Returns:
+        {"success": true}
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.json
+    duration_days = data.get('dismiss_duration_days', 1)
+
+    try:
+        from app import appbuilder
+        from app.models import UserPreferences
+        from datetime import datetime, timedelta
+
+        db = appbuilder.session
+        user_id = current_user.id
+
+        # Find or create preferences
+        preferences = db.query(UserPreferences).filter_by(user_id=user_id).first()
+        if not preferences:
+            preferences = UserPreferences(user_id=user_id, tour_completed=False)
+            db.add(preferences)
+
+        # Set dismissal expiration
+        preferences.data_expiration_reminder_dismissed_until = datetime.utcnow() + timedelta(days=duration_days)
+        db.commit()
+
+        return jsonify({"success": True})
+
+    except Exception as e:
+        app.logger.error(f"Error dismissing expiration reminder for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        db.rollback()
+        return jsonify({"error": "Failed to dismiss reminder"}), 500
+
 # Tour Status Routes
 @app.route('/api/user/preferences/tour-status', methods=['GET'])
 def get_tour_status():
