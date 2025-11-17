@@ -35,8 +35,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **Multi-tenant SaaS application** fully operational in production
 - ✅ **Infrastructure**: DreamCompute `gpra-web-prod` (208.113.200.79), PostgreSQL, Redis, Gunicorn, Nginx, SSL for 12 domains
 - ✅ **Authentication**: Custom login/register pages with OAuth-first UX, real-time password strength validation, Google OAuth, Tidal OAuth, password reset via Mailgun, Redis session management
-  - **OAuth Flow**: Works reliably on first attempt (CSRF timing issues resolved with Redis sessions)
+  - **OAuth Flow**: Works reliably with account selection (`prompt='select_account'` in `client_kwargs`)
   - **OAuth Flow Split**: Login page (`/login/<provider>`) only logs in existing users, signup page (`/oauth-signup/<provider>`) creates accounts and triggers guided tour
+  - **Session Persistence**: `session.permanent = True` set on all login paths, 24-hour session lifetime
+  - **Multi-domain Support**: OAuth redirect_uri dynamically matches incoming domain (prevents session loss)
   - **Logout**: Properly clears all session data including remember-me cookies
   - **Active Routine Persistence**: Uses `subscriptions.last_active_routine_id` per user (working in production)
 - ✅ **Subscriptions**: 5 Stripe tiers with complete billing integration (test mode - ready for live mode)

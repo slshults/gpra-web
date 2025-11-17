@@ -264,6 +264,8 @@ class UserPreferences(Base):
     # Referential integrity enforced at application level + PostgreSQL trigger
     user_id = Column(Integer, nullable=False, unique=True, index=True)
     tour_completed = Column(Boolean, default=False, nullable=False)
+    last_data_download_at = Column(DateTime(timezone=True), nullable=True)
+    data_expiration_reminder_dismissed_until = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -286,3 +288,38 @@ class UserPreferences(Base):
 
     def __repr__(self):
         return f"<UserPreferences user_id={self.user_id} tour_completed={self.tour_completed}>"
+
+class PracticeEvent(Base):
+    __tablename__ = 'practice_events'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # NOTE: user_id references ab_user.id but NO ForeignKey constraint due to Base mismatch issues
+    # Referential integrity enforced at application level + PostgreSQL trigger
+    user_id = Column(Integer, nullable=False, index=True)
+    event_type = Column(String(50), nullable=False)  # 'timer_started', 'timer_stopped', 'marked_done', 'practice_page_visited'
+    item_name = Column(String(255), nullable=True)
+    routine_name = Column(String(255), nullable=True)
+    duration_seconds = Column(Integer, nullable=True)  # For timer_stopped events
+    additional_data = Column(JSON, nullable=True)  # For extensibility
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index('idx_practice_events_user_id', 'user_id'),
+        Index('idx_practice_events_created_at', 'created_at'),
+    )
+
+    @property
+    def username(self):
+        """Fetch username from ab_user table for admin display"""
+        if not self.user_id:
+            return 'N/A'
+        try:
+            from flask_appbuilder.security.sqla.models import User
+            from flask import current_app
+            user = current_app.appbuilder.session.query(User).filter_by(id=self.user_id).first()
+            return user.username if user else 'Unknown'
+        except Exception:
+            return 'Error'
+
+    def __repr__(self):
+        return f"<PracticeEvent user_id={self.user_id} type={self.event_type} created={self.created_at}>"

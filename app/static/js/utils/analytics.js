@@ -59,13 +59,26 @@ export const trackPracticeEvent = (eventType, itemName, additionalProperties = {
       'timer_stopped': 'Timer Stopped'
     };
 
-    window.posthog.capture(eventMap[eventType] || eventType, {
+    const eventName = eventMap[eventType] || eventType;
+    window.posthog.capture(eventName, {
       item_name: itemName,
       timer_started: eventType === 'started_timer',
       timer_stopped: eventType === 'timer_stopped',
       timer_reset: eventType === 'timer_reset',
       ...additionalProperties
     });
+
+    // Also log to backend for practice data download feature
+    fetch('/api/user/practice-events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_type: eventType,
+        item_name: itemName,
+        duration_seconds: additionalProperties.duration_seconds,
+        additional_data: additionalProperties
+      })
+    }).catch(err => console.error('Failed to log practice event:', err));
   }
 };
 
@@ -192,6 +205,17 @@ export const trackActiveRoutine = (routineName, additionalProperties = {}) => {
       active_routine_name: routineName,
       ...additionalProperties
     });
+
+    // Also log to backend for practice data download feature
+    fetch('/api/user/practice-events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_type: 'practice_page_visited',
+        routine_name: routineName,
+        additional_data: additionalProperties
+      })
+    }).catch(err => console.error('Failed to log practice event:', err));
   }
 };
 
