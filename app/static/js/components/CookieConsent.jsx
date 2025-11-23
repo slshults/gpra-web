@@ -82,6 +82,13 @@ const CookieConsent = () => {
       }
       // Delete PostHog cookies (ph_phc_* format)
       deleteCookies(/^ph_phc_/);
+
+      // Manually clear ALL PostHog localStorage (opt_out_capturing preserves distinct_id by design)
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('ph_') || key.includes('posthog')) {
+          localStorage.removeItem(key);
+        }
+      });
     }
   };
 

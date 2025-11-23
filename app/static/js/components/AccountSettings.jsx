@@ -427,8 +427,23 @@ const AccountSettings = () => {
     }
 
     if (analyticsEnabled) {
-      // User wants to disable analytics - delete PostHog cookies
-      deleteCookies(/^ph_phc_/);
+      // User wants to disable analytics - opt out and delete PostHog data
+      if (typeof posthog !== 'undefined' && posthog.opt_out_capturing) {
+        posthog.opt_out_capturing(); // Disables tracking and sets opt-out cookie
+      }
+      deleteCookies(/^ph_phc_/); // Remove PostHog cookies
+
+      // Manually clear ALL PostHog localStorage (opt_out_capturing preserves distinct_id by design)
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('ph_') || key.includes('posthog')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } else {
+      // User wants to enable analytics - opt in
+      if (typeof posthog !== 'undefined' && posthog.opt_in_capturing) {
+        posthog.opt_in_capturing(); // Re-enables tracking
+      }
     }
 
     // Reload page to load/unload PostHog SDK
