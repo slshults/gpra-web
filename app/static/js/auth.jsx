@@ -6,6 +6,7 @@ import LoginPage from '@components/LoginPage';
 import RegisterPage from '@components/RegisterPage';
 import ForgotPasswordPage from '@components/ForgotPasswordPage';
 import ResetPasswordPage from '@components/ResetPasswordPage';
+import CookieConsent from '@components/CookieConsent';
 
 // Get page type from data attribute
 const authRoot = document.getElementById('auth-root');
@@ -30,5 +31,6 @@ switch (page) {
 ReactDOM.createRoot(authRoot).render(
   <React.StrictMode>
     <PageComponent />
+    <CookieConsent />
   </React.StrictMode>
 );

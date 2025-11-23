@@ -11,6 +11,8 @@ __pycache__/
 venv/
 ENV/
 *.env
+.python-version
+instance/
 
 # Credentials and secrets
 token.json
@@ -25,6 +27,8 @@ sudoers.d.gpra
 .idea/
 *.sublime-workspace
 *.sublime-project
+.obsidian/
+*.code-workspace
 
 # Build and cache
 dist/
@@ -32,8 +36,12 @@ build/
 *.egg-info/
 .cache/
 .pytest_cache/
+.mypy_cache/
 .coverage
 htmlcov/
+
+# Test artifacts
+.playwright-mcp/
 
 # Vite
 *.timestamp-*
@@ -49,6 +57,15 @@ yarn-error.log*
 # System files
 .DS_Store
 Thumbs.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary and backup files
+*.bak
+*.tmp
+*.pid
+celerybeat-schedule
 
 # Backup and temporary files
 *[Cc]opy*

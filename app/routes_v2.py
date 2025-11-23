@@ -4,17 +4,19 @@ Drop-in replacement for existing routes.py during migration.
 """
 from flask import render_template, request, jsonify, redirect, session, url_for
 from flask_login import current_user
-from app import app, billing
+from app import app, billing, limiter
 from app.data_layer import data_layer
 from app.database import DatabaseTransaction
 from app.subscription_tiers import get_tier_limits
 from sqlalchemy import text
+from datetime import datetime, timedelta
 import logging
 import os
 import subprocess
 import base64
 import anthropic
 import json
+import stripe
 
 # Main route
 @app.route('/')
@@ -93,6 +95,16 @@ def reset_password_page():
     if current_user.is_authenticated:
         return redirect('/')
     return render_template('auth.html.jinja', page='reset-password')
+
+@app.route('/privacy')
+def privacy_page():
+    """Privacy policy page - accessible to everyone"""
+    return render_template('privacy.html.jinja')
+
+@app.route('/terms')
+def terms_page():
+    """Terms of service page - accessible to everyone"""
+    return render_template('terms.html.jinja')
 
 # Items API - Updated to use data layer
 @app.route('/api/items', methods=['GET', 'POST'])
@@ -724,6 +736,55 @@ def health_check():
             "error": str(e)
         }), 500
 
+# Cookie Consent routes (GDPR/CPRA compliance)
+@app.route('/api/csrf-token', methods=['GET'])
+@limiter.limit("20 per minute")  # Generous limit for token requests
+def get_csrf_token():
+    """
+    Get CSRF token for protecting API requests.
+    Returns: {'csrf_token': '<token>'}
+    """
+    from flask_wtf.csrf import generate_csrf
+    return jsonify({'csrf_token': generate_csrf()})
+
+@app.route('/api/consent', methods=['GET'])
+@limiter.limit("30 per minute")  # Allow frequent consent checks
+def get_consent():
+    """
+    Get user's cookie consent preference from server-side session.
+    Returns: {'consent': 'all' | 'essential' | null}
+    """
+    consent = session.get('cookie_consent', None)
+    return jsonify({'consent': consent})
+
+@app.route('/api/consent', methods=['POST'])
+@limiter.limit("10 per minute")  # Limit consent changes to prevent abuse
+def set_consent():
+    """
+    Store user's cookie consent preference in server-side session.
+    Expects: {'consent': 'all' | 'essential'}
+
+    Session cookie is set with domain awareness for multi-domain support:
+    - localhost/127.0.0.1: Works within same origin
+    - Production: Set domain to TLD family (e.g., .guitarpracticeroutine.com)
+    """
+    data = request.get_json()
+    consent = data.get('consent')
+
+    # Validate consent value
+    if consent not in ['all', 'essential']:
+        return jsonify({'error': 'Invalid consent value. Must be "all" or "essential"'}), 400
+
+    # Store in session
+    session['cookie_consent'] = consent
+    session.permanent = True  # Make session persistent (24 hours from app config)
+
+    # Configure session cookie domain for multi-domain support
+    # Flask automatically handles domain based on SERVER_NAME config
+    # No need to manually set domain here - Flask handles it
+
+    return jsonify({'success': True, 'consent': consent})
+
 # Authentication routes
 @app.route('/api/auth/status', methods=['GET'])
 def auth_status():
@@ -738,13 +799,17 @@ def auth_status():
         days_remaining = None
         days_until_90 = None  # Visible countdown (90 days)
         lapse_date = None
+        deletion_scheduled_for = None
+        deletion_type = None
+        prorated_refund_amount = None
 
         try:
             from datetime import datetime, timedelta, timezone
             with DatabaseTransaction() as tx:
                 result = tx.execute(text("""
                     SELECT tier, stripe_price_id, status, current_period_end,
-                           lapse_date, unplugged_mode, data_deletion_date
+                           lapse_date, unplugged_mode, data_deletion_date,
+                           deletion_scheduled_for, deletion_type, prorated_refund_amount
                     FROM subscriptions
                     WHERE user_id = :user_id
                 """), {"user_id": current_user.id})
@@ -757,6 +822,9 @@ def auth_status():
                     stored_lapse_date = sub_row[4]
                     unplugged_mode = sub_row[5] or False
                     data_deletion_date = sub_row[6]
+                    deletion_scheduled_for = sub_row[7]
+                    deletion_type = sub_row[8]
+                    prorated_refund_amount = float(sub_row[9]) if sub_row[9] else None
 
                     # Determine billing period from price ID
                     if stripe_price_id:
@@ -835,6 +903,9 @@ def auth_status():
             "days_remaining": days_remaining,  # Total days until deletion (120)
             "days_until_90": days_until_90,  # Visible countdown (90 days)
             "lapse_date": lapse_date.isoformat() if lapse_date else None,
+            "deletion_scheduled_for": deletion_scheduled_for.isoformat() if deletion_scheduled_for else None,
+            "deletion_type": deletion_type,
+            "prorated_refund_amount": prorated_refund_amount,
             "mode": "flask-appbuilder"
         })
     else:
@@ -4614,6 +4685,332 @@ def last_payment_route():
     db = SessionLocal()
     try:
         return billing.get_last_payment(db)
+    finally:
+        db.close()
+
+
+# Account Deletion Endpoints
+
+@app.route('/api/user/calculate-deletion-refund', methods=['GET'])
+def calculate_deletion_refund():
+    """Calculate prorated refund for scheduled account deletion"""
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        # Get user's subscription
+        result = db.execute(text("""
+            SELECT stripe_customer_id, stripe_subscription_id, tier
+            FROM subscriptions
+            WHERE user_id = :user_id
+        """), {"user_id": current_user.id})
+
+        sub_row = result.fetchone()
+        if not sub_row or not sub_row[1]:  # No stripe_subscription_id
+            return jsonify({"error": "No active subscription found"}), 404
+
+        stripe_customer_id, stripe_subscription_id, tier = sub_row
+
+        # Fetch subscription details from Stripe
+        stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+        subscription = stripe.Subscription.retrieve(stripe_subscription_id)
+
+        # Calculate refund
+        # Period fields are in subscription items, not at root level
+        subscription_item = subscription['items']['data'][0]
+        current_period_end = subscription_item['current_period_end']
+        current_period_start = subscription_item['current_period_start']
+        now = datetime.now().timestamp()
+
+        total_days = (current_period_end - current_period_start) / 86400  # Convert seconds to days
+        days_remaining = (current_period_end - now) / 86400
+
+        # Get the amount paid for this period
+        # Use the subscription's plan amount
+        amount_paid = subscription['plan']['amount'] / 100  # Convert from cents to dollars
+
+        # Calculate prorated refund
+        refund_amount = round((days_remaining / total_days) * amount_paid, 2)
+
+        # Format renewal date
+        renewal_date = datetime.fromtimestamp(current_period_end).strftime("%B %d, %Y")
+
+        return jsonify({
+            "renewal_date": renewal_date,
+            "refund_amount": refund_amount,
+            "days_remaining": int(days_remaining)
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error calculating deletion refund: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+
+@app.route('/api/user/delete-account-scheduled', methods=['POST'])
+def delete_account_scheduled():
+    """Schedule account deletion for renewal date with prorated refund"""
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.json
+    confirmation_phrase = data.get('confirmation_phrase', '')
+    email = data.get('email', '')
+
+    # Validate confirmation phrase (exact match)
+    if confirmation_phrase != "If I delete it I cannot get it back":
+        return jsonify({"error": "Confirmation phrase does not match"}), 400
+
+    # Validate email matches current user
+    if email.lower() != current_user.email.lower():
+        return jsonify({"error": "Email does not match account email"}), 400
+
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        # Get user's subscription
+        result = db.execute(text("""
+            SELECT stripe_customer_id, stripe_subscription_id, tier
+            FROM subscriptions
+            WHERE user_id = :user_id
+        """), {"user_id": current_user.id})
+
+        sub_row = result.fetchone()
+        if not sub_row or not sub_row[1]:
+            return jsonify({"error": "No active subscription found"}), 404
+
+        stripe_customer_id, stripe_subscription_id, tier = sub_row
+
+        # Cancel Stripe subscription at period end
+        stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+        subscription = stripe.Subscription.modify(
+            stripe_subscription_id,
+            cancel_at_period_end=True
+        )
+
+        # Calculate prorated refund
+        # Period fields are in subscription items, not at root level
+        subscription_item = subscription['items']['data'][0]
+        current_period_end = subscription_item['current_period_end']
+        current_period_start = subscription_item['current_period_start']
+        now = datetime.now().timestamp()
+        total_days = (current_period_end - current_period_start) / 86400
+        days_remaining = (current_period_end - now) / 86400
+        amount_paid = subscription['plan']['amount'] / 100
+        refund_amount = round((days_remaining / total_days) * amount_paid, 2)
+
+        # Update database with deletion schedule
+        deletion_date = datetime.fromtimestamp(current_period_end)
+        db.execute(text("""
+            UPDATE subscriptions
+            SET deletion_scheduled_for = :deletion_date,
+                deletion_type = 'scheduled',
+                prorated_refund_amount = :refund_amount
+            WHERE user_id = :user_id
+        """), {
+            "deletion_date": deletion_date,
+            "refund_amount": refund_amount,
+            "user_id": current_user.id
+        })
+        db.commit()
+
+        # TODO: Send confirmation email
+
+        return jsonify({
+            "success": True,
+            "deletion_date": deletion_date.strftime("%B %d, %Y"),
+            "refund_amount": refund_amount
+        })
+
+    except Exception as e:
+        db.rollback()
+        app.logger.error(f"Error scheduling account deletion: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+
+@app.route('/api/user/delete-account-immediate', methods=['POST'])
+def delete_account_immediate():
+    """Delete account immediately with no refund"""
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.json
+    confirmation_phrase = data.get('confirmation_phrase', '')
+    email = data.get('email', '')
+
+    # Validate confirmation phrase (exact match)
+    if confirmation_phrase != "If I delete now I cannot get my data or money back":
+        return jsonify({"error": "Confirmation phrase does not match"}), 400
+
+    # Validate email matches current user
+    if email.lower() != current_user.email.lower():
+        return jsonify({"error": "Email does not match account email"}), 400
+
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        # Get user's subscription
+        result = db.execute(text("""
+            SELECT stripe_customer_id, stripe_subscription_id, tier
+            FROM subscriptions
+            WHERE user_id = :user_id
+        """), {"user_id": current_user.id})
+
+        sub_row = result.fetchone()
+
+        # Cancel Stripe subscription immediately (no refund)
+        if sub_row and sub_row[1]:  # Has stripe_subscription_id
+            stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+            stripe.Subscription.delete(sub_row[1])
+
+        # Mark for immediate deletion
+        db.execute(text("""
+            UPDATE subscriptions
+            SET deletion_scheduled_for = :deletion_date,
+                deletion_type = 'immediate',
+                prorated_refund_amount = 0
+            WHERE user_id = :user_id
+        """), {
+            "deletion_date": datetime.now(),
+            "user_id": current_user.id
+        })
+        db.commit()
+
+        # TODO: Trigger async deletion job
+        # TODO: Send farewell email
+        # TODO: Log user out
+
+        return jsonify({
+            "success": True,
+            "message": "Account deleted immediately"
+        })
+
+    except Exception as e:
+        db.rollback()
+        app.logger.error(f"Error deleting account immediately: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+
+@app.route('/api/user/cancel-deletion', methods=['POST'])
+def cancel_deletion():
+    """Cancel scheduled account deletion"""
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        # Get user's subscription
+        result = db.execute(text("""
+            SELECT stripe_subscription_id, deletion_scheduled_for
+            FROM subscriptions
+            WHERE user_id = :user_id
+        """), {"user_id": current_user.id})
+
+        sub_row = result.fetchone()
+        if not sub_row or not sub_row[1]:
+            return jsonify({"error": "No deletion scheduled"}), 404
+
+        stripe_subscription_id, deletion_date = sub_row
+
+        # Reactivate Stripe subscription (remove cancel_at_period_end)
+        if stripe_subscription_id:
+            stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+            stripe.Subscription.modify(
+                stripe_subscription_id,
+                cancel_at_period_end=False
+            )
+
+        # Clear deletion fields
+        db.execute(text("""
+            UPDATE subscriptions
+            SET deletion_scheduled_for = NULL,
+                deletion_type = NULL,
+                prorated_refund_amount = NULL
+            WHERE user_id = :user_id
+        """), {"user_id": current_user.id})
+        db.commit()
+
+        # TODO: Send "Welcome back!" email
+
+        return jsonify({
+            "success": True,
+            "message": "Deletion canceled successfully"
+        })
+
+    except Exception as e:
+        db.rollback()
+        app.logger.error(f"Error canceling deletion: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+
+@app.route('/api/user/delete-account-free', methods=['POST'])
+def delete_account_free():
+    """Delete account for free tier users (no Stripe subscription)"""
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.json
+    confirmation_phrase = data.get('confirmation_phrase', '')
+    email = data.get('email', '')
+
+    # Validate confirmation phrase (exact match for immediate deletion)
+    if confirmation_phrase != "If I delete now I cannot get my data or money back":
+        return jsonify({"error": "Confirmation phrase does not match"}), 400
+
+    # Validate email matches current user
+    if email.lower() != current_user.email.lower():
+        return jsonify({"error": "Email does not match account email"}), 400
+
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        # Verify user is on free tier
+        result = db.execute(text("""
+            SELECT tier, stripe_subscription_id
+            FROM subscriptions
+            WHERE user_id = :user_id
+        """), {"user_id": current_user.id})
+
+        sub_row = result.fetchone()
+        if sub_row and sub_row[0] != 'free':
+            return jsonify({"error": "This endpoint is only for free tier users"}), 400
+
+        # Mark for immediate deletion
+        db.execute(text("""
+            UPDATE subscriptions
+            SET deletion_scheduled_for = :deletion_date,
+                deletion_type = 'immediate',
+                prorated_refund_amount = 0
+            WHERE user_id = :user_id
+        """), {
+            "deletion_date": datetime.now(),
+            "user_id": current_user.id
+        })
+        db.commit()
+
+        # TODO: Trigger async deletion job
+        # TODO: Send farewell email
+        # TODO: Log user out
+
+        return jsonify({
+            "success": True,
+            "message": "Account deleted immediately"
+        })
+
+    except Exception as e:
+        db.rollback()
+        app.logger.error(f"Error deleting free tier account: {e}")
+        return jsonify({"error": str(e)}), 500
     finally:
         db.close()
 

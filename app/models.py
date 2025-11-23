@@ -221,6 +221,11 @@ class Subscription(Base):
     data_deletion_date = Column(DateTime(timezone=True), nullable=True)  # lapse_date + 120 days
     last_active_routine_id = Column(Integer, nullable=True)  # Last routine they had active before lapse
 
+    # Account deletion tracking (GDPR/CPRA compliance)
+    deletion_scheduled_for = Column(DateTime(timezone=True), nullable=True)  # When account deletion is scheduled
+    deletion_type = Column(String(20), nullable=True)  # 'immediate' or 'scheduled'
+    prorated_refund_amount = Column(Numeric(10, 2), nullable=True)  # Calculated prorated refund amount
+
     __table_args__ = (
         Index('idx_subscriptions_user_id', 'user_id'),
         Index('idx_subscriptions_status', 'status'),

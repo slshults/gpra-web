@@ -12,6 +12,8 @@ import AccountSettings from '@components/AccountSettings';
 import GuidedTour from '@components/GuidedTour';
 import LapsedSubscriptionModal from '@components/LapsedSubscriptionModal';
 import UnpluggedAccessModal from '@components/UnpluggedAccessModal';
+import CookieConsent from '@components/CookieConsent';
+import DeletionBanner from '@components/DeletionBanner';
 import { useLightweightItems } from '@hooks/useLightweightItems';
 
 const ItemsPage = () => {
@@ -86,6 +88,9 @@ const App = () => {
       {/* Guided Tour Component */}
       <GuidedTour />
 
+      {/* Cookie Consent Banner */}
+      <CookieConsent />
+
       {/* Lapsed Subscription Modal */}
       <LapsedSubscriptionModal
         isOpen={showLapsedModal}
@@ -119,8 +124,36 @@ const App = () => {
 
       {/* Scrollable Content with dynamic top padding to account for fixed header */}
       <div className="pb-4 px-4 container mx-auto" style={{paddingTop: `${headerHeight}px`}}>
+        {/* Deletion Banner - shows when account deletion is scheduled */}
+        {userStatus?.deletion_scheduled_for && (
+          <DeletionBanner
+            deletionDate={userStatus.deletion_scheduled_for}
+            deletionType={userStatus.deletion_type}
+            refundAmount={userStatus.prorated_refund_amount || 0}
+          />
+        )}
+
         <PageContent />
       </div>
+
+      {/* Footer */}
+      <footer className="bg-gray-800 border-t border-gray-700 mt-8 py-6">
+        <div className="container mx-auto px-4 text-center text-sm text-gray-400">
+          <div className="space-x-4">
+            <a href="/privacy" className="hover:text-orange-400 transition-colors">
+              Privacy
+            </a>
+            <span>·</span>
+            <a href="/terms" className="hover:text-orange-400 transition-colors">
+              Terms
+            </a>
+            <span>·</span>
+            <a href="mailto:support@guitarpracticeroutine.com" className="hover:text-orange-400 transition-colors">
+              Contact
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

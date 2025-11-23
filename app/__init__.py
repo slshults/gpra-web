@@ -137,10 +137,61 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access to coo
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
 
+# Multi-domain support: Set SESSION_COOKIE_DOMAIN based on request domain
+# This allows cookies to work across subdomains within the same TLD family
+# e.g., guitarpracticeroutine.com and www.guitarpracticeroutine.com share cookies
+from flask import request
+
+@app.before_request
+def set_session_cookie_domain():
+    """
+    Dynamically set session cookie domain based on incoming request.
+
+    Maps domains to their parent for subdomain sharing:
+    - guitarpracticeroutine.com, www.guitarpracticeroutine.com → .guitarpracticeroutine.com
+    - guitarpracticeroutine.net, www.guitarpracticeroutine.net → .guitarpracticeroutine.net
+    - gpra.app, www.gpra.app → .gpra.app
+    - localhost, 127.0.0.1 → None (same-origin only)
+
+    Note: Different TLDs (e.g., .com vs .net) cannot share cookies due to browser security.
+    Users will see consent banner once per TLD family (max 5 times).
+    """
+    host = request.host.split(':')[0]  # Remove port if present
+
+    # Production domains - set cookie domain to parent TLD
+    if 'guitarpracticeroutine.com' in host:
+        app.config['SESSION_COOKIE_DOMAIN'] = '.guitarpracticeroutine.com'
+    elif 'guitarpracticeroutine.net' in host:
+        app.config['SESSION_COOKIE_DOMAIN'] = '.guitarpracticeroutine.net'
+    elif 'guitarpracticeroutineapp.com' in host:
+        app.config['SESSION_COOKIE_DOMAIN'] = '.guitarpracticeroutineapp.com'
+    elif 'gpra.app' in host:
+        app.config['SESSION_COOKIE_DOMAIN'] = '.gpra.app'
+    elif 'gpra.click' in host:
+        app.config['SESSION_COOKIE_DOMAIN'] = '.gpra.click'
+    else:
+        # localhost, 127.0.0.1, or unknown domain - use default (same-origin)
+        app.config['SESSION_COOKIE_DOMAIN'] = None
+
 # CSRF Configuration (uses Redis sessions configured above)
 app.config['WTF_CSRF_ENABLED'] = True
 app.config['WTF_CSRF_TIME_LIMIT'] = None  # No time limit on CSRF tokens
 app.config['WTF_CSRF_SSL_STRICT'] = False  # Allow CSRF on non-HTTPS (for dev)
+
+# Initialize CSRF Protection
+from flask_wtf.csrf import CSRFProtect
+csrf = CSRFProtect(app)
+
+# Initialize Rate Limiting (DoS prevention)
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,  # Rate limit by IP address
+    storage_uri=os.getenv('REDIS_URL', 'redis://localhost:6379/0'),  # Use Redis for distributed rate limiting
+    default_limits=["1000 per hour", "100 per minute"]  # Global fallback limits
+)
 
 # Flask-AppBuilder Authentication Configuration
 app.config['AUTH_TYPE'] = 1  # 1 = Database authentication (email/password + OAuth)

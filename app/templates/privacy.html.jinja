@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Guitar Practice Routine App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">Privacy Policy</h1>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Last Updated: November 18, 2025</p>
+        </div>
+
+        <!-- Opening Paragraph -->
+        <div class="prose dark:prose-invert max-w-none mb-8">
+            <p class="text-lg text-gray-700 dark:text-gray-300">
+                At GPRA (Guitar Practice Routine App), we take your privacy seriously. This policy explains what data we collect,
+                how we use it, and what rights you have over your information. We believe in transparency, so we've written this
+                in plain English (well, as plain as privacy policies get). 🎸
+            </p>
+        </div>
+
+        <!-- Core Privacy Statement -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">What We Collect</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    <strong>Practice Data:</strong> The items, routines, chord charts, and practice events you create while using GPRA.
+                    This is your data - you own it, we just store it for you.
+                </p>
+                <p>
+                    <strong>Account Information:</strong> Your email address, username, and if you signed up with Google or Tidal,
+                    your encrypted OAuth ID from those services.
+                </p>
+                <p>
+                    <strong>Subscription Data:</strong> If you're on a paid tier, we store your Stripe customer ID, subscription tier,
+                    and payment history. Stripe handles all the actual payment processing - we never see your credit card numbers.
+                </p>
+                <p>
+                    <strong>Optional Stuff:</strong> If you add your own Anthropic API key (the "byoClaude" feature), we encrypt it
+                    and store it for you. You can remove it anytime.
+                </p>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">How We Use It</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    We use your data to provide GPRA's practice tracking services. That's it. We're not in the business of selling your
+                    information, and we never will be.
+                </p>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li>Process payments via Stripe (they're PCI compliant, so your payment info is secure)</li>
+                    <li>Send password reset emails via Mailgun when you forget your password</li>
+                    <li>Show you ads on the free tier (via Google AdSense) - this helps us keep the free tier free!</li>
+                    <li>Improve the app with analytics (PostHog) - you can opt out anytime in Account Settings</li>
+                </ul>
+                <p class="font-semibold mt-4">
+                    Your data will <span class="text-orange-600 dark:text-orange-400">NEVER</span> be sold to, shared with, or otherwise
+                    divulged to third parties. Ever. Period. Nothing personal. (Pun intended.)
+                </p>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Your Rights (GDPR & CPRA)</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    You have complete control over your data:
+                </p>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li><strong>Download your data:</strong> Export your practice history (last 90 days) as CSV or JSON anytime from Account Settings</li>
+                    <li><strong>Delete your account:</strong> Remove all your data permanently. You can schedule deletion for your next renewal date (with a prorated refund) or delete immediately. See Account Settings.</li>
+                    <li><strong>Opt out of analytics:</strong> Toggle off PostHog tracking in Account Settings</li>
+                    <li><strong>Update your information:</strong> Change your email, username, or API key anytime</li>
+                </ul>
+                <p class="mt-4">
+                    Questions about your data? Email us at <a href="mailto:support@guitarpracticeroutine.com"
+                    class="text-orange-600 dark:text-orange-400 hover:underline">support@guitarpracticeroutine.com</a>
+                </p>
+            </div>
+        </div>
+
+        <!-- Third-Party Services -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Third-Party Services We Use</h2>
+            <div class="space-y-6 text-gray-700 dark:text-gray-300">
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    We use these trusted services to make GPRA work. Each has their own privacy policy - we've linked them below so you can review them.
+                </p>
+
+                <div class="border-l-4 border-orange-500 pl-4">
+                    <h3 class="font-semibold text-lg mb-2">
+                        <a href="https://stripe.com/privacy" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">Stripe</a>
+                    </h3>
+                    <p>
+                        Handles all payment processing for subscriptions. We never see your credit card numbers - Stripe keeps them safe and encrypted.
+                    </p>
+                </div>
+
+                <div class="border-l-4 border-blue-500 pl-4">
+                    <h3 class="font-semibold text-lg mb-2">
+                        <a href="https://posthog.com/privacy" target="_blank" rel="noopener" class="text-blue-600 dark:text-blue-400 hover:underline">PostHog</a>
+                    </h3>
+                    <p>
+                        Analytics to help us improve GPRA. We track things like which features you use and where bugs happen.
+                        You can opt out anytime in Account Settings.
+                    </p>
+                </div>
+
+                <div class="border-l-4 border-purple-500 pl-4">
+                    <h3 class="font-semibold text-lg mb-2">
+                        <a href="https://www.anthropic.com/legal/privacy" target="_blank" rel="noopener" class="text-purple-600 dark:text-purple-400 hover:underline">Anthropic (Claude)</a>
+                    </h3>
+                    <p>
+                        Powers the AI-powered chord chart autocreation feature. When you upload sheet music or chord charts,
+                        we send the images to Claude to analyze and create chord diagrams. You can also bring your own Anthropic API key.
+                    </p>
+                </div>
+
+                <div class="border-l-4 border-green-500 pl-4">
+                    <h3 class="font-semibold text-lg mb-2">
+                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" class="text-green-600 dark:text-green-400 hover:underline">Google OAuth & AdSense</a>
+                    </h3>
+                    <p>
+                        <strong>OAuth:</strong> Optional sign-in method using your Google account.<br>
+                        <strong>AdSense:</strong> Shows ads on the free tier to help us keep GPRA free for everyone!
+                    </p>
+                </div>
+
+                <div class="border-l-4 border-pink-500 pl-4">
+                    <h3 class="font-semibold text-lg mb-2">
+                        <a href="https://tidal.com/privacy" target="_blank" rel="noopener" class="text-pink-600 dark:text-pink-400 hover:underline">Tidal OAuth</a>
+                    </h3>
+                    <p>
+                        Optional sign-in method using your Tidal account. Perfect for musicians who already use Tidal!
+                        Note: Tidal doesn't provide email addresses, so we create a placeholder email for you. You can update it via Stripe's Customer Portal.
+                    </p>
+                </div>
+
+                <div class="border-l-4 border-red-500 pl-4">
+                    <h3 class="font-semibold text-lg mb-2">
+                        <a href="https://www.mailgun.com/legal/privacy-policy/" target="_blank" rel="noopener" class="text-red-600 dark:text-red-400 hover:underline">Mailgun</a>
+                    </h3>
+                    <p>
+                        Sends password reset emails and account notifications. That's all - we don't send marketing emails or spam. Ever. Period.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Retention -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Data Retention</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    <strong>Practice Events:</strong> We keep your practice history for <strong>90 days</strong>, then automatically
+                    delete it. You'll get a reminder 7 days before deletion if you haven't downloaded your data. You can export it
+                    anytime as CSV or JSON.
+                </p>
+                <p>
+                    <strong>Account Data:</strong> Your items, routines, and chord charts stay safe as long as your account is active.
+                </p>
+                <p>
+                    <strong>Deleted Accounts:</strong> When you delete your account (either scheduled or immediate), we permanently
+                    erase all your data. There's no recovery after deletion - it's gone for good.
+                </p>
+            </div>
+        </div>
+
+        <!-- Cookies -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8" id="cookies">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Cookies</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    We use a few types of cookies to make GPRA work:
+                </p>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li><strong>Session Cookies:</strong> Required for login and keeping you logged in. These are "functional cookies"
+                    and don't require consent under GDPR.</li>
+                    <li><strong>PostHog Analytics Cookies:</strong> Track how you use GPRA to help us improve it. You can opt out
+                    anytime in Account Settings.</li>
+                    <li><strong>Dark Mode Preference:</strong> Stored in your browser's localStorage so we remember if you prefer dark mode.
+                    (Not technically a cookie, but similar!)</li>
+                </ul>
+                <p class="mt-4">
+                    You can manage your cookie preferences using the banner that appears when you first visit GPRA.
+                </p>
+            </div>
+        </div>
+
+        <!-- Contact -->
+        <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Questions or Concerns?</h2>
+            <p class="text-gray-700 dark:text-gray-300">
+                We're here to help! If you have questions about this privacy policy or want to exercise your data rights
+                (access, deletion, export), email us at:
+            </p>
+            <p class="mt-2">
+                <a href="mailto:support@guitarpracticeroutine.com"
+                   class="text-lg font-semibold text-orange-600 dark:text-orange-400 hover:underline">
+                    support@guitarpracticeroutine.com
+                </a>
+            </p>
+        </div>
+
+        <!-- Footer Links -->
+        <div class="text-center text-sm text-gray-600 dark:text-gray-400 py-4 border-t border-gray-200 dark:border-gray-700">
+            <a href="/" class="hover:underline">Back to GPRA</a>
+            {' · '}
+            <a href="/terms" class="hover:underline">Terms of Service</a>
+            {' · '}
+            <a href="mailto:support@guitarpracticeroutine.com" class="hover:underline">Contact</a>
+        </div>
+    </div>
+</body>
+</html>
