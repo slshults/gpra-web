@@ -18,6 +18,7 @@ const RegisterPage = () => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [recaptchaToken, setRecaptchaToken] = useState(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const recaptchaRef = useRef(null);
 
   // Password requirements validation
@@ -32,32 +33,42 @@ const RegisterPage = () => {
   const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
   const passwordsDontMatch = confirmPassword.length > 0 && password !== confirmPassword;
 
-  // Load reCAPTCHA script on component mount
+  // GDPR-compliant: Load reCAPTCHA only after consent or on button click
   useEffect(() => {
     // Make callback available globally for reCAPTCHA
     window.onRecaptchaChange = (token) => {
       setRecaptchaToken(token);
     };
 
-    const loadRecaptcha = () => {
-      if (window.grecaptcha) {
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = 'https://www.google.com/recaptcha/api.js';
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    };
-
-    loadRecaptcha();
+    // Check if user has already consented to cookies
+    const consent = localStorage.getItem('cookieConsent');
+    if (consent === 'all') {
+      // User accepted all cookies - safe to load reCAPTCHA
+      loadRecaptchaScript();
+    }
+    // Otherwise, wait for user to click "Create Account" button
 
     // Cleanup
     return () => {
       delete window.onRecaptchaChange;
     };
   }, []);
+
+  // Load reCAPTCHA script on-demand (GDPR-compliant)
+  const loadRecaptchaScript = () => {
+    if (window.grecaptcha) {
+      return Promise.resolve(); // Already loaded
+    }
+
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://www.google.com/recaptcha/api.js';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => resolve();
+      document.head.appendChild(script);
+    });
+  };
 
   const resetRecaptcha = () => {
     // Reset the token state
@@ -94,6 +105,17 @@ const RegisterPage = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
 
+    // Load reCAPTCHA on-demand if not already loaded (GDPR-compliant)
+    if (!window.grecaptcha) {
+      setLoading(true);
+      await loadRecaptchaScript();
+      setLoading(false);
+      // Wait a moment for reCAPTCHA to render
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setError('reCAPTCHA loaded! Please complete it and try again.');
+      return;
+    }
+
     // Validate inputs
     if (!username.trim()) {
       setError('Please enter a username');
@@ -118,6 +140,12 @@ const RegisterPage = () => {
     // Validate password match
     if (password !== confirmPassword) {
       setError('Passwords do not match');
+      return;
+    }
+
+    // Validate terms acceptance
+    if (!agreedToTerms) {
+      setError('Please agree to the Terms of Service and Privacy Policy');
       return;
     }
 
@@ -385,6 +413,39 @@ const RegisterPage = () => {
                     Passwords don't match
                   </p>
                 )}
+              </div>
+
+              {/* Terms of Service Checkbox */}
+              <div className="flex items-start space-x-2">
+                <input
+                  type="checkbox"
+                  id="terms"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-gray-600 bg-gray-900 text-orange-600 focus:ring-orange-500 focus:ring-offset-gray-800"
+                  disabled={loading}
+                  required
+                />
+                <label htmlFor="terms" className="text-sm text-gray-300">
+                  I agree to the{' '}
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-orange-500 hover:text-orange-400 underline"
+                  >
+                    Terms of Service
+                  </a>
+                  {' '}and{' '}
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-orange-500 hover:text-orange-400 underline"
+                  >
+                    Privacy Policy
+                  </a>
+                </label>
               </div>
 
               {/* reCAPTCHA Widget */}

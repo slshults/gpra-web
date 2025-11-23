@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service - Guitar Practice Routine App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">Terms of Service</h1>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Last Updated: November 18, 2025</p>
+        </div>
+
+        <!-- Opening Paragraph -->
+        <div class="prose dark:prose-invert max-w-none mb-8">
+            <p class="text-lg text-gray-700 dark:text-gray-300">
+                Welcome to GPRA (Guitar Practice Routine App)! These terms outline how you can use our service,
+                what we expect from you, and what you can expect from us. We've tried to keep this straightforward
+                and friendly - if you have questions, just reach out. 🎸
+            </p>
+        </div>
+
+        <!-- 1. Acceptance of Terms -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">1. Acceptance of Terms</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    By creating an account and using GPRA, you agree to these Terms of Service and our
+                    <a href="/privacy" class="text-orange-600 dark:text-orange-400 hover:underline">Privacy Policy</a>.
+                    If you don't agree with these terms, please don't use the service.
+                </p>
+                <p>
+                    We may update these terms from time to time. We'll notify you of any significant changes via email
+                    or an in-app notification. Your continued use of GPRA after changes means you accept the new terms.
+                </p>
+            </div>
+        </div>
+
+        <!-- 2. Account Responsibilities -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">2. Account Responsibilities</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    <strong>Your account is your responsibility.</strong> Keep your password secure and don't share
+                    your account with others. You're responsible for all activity under your account.
+                </p>
+                <p>
+                    <strong>Eligibility:</strong> You must be at least 13 years old to use GPRA. If you're under 18,
+                    you should have parental permission to use the service.
+                </p>
+                <p>
+                    <strong>Account accuracy:</strong> Provide accurate information when signing up. If you signed up
+                    with Tidal OAuth (which doesn't provide email addresses), you can update your email via the Stripe
+                    Customer Portal in Account Settings.
+                </p>
+            </div>
+        </div>
+
+        <!-- 3. Subscription Terms -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">3. Subscription Terms</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    <strong>Subscription tiers:</strong> GPRA offers 5 subscription tiers:
+                </p>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li><strong>Free:</strong> Limited features with ads (via Google AdSense)</li>
+                    <li><strong>Basic:</strong> Ad-free with increased limits</li>
+                    <li><strong>The Goods:</strong> Full features with generous limits</li>
+                    <li><strong>More Goods:</strong> Professional tier with higher limits</li>
+                    <li><strong>The Most:</strong> Unlimited access to all features</li>
+                </ul>
+                <p class="mt-4">
+                    <strong>Billing periods:</strong> Subscriptions are available as monthly or yearly plans. You can
+                    switch between monthly and yearly billing in Account Settings.
+                </p>
+                <p>
+                    <strong>Payment processing:</strong> All payments are processed securely via Stripe. We never see
+                    your credit card numbers. Charges will appear as "GPRA" or "Guitar Practice Routine App" on your
+                    statement.
+                </p>
+                <p>
+                    <strong>Automatic renewal:</strong> Subscriptions automatically renew at the end of each billing
+                    period unless you cancel. You can cancel anytime from Account Settings or the Stripe Customer Portal.
+                </p>
+                <p>
+                    <strong>Cancellation policy:</strong> When you cancel, you keep access until the end of your current
+                    billing period. After that, your account enters "unplugged mode" (free tier access with a 90-day
+                    grace period).
+                </p>
+                <p>
+                    <strong>Proration:</strong> If you upgrade mid-month, you'll receive a prorated credit for the
+                    unused portion of your current plan. If you downgrade, the change takes effect at your next renewal
+                    date.
+                </p>
+                <p>
+                    <strong>Refunds:</strong> We generally don't offer refunds for partial billing periods. However, if
+                    you delete your account on a scheduled date (see section 7 below), you'll receive a prorated refund
+                    for the unused portion of your subscription.
+                </p>
+            </div>
+        </div>
+
+        <!-- 4. Data & Privacy -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">4. Data & Privacy</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    Your privacy matters to us. Please review our
+                    <a href="/privacy" class="text-orange-600 dark:text-orange-400 hover:underline">Privacy Policy</a>
+                    to understand how we collect, use, and protect your data.
+                </p>
+                <p>
+                    <strong>Key points:</strong>
+                </p>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li>Your practice data belongs to you</li>
+                    <li>We never sell your data to third parties</li>
+                    <li>You can export your data anytime (last 90 days)</li>
+                    <li>You can delete your account and all data anytime</li>
+                    <li>Practice events are automatically deleted after 90 days</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 5. User Content -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">5. User Content</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    <strong>You own your data.</strong> The practice items, routines, chord charts, and other content
+                    you create in GPRA belong to you. We don't claim any ownership rights to your content.
+                </p>
+                <p>
+                    <strong>License to operate:</strong> By using GPRA, you grant us permission to store, process, and
+                    display your content so we can provide the service. This license ends when you delete your content
+                    or account.
+                </p>
+                <p>
+                    <strong>Responsibility for content:</strong> You're responsible for the content you upload. Don't
+                    upload anything illegal, infringing, or harmful.
+                </p>
+                <p>
+                    <strong>Chord chart autocreate:</strong> When you use the AI-powered chord chart autocreate feature,
+                    your uploaded images are sent to Anthropic's Claude API for analysis. See our
+                    <a href="/privacy" class="text-orange-600 dark:text-orange-400 hover:underline">Privacy Policy</a>
+                    for details.
+                </p>
+            </div>
+        </div>
+
+        <!-- 6. Prohibited Uses -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">6. Prohibited Uses</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    <strong>Don't be a jerk.</strong> Here are some specific things you can't do:
+                </p>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li>Violate any laws or regulations</li>
+                    <li>Infringe on others' intellectual property rights</li>
+                    <li>Attempt to hack, disrupt, or abuse the service</li>
+                    <li>Share your account credentials with others</li>
+                    <li>Use automated tools to scrape or abuse the service</li>
+                    <li>Impersonate others or misrepresent your identity</li>
+                    <li>Upload malicious code or viruses</li>
+                </ul>
+                <p class="mt-4">
+                    If we find you're violating these terms, we may suspend or terminate your account.
+                </p>
+            </div>
+        </div>
+
+        <!-- 7. Termination -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">7. Termination</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    <strong>You can delete your account anytime</strong> from Account Settings. We offer two deletion options:
+                </p>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li>
+                        <strong>Scheduled deletion:</strong> Cancel your subscription and schedule account deletion for
+                        your next renewal date. You'll receive a prorated refund and keep access until the deletion date.
+                    </li>
+                    <li>
+                        <strong>Immediate deletion:</strong> Delete your account right now with no refund. Your access
+                        ends immediately.
+                    </li>
+                </ul>
+                <p class="mt-4">
+                    <strong>We can terminate your account</strong> if you violate these terms or abuse the service.
+                    We'll try to give you reasonable notice unless the violation is severe.
+                </p>
+                <p>
+                    <strong>What happens when you delete:</strong> All your data (practice items, routines, chord charts,
+                    account info) is permanently erased. There's no recovery after deletion - it's gone for good.
+                </p>
+            </div>
+        </div>
+
+        <!-- 8. Disclaimers -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">8. Disclaimers</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    <strong>GPRA is provided "as is"</strong> without warranties of any kind. We work hard to keep the
+                    service running smoothly, but we can't guarantee:
+                </p>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li>Uninterrupted or error-free service</li>
+                    <li>Specific results from using the app</li>
+                    <li>Accuracy of AI-generated chord charts</li>
+                    <li>That the service will meet all your needs</li>
+                </ul>
+                <p class="mt-4">
+                    <strong>Music practice disclaimer:</strong> GPRA is a tool to help organize your practice, not a
+                    substitute for qualified music instruction. Always practice safely and avoid injury.
+                </p>
+            </div>
+        </div>
+
+        <!-- 9. Limitation of Liability -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">9. Limitation of Liability</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    To the maximum extent permitted by law, GPRA and its operators are not liable for:
+                </p>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li>Indirect, incidental, or consequential damages</li>
+                    <li>Loss of data, profits, or revenue</li>
+                    <li>Service interruptions or downtime</li>
+                    <li>Third-party actions (e.g., payment processing issues)</li>
+                </ul>
+                <p class="mt-4">
+                    <strong>Our total liability</strong> for any claim related to GPRA is limited to the amount you paid
+                    us in the 12 months before the claim arose. For free tier users, liability is limited to $100.
+                </p>
+            </div>
+        </div>
+
+        <!-- 10. Changes to Terms -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">10. Changes to Terms</h2>
+            <div class="space-y-4 text-gray-700 dark:text-gray-300">
+                <p>
+                    We may update these Terms of Service from time to time. When we do:
+                </p>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li>We'll update the "Last Updated" date at the top</li>
+                    <li>For significant changes, we'll notify you via email or in-app notification</li>
+                    <li>Your continued use of GPRA means you accept the new terms</li>
+                    <li>If you don't agree with the changes, you can delete your account</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 11. Contact -->
+        <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">11. Questions or Concerns?</h2>
+            <p class="text-gray-700 dark:text-gray-300">
+                If you have questions about these Terms of Service or need help with your account, we're here to help!
+                Email us at:
+            </p>
+            <p class="mt-2">
+                <a href="mailto:support@guitarpracticeroutine.com"
+                   class="text-lg font-semibold text-orange-600 dark:text-orange-400 hover:underline">
+                    support@guitarpracticeroutine.com
+                </a>
+            </p>
+        </div>
+
+        <!-- Footer Links -->
+        <div class="text-center text-sm text-gray-600 dark:text-gray-400 py-4 border-t border-gray-200 dark:border-gray-700">
+            <a href="/" class="hover:underline">Back to GPRA</a>
+            {' · '}
+            <a href="/privacy" class="hover:underline">Privacy Policy</a>
+            {' · '}
+            <a href="mailto:support@guitarpracticeroutine.com" class="hover:underline">Contact</a>
+        </div>
+    </div>
+</body>
+</html>

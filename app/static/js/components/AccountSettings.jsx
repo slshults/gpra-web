@@ -12,6 +12,7 @@ import {
 import { Alert, AlertDescription } from '@ui/alert';
 import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink, Play, Lock, Key } from 'lucide-react';
 import PricingSection from './PricingSection';
+import AccountDeletion from './AccountDeletion';
 
 const AccountSettings = () => {
   const [apiKey, setApiKey] = useState('');
@@ -39,12 +40,25 @@ const AccountSettings = () => {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState(null);
 
+  // PostHog analytics state
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
+
   useEffect(() => {
     // Fetch current API key status, user profile, routine count, and expiration warning
     fetchApiKeyStatus();
     fetchUserProfile();
     fetchRoutineCount();
     fetchExpirationWarning();
+
+    // Check current consent status from localStorage AND actual cookie presence
+    const cookieConsent = localStorage.getItem('cookieConsent');
+    const hasPostHogCookies = document.cookie.split(';').some(cookie => {
+      const name = cookie.trim().split('=')[0];
+      return /^ph.*phc_/.test(name);
+    });
+
+    // Analytics enabled if user consented 'all' AND cookies exist
+    setAnalyticsEnabled(cookieConsent === 'all' && hasPostHogCookies);
   }, []);
 
   const fetchApiKeyStatus = async () => {
@@ -369,6 +383,56 @@ const AccountSettings = () => {
     } finally {
       setPasswordLoading(false);
     }
+  };
+
+  const deleteCookies = (pattern) => {
+    // Delete all cookies matching the pattern
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i];
+      const eqPos = cookie.indexOf('=');
+      const name = eqPos > -1 ? cookie.substring(0, eqPos).trim() : cookie.trim();
+
+      if (pattern.test(name)) {
+        // Delete cookie for all paths and domains
+        document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+        document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + window.location.hostname;
+        document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.' + window.location.hostname;
+      }
+    }
+  };
+
+  const toggleAnalytics = async () => {
+    const newConsent = analyticsEnabled ? 'essential' : 'all';
+
+    // Save to both localStorage (fast) and server session (cross-subdomain)
+    localStorage.setItem('cookieConsent', newConsent);
+
+    try {
+      // Get CSRF token
+      const tokenResponse = await fetch('/api/csrf-token');
+      const { csrf_token } = await tokenResponse.json();
+
+      // Save consent with CSRF protection
+      await fetch('/api/consent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrf_token
+        },
+        body: JSON.stringify({ consent: newConsent })
+      });
+    } catch (error) {
+      console.error('[AccountSettings] Failed to save consent to server:', error);
+    }
+
+    if (analyticsEnabled) {
+      // User wants to disable analytics - delete PostHog cookies
+      deleteCookies(/^ph_phc_/);
+    }
+
+    // Reload page to load/unload PostHog SDK
+    window.location.reload();
   };
 
   return (
@@ -817,6 +881,58 @@ const AccountSettings = () => {
               </CardContent>
             </Card>
 
+            {/* Analytics Privacy Card */}
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-gray-100">Analytics & Privacy</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Control whether we can collect analytics to help improve GPRA
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-sm font-medium text-gray-200">Allow analytics tracking</h3>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                        analyticsEnabled ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
+                      }`}>
+                        {analyticsEnabled ? 'Allowed' : 'Disallowed'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      Help us improve GPRA by allowing anonymous usage analytics via PostHog. We never sell your data.
+                    </p>
+                  </div>
+                  <button
+                    onClick={toggleAnalytics}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 ${
+                      analyticsEnabled
+                        ? 'bg-green-600 focus:ring-green-500'
+                        : 'bg-red-600 focus:ring-red-500'
+                    }`}
+                    role="switch"
+                    aria-checked={analyticsEnabled}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        analyticsEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="text-xs text-gray-500 pt-2 border-t border-gray-700">
+                  <p>
+                    Learn more about how we handle your data in our{' '}
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:underline">
+                      Privacy Policy
+                    </a>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
           </div>
         </div>
       </div>
@@ -826,7 +942,7 @@ const AccountSettings = () => {
         <PricingSection currentTier={userProfile.tier} currentBillingPeriod={userProfile.billing_period} />
       </div>
 
-      {/* Guided Tour Card - At bottom */}
+      {/* Guided Tour Card */}
       <div className="mt-6">
         <Card className="bg-gray-800 border-gray-700 max-w-md mx-auto">
           <CardHeader>
@@ -845,6 +961,11 @@ const AccountSettings = () => {
             </Button>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Account Deletion - Danger Zone */}
+      <div className="mt-6">
+        <AccountDeletion userTier={userProfile.tier} />
       </div>
     </div>
   );
