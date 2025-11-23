@@ -4,7 +4,7 @@ Drop-in replacement for existing routes.py during migration.
 """
 from flask import render_template, request, jsonify, redirect, session, url_for
 from flask_login import current_user
-from app import app, billing, limiter
+from app import app, billing, limiter, csrf
 from app.data_layer import data_layer
 from app.database import DatabaseTransaction
 from app.subscription_tiers import get_tier_limits
@@ -768,6 +768,7 @@ def set_consent():
     - localhost/127.0.0.1: Works within same origin
     - Production: Set domain to TLD family (e.g., .guitarpracticeroutine.com)
     """
+    csrf.protect()  # Explicitly require CSRF token for consent changes
     data = request.get_json()
     consent = data.get('consent')
 
