@@ -33,49 +33,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ Frontend: Account management complete, billing UI with pricing section
 - ✅ Infrastructure: Production configs, proper secrets management
 
-**Practice Data Download Feature**:
-- ✅ **User data export**: Users can download their practice history (last 90 days) as CSV or JSON
-- ✅ **Automatic retention**: Database trigger auto-deletes events older than 90 days
-- ✅ **Expiration warnings**: Alert users 7 days before data deletion if not downloaded
-- ✅ **Event logging**: Timer sessions, completions, page visits tracked to `practice_events` table
-
-**Current Production Status**:
-- ✅ **Multi-tenant SaaS application** fully operational in production
-- ✅ **Infrastructure**: DreamCompute `gpra-web-prod` (208.113.200.79), PostgreSQL, Redis, Gunicorn, Nginx, SSL for 12 domains
-- ✅ **Authentication**: Custom login/register pages with OAuth-first UX, real-time password strength validation, Google OAuth, Tidal OAuth, password reset via Mailgun, Redis session management
-  - **OAuth Flow**: Works reliably with account selection (`prompt='select_account'` in `client_kwargs`)
-  - **OAuth Flow Split**: Login page (`/login/<provider>`) only logs in existing users, signup page (`/oauth-signup/<provider>`) creates accounts and triggers guided tour
-  - **Session Persistence**: `session.permanent = True` set on all login paths, 24-hour session lifetime
-  - **Multi-domain Support**: OAuth redirect_uri dynamically matches incoming domain (prevents session loss)
-  - **Logout**: Properly clears all session data including remember-me cookies
-  - **Active Routine Persistence**: Uses `subscriptions.last_active_routine_id` per user (working in production)
-- ✅ **Subscriptions**: 5 Stripe tiers with complete billing integration (test mode - ready for live mode)
-  - Checkout sessions for NEW customers, Subscription Update API for EXISTING customers (prevents double-billing)
-  - Custom modal dialogs for subscription updates with personalized messaging
-  - Tier limits enforced: items and routines creation validates against tier limits
-  - Tier limit modals with "Upgrade" and "Nope" buttons, auto-scroll to subscription section (friendly UX)
-  - Proration handling for mid-month upgrades/downgrades with amount display in modals
-  - Monthly/yearly billing period switching with cost difference display in UI
-  - **Lapsed subscription handling**: Complete flow with 90-day visible countdown (120-day total retention)
-  - **Unplugged mode**: Free tier access to saved active routine, lapsed modal on every login, navigation blocking
-  - **Renewal flow**: Canceled subscriptions resume via new checkout session (Stripe requirement), webhooks clear unplugged_mode
-  - **Webhook integration**: Fully configured and tested, Nginx exception allows Stripe IPs through whitelist
-- ✅ **Security**: RLS middleware, reCAPTCHA v2, encrypted API keys, IP whitelist (with webhook exception), database cascade constraints
-- ✅ **User Experience**: 8-step Driver.js guided tour (triggered by OAuth signup + email/password registration), account settings UI, demo data for new users, responsive modals (songbook path modal: max-w-2xl)
-- ✅ **Features**: Chord chart autocreate (12,708 common chords), Google AdSense (free tier + unplugged mode), byoClaude API keys
-- ✅ **Database**: Automated backups (12-hour rotation, 7-day retention, gzip compression), lapsed subscription fields migrated
-- ✅ **Admin Interface**: Flask-AppBuilder menu customizations ("Security" → "Info & Perms", "Subscriptions" top-level)
-- 🚀 **Ready for Live Mode**: All billing flows tested in Stripe test mode, webhooks working, ready to switch to live API keys
-- ✅ **Compliance**: GDPR/CPRA compliance
-  - ✅ Privacy policy & Terms of Service pages live at `/privacy` and `/terms`
-  - ✅ Cookie consent banner (3 options: Accept all, Essential only, Reject all)
-  - ✅ PostHog respects consent choices (initializes only with user permission)
-  - ✅ Smart account deletion flow (scheduled/immediate options) - Complete with grace period banner
-  - ⚠️ **Known issues**: reCAPTCHA loads before consent (GDPR violation), multi-domain localStorage isolation
-
-**Stripe Testing**: See `~/.claude/skills/gpra-billing-stripe/` skill for complete testing workflow and webhook setup.
-**Stripe Webhooks**: Production Nginx configured with `/api/webhooks/stripe` exception to allow Stripe IPs through IP whitelist. Webhook endpoint: `https://guitarpracticeroutine.com/api/webhooks/stripe`
-**Session History**: See `~/.claude/handoffSummary.md` for detailed session notes.
+**Current Production Status**: Multi-tenant SaaS fully operational on DreamCompute (208.113.200.79) with OAuth (Google/Tidal), Stripe subscriptions (5 tiers), GDPR compliance, RLS security, and automated backups. Active routine persistence uses `subscriptions.last_active_routine_id`. Stripe webhooks: `https://guitarpracticeroutine.com/api/webhooks/stripe`
 
 When working on this codebase, keep in mind we're building for a multi-user hosted environment, not the original single-user local setup.
 
@@ -356,8 +314,17 @@ The application has been **migrated to PostgreSQL as its database** with a **Dat
 - `app/routes.py`: Legacy routes file (routes_v2.py is active)
 - `app/billing.py`: Stripe integration functions (checkout, portal, webhooks, lapsed subscriptions)
 - `app/data_layer.py`: DataLayer abstraction for database operations
-- `app/__init__.py`: Flask app initialization and OAuth setup
+- `app/__init__.py`: Flask app initialization, OAuth, CSRF protection, rate limiting
 - `app/sheets.py`: Legacy Google Sheets data layer (fallback mode)
+
+### Security Configuration
+- **CSRF Protection**: Flask-WTF CSRFProtect enabled globally
+  - Auth endpoints exempt (have own protection: passwords, reCAPTCHA, tokens)
+  - Consent endpoints protected (require CSRF token from `/api/csrf-token`)
+- **Rate Limiting**: Flask-Limiter with Redis storage
+  - Global: 1000/hour, 100/minute
+  - Consent endpoints: 10/min POST, 30/min GET, 20/min CSRF token
+- **reCAPTCHA**: Deferred loading (only after consent or button click) - GDPR compliant
 
 ## Key Files and Locations
 
@@ -399,19 +366,6 @@ The `gpr.sh` script runs:
 - **Session management**: Flask-AppBuilder security manager, `session.clear()` on logout for proper OAuth state cleanup
 - **Row-Level Security (RLS)**: Middleware filters all queries by user_id
 - **Active Routine Persistence**: Stored in `subscriptions.last_active_routine_id` (per-user), not in shared `active_routine` table
-
-### Stripe Appearance Customization
-**Checkout Sessions (API-configured):**
-- Implemented in `app/billing.py` via `branding_settings` parameter
-- Applied to: `create_checkout_session()` and `resume_subscription()`
-- Colors: orange buttons (#ea580c), dark background (configurable)
-- Font: Roboto, border style: rounded
-
-**Customer Portal (Dashboard-configured):**
-- Location: Stripe Dashboard → Settings → Business → Branding
-- Navigate to: `https://dashboard.stripe.com/settings/branding`
-- Configure: Brand color, accent color, icon/logo
-- Applies to: Customer Portal, invoices, receipts, emails
 
 ### API Endpoints
 - `/api/items/*`: CRUD operations for practice items
@@ -515,87 +469,13 @@ For debugging during development, you can access server logs via:
 **Log Rotation**: Logs automatically rotate at 50MB with 2 backup files (100MB total max)
 
 ### Frontend Compilation Debugging
-**Critical Pattern**: When React component changes aren't taking effect, check if the frontend bundle needs rebuilding.
+If React changes don't take effect (old functionality persists), Vite's watcher may have missed changes. Run `npm run build` to force recompilation.
 
-**Symptoms**:
-- API calls not happening despite correct source code
-- Old functionality still executing after code removal
-- Log messages showing old code paths (e.g., `[MANUAL]` instead of `[AUTOCREATE]`)
+## PostgreSQL Migration Quirks
 
-**Root Cause**: Vite's development watcher may not always catch changes, leaving old compiled code in `app/static/js/main.js`
+**ID Structure**: Column A = DB primary key (auto-increment), Column B = ItemID (string "107"). Frontend must use Column B. Chord charts store comma-separated ItemIDs. Always use ItemIDs for frontend communication, never database primary keys.
 
-**Solution**: Force rebuild frontend assets
-```bash
-npm run build  # Force recompilation of React components
-```
-
-**Debugging Pattern**: Compare log prefixes to identify which code path is executing:
-- `[MANUAL]` = Old local parsing code still running
-- `[AUTOCREATE]` = New Sonnet API code correctly executing
-
-**Prevention**: Always verify that source code changes are reflected in the compiled bundle when debugging API integration issues.
-
-## Performance Patterns & Optimizations
-
-### Frontend State Management
-
-#### UI Refresh After Backend Operations:
-**Critical Pattern**: Don't rely on conditional loaders like `loadChordChartsForItem()` which skip if data already exists.
-
-**Correct Pattern for Immediate UI Updates:**
-```javascript
-// Force refresh with fresh API call
-const response = await fetch(`/api/items/${itemId}/chord-charts`);
-const charts = await response.json();
-
-// Direct state updates
-setChordCharts(prev => ({
-  ...prev,
-  [itemId]: charts
-}));
-
-setChordSections(prev => ({
-  ...prev,
-  [itemId]: buildSectionsFromCharts(charts)
-}));
-```
-
-**Applied in:**
-- Autocreate completion handler
-- Delete operations
-- Manual chord creation
-
-
-## PostgreSQL Migration Troubleshooting Patterns
-
-### Common ID Mismatch Issues
-**Root Cause**: PostgreSQL migration preserved Google Sheets structure where:
-- **Column A**: Database primary key (auto-incrementing integer)
-- **Column B**: Google Sheets ItemID (string like "107")
-
-**Symptoms**:
-- Wrong item names in dialogs
-- Filtering/sorting broken
-- API returns wrong data despite correct database content
-- **Drag and drop operations return HTTP 200 but don't persist** (SQL UPDATE affects 0 rows)
-
-**Fix Pattern**: Always use ItemIDs (Column B) for frontend communication, never database primary keys (Column A).
-
-**Debugging Pattern for Silent Persistence Failures:**
-```python
-# Add row count tracking to repository update methods
-result = self.db.query(Model).filter(...).update({...})
-if result == 0:
-    logging.warning(f"No rows updated - ID mismatch likely")
-```
-
-### Common Repository/Model Attribute Issues
-**ChordChart Model**: Uses `order_col` (not `order`) and `chord_id` (not `id`) to match Google Sheets columns
-**Fix Pattern**: Check model definitions in `app/models.py` for exact attribute names
-
-### File Upload Patterns
-**Frontend sends**: `file0`, `file1`, etc. (not `'files'`)
-**Backend fix**: Use `request.files.values()` to capture all files regardless of key names
+**Model Attributes**: ChordChart uses `order_col` (not `order`) and `chord_id` (not `id`). Check `app/models.py` for exact names.
 
 IMPORTANT:
 - No need to run npm to update after changes, the server is running and we have watchers in place to make updates for us as needed while we're developing.
@@ -611,23 +491,6 @@ IMPORTANT:
 - NEVER delete spreadsheet items. If you think something needs to be deleted, check with me first. In actuality, you we probably just need to change an ID instead of deleting.
 
 - Contextual reminder: In guitar we count strings in order from high pitch to low, so the string on the right side of our charts is string one. Likewise with frets, so fret one is at the top, and when we go "up" a fret, that means the next fret downward on the chart
-
-## Cross-Platform Development Patterns
-
-### WSL Detection and Path Handling
-- Detect WSL: Check `/proc/version` for 'microsoft'
-- Path conversion: Use `explorer.exe` with Windows-style paths (`folder_path.replace('/', '\\')`)
-- Note: `explorer.exe` often returns non-zero even when successful
-
-### Cross-Platform Feature Detection
-- Mobile detection: Check userAgent for `/android|iphone|ipad|ipod/`
-- Conditionally render features based on platform capabilities
-
-## Light Mode Implementation Pattern
-- Use `.light-mode` class on `<body>` element
-- CSS: Specific selectors with `!important` flags to override Tailwind defaults
-- Include SVG overrides for chord charts (background, stroke, fill, text)
-- JS: Toggle class, persist with `localStorage`
 
 ## UI/UX Development Patterns
 - **Responsive buttons**: `flex flex-col sm:flex-row` for mobile stacking

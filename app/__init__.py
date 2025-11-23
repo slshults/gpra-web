@@ -177,8 +177,9 @@ def set_session_cookie_domain():
 app.config['WTF_CSRF_ENABLED'] = True
 app.config['WTF_CSRF_TIME_LIMIT'] = None  # No time limit on CSRF tokens
 app.config['WTF_CSRF_SSL_STRICT'] = False  # Allow CSRF on non-HTTPS (for dev)
+app.config['WTF_CSRF_CHECK_DEFAULT'] = False  # Disable global enforcement (selective protection only)
 
-# Initialize CSRF Protection
+# Initialize CSRF Protection (selective mode - manually protect specific endpoints)
 from flask_wtf.csrf import CSRFProtect
 csrf = CSRFProtect(app)
 
