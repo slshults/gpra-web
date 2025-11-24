@@ -2,7 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-#### Note: Anthropic suggests we keep the size of this file below 40K. You can check the current file size in the output of `ll CLAUDE.md`. Make sections more succinct as needed, but take care not to remove important context or guidance.
+#### Note: Anthropic suggests we keep the size of this file below 40K. You can check the current file size in the output of `ls -al CLAUDE.md`. Make sections more succinct as needed, but take care not to remove important context or guidance.
+
+**CRITICAL for Context Window Management**: Use agents/subagents AGGRESSIVELY to conserve context window! The more you delegate to agents, the more work we can accomplish in a single session before the autocompact tool forcibly ends this session. 
+
+Your role here is choregrapher/stage-manager/director. Send subagents to do things that eat up our tokens. 🙏
 
 ## Project Status: Hosted Version Development
 
@@ -34,6 +38,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ Infrastructure: Production configs, proper secrets management
 
 **Current Production Status**: Multi-tenant SaaS fully operational on DreamCompute (208.113.200.79) with OAuth (Google/Tidal), Stripe subscriptions (5 tiers), GDPR compliance, RLS security, and automated backups. Active routine persistence uses `subscriptions.last_active_routine_id`. Stripe webhooks: `https://guitarpracticeroutine.com/api/webhooks/stripe`
+
+**Cancellation Flow (Nov 2025)**: User-initiated cancellations (via Stripe Portal or GPRA "Pause") trigger 90-day unplugged mode with grace period. Automated cancellations (payment failures) immediately downgrade to free tier. **IMPORTANT**: Users in unplugged mode show as Free tier in UI (via `/api/auth/status` override at routes_v2.py:832-834), even though database tier remains unchanged until subscription deletion. See "Subscription Cancellation & Unplugged Mode" section below.
 
 When working on this codebase, keep in mind we're building for a multi-user hosted environment, not the original single-user local setup.
 
@@ -95,6 +101,13 @@ Six specialized agents are available with **auto-loaded skills** and optimized t
 
 ### How to Use Agents
 
+**When to delegate to agents**:
+- ANY multi-file investigation or refactoring
+- ANY testing workflows (especially UI testing with Playwright)
+- ANY production debugging or server issues
+- ANY complex feature implementation requiring multiple steps
+- ANY task that would consume >10k tokens if done in main conversation
+
 Invoke agents naturally in conversation:
 ```
 "Can you use the production-debugger to check server logs?"
@@ -139,6 +152,11 @@ When delegating to subagents, don't treat them like tools. Treat them the way I 
 4. **Pattern References**: Point to existing examples in the codebase to follow to avoid attempts to reinvent existing wheels
 5. **Success Criteria**: Define what "done" looks like for the delegated task
 6. **Token Management**: Delegate tasks that would consume >20k tokens to preserve main context
+7. **Documentation Files**: When creating investigation reports, planning documents, or reference files, write them to appropriate subfolders of `~/.claude/` instead of the project directory. Examples:
+   - Investigation reports → `~/.claude/docs/`
+   - Planning documents → `~/.claude/planning/`
+   - Reference guides → `~/.claude/docs/`
+   - This keeps the project repository clean and separates ephemeral investigation files from production code
 
 #### Subagent Opportunities in This Project
 
@@ -318,13 +336,16 @@ The application has been **migrated to PostgreSQL as its database** with a **Dat
 - `app/sheets.py`: Legacy Google Sheets data layer (fallback mode)
 
 ### Security Configuration
-- **CSRF Protection**: Flask-WTF CSRFProtect enabled globally
-  - Auth endpoints exempt (have own protection: passwords, reCAPTCHA, tokens)
-  - Consent endpoints protected (require CSRF token from `/api/csrf-token`)
+- **CSRF Protection**: Flask-WTF CSRFProtect with **selective enforcement** (`WTF_CSRF_CHECK_DEFAULT = False`)
+  - Only `/api/consent` POST endpoint requires CSRF tokens (via `csrf.protect()` call)
+  - All other endpoints work without CSRF tokens (auth endpoints have own protection: passwords, reCAPTCHA, OAuth)
+  - Tokens fetched from `/api/csrf-token` when needed
 - **Rate Limiting**: Flask-Limiter with Redis storage
   - Global: 1000/hour, 100/minute
   - Consent endpoints: 10/min POST, 30/min GET, 20/min CSRF token
+  - Account actions: Pause/unpause and schedule/cancel deletion limited to once per billing period
 - **reCAPTCHA**: Deferred loading (only after consent or button click) - GDPR compliant
+- **PostHog Privacy**: Opt-out clears all localStorage (including `distinct_id`) and cookies for full GDPR compliance
 
 ## Key Files and Locations
 
@@ -386,12 +407,72 @@ The `gpr.sh` script runs:
   - `/api/billing/set-unplugged`: Set lapsed user to unplugged/free mode
   - `/api/billing/last-payment`: GET - Fetch last successful payment amount and date from Stripe
   - `/api/stripe/webhook`: Stripe webhook handler (subscription events)
-- **Account Deletion Endpoints** (complete with grace period banner):
-  - `/api/user/calculate-deletion-refund`: Calculate prorated refund for scheduled deletion
-  - `/api/user/delete-account-scheduled`: Schedule deletion for renewal date (with refund)
-  - `/api/user/delete-account-immediate`: Delete account immediately (no refund)
-  - `/api/user/delete-account-free`: Delete free tier account immediately
-  - `/api/user/cancel-deletion`: Cancel scheduled deletion during grace period
+- **Account Deletion Endpoints** (includes PostHog person profile deletion):
+  - `/api/user/delete-account-scheduled`: Schedule deletion for renewal date (NO refunds/proration)
+  - `/api/user/delete-account-immediate`: Delete account immediately, show confirmation modal, redirect to Stripe portal
+  - `/api/user/delete-account-free`: Delete free tier account immediately (redirects to /login)
+  - `/api/user/cancel-deletion`: Cancel scheduled deletion (rate limited: once per billing period)
+  - Deletion utilities: `app/utils/account_deletion.py` handles PostHog cleanup
+  - **Modal rendering**: AccountDeletion.jsx uses `content` variable pattern to render state-specific JSX alongside persistent modal (lines 215-593)
+- **Subscription Pause/Unplugged Mode**:
+  - `/api/billing/set-unplugged`: Enter unplugged mode (90-day grace period, access to last active routine only)
+  - `/api/billing/unpause-subscription`: Exit unplugged mode and restore full access
+  - Rate limited: Pause/unpause once per billing period (not calendar month)
+
+### Subscription Cancellation & Unplugged Mode
+
+**Updated Nov 2025** - Unified cancellation flow for consistent UX across all cancellation paths.
+
+**Two Cancellation Paths:**
+1. **User-initiated** (via Stripe Customer Portal or GPRA "Pause" button) → **Unplugged Mode** (90-day grace period)
+2. **Automated** (payment failures, disputes) → **Immediate downgrade** to free tier
+
+**Webhook Handlers:**
+
+1. **`handle_subscription_updated()`** - Portal/API cancellations:
+   - Detects `cancel_at_period_end=True` OR `cancel_at` is set (Stripe API version compatibility)
+   - Sets unplugged mode immediately (90-day countdown starts)
+   - Subscription stays active until period end, then `subscription.deleted` fires
+
+2. **`handle_subscription_deleted()`** - Final cancellation:
+   - Checks `cancellation_details.reason` from Stripe subscription object
+   - `reason == 'cancellation_requested'` → User canceled → Unplugged mode
+   - Other reasons (`payment_failed`, `payment_disputed`) → Auto-canceled → Free tier downgrade
+
+**IMPORTANT - Stripe API Versions:** Stripe's cancellation API has two formats:
+- **Older API**: `cancel_at_period_end=True` (boolean)
+- **Newer API**: `cancel_at` is set to future timestamp (subscription ends at that time)
+- Handlers check BOTH fields for compatibility
+
+**Unplugged Mode Behavior:**
+- User has 90 days before data deletion (visible countdown in modal)
+- Access limited to last active routine only (can't create/edit other routines)
+- "Still unplugged" modal appears when trying to access restricted features
+- Can click "Unpause" in Account Settings to restore full access (rate limited: once per billing period)
+- `lapse_date` = when they paused/canceled, `data_deletion_date` = lapse_date + 90 days
+- Days calculation: `days_remaining = max(0, (data_deletion_date - now).days)`
+
+**Stripe Customer Portal Display:**
+- `cancel_at_period_end=True` → Shows "Will cancel on [date]", user can reactivate
+- `stripe.Subscription.delete()` → Shows "Canceled" (permanent), no reactivate option
+- No configuration needed - Stripe handles display automatically
+
+**UI Tier Display for Unplugged Users:**
+- `/api/auth/status` endpoint (routes_v2.py:832-834) overrides tier to 'free' when `unplugged_mode=True`
+- This ensures PricingSection shows "Free - Your current plan" instead of their old paid tier
+- Database tier remains unchanged until `subscription.deleted` webhook fires
+- Prevents "Two Active Subscriptions" UI bug where canceled users see old tier as current
+
+**Cron Job** (`cron/process_scheduled_deletions.py`):
+- Runs daily at 2 AM to process scheduled deletions (where `deletion_scheduled_for <= NOW`)
+- Uses `delete_user_account()` utility for GDPR-compliant deletion (includes PostHog cleanup)
+- Only for users who scheduled deletion via GPRA UI (not unplugged mode users)
+
+**Key Files:**
+- `app/billing.py` - Webhook handlers, unplugged mode functions
+- `app/routes_v2.py` - `/api/auth/status` endpoint (calculates days_remaining for unplugged users)
+- `app/utils/account_deletion.py` - Centralized deletion utility with PostHog cleanup
+- `cron/process_scheduled_deletions.py` - Daily cron for scheduled deletions
 
 ## Special Considerations
 

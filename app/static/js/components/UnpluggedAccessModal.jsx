@@ -24,13 +24,19 @@ export default function UnpluggedAccessModal({ isOpen, onClose, daysRemaining, t
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-gray-900 bg-opacity-75"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Still unplugged</h2>
 
         <p className="text-gray-700 mb-6">
-          We're still saving your {targetPage === 'routines' ? 'routines' : 'items'} for another {daysRemaining} days
-          (counting from the last day of your last paid billing period).
+          We're still saving your {targetPage === 'routines' ? 'routines' : 'items'} for another {daysRemaining || 0} days
+          (counting from when you paused, canceled, or missed a payment).
         </p>
 
         <div className="flex flex-col gap-3">

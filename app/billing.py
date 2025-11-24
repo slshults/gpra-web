@@ -460,8 +460,38 @@ def handle_subscription_updated(db: Session, stripe_subscription):
     else:
         subscription.mrr = amount
 
+    # Check if user canceled subscription - activate unplugged mode
+    # Handle both old API (cancel_at_period_end=True) and new API (cancel_at is set to future timestamp)
+    is_canceled = stripe_subscription['cancel_at_period_end'] or stripe_subscription.get('cancel_at') is not None
+
+    if is_canceled:
+        from app.models import Routine
+        from datetime import timedelta
+
+        cancel_reason = "cancel_at_period_end=True" if stripe_subscription['cancel_at_period_end'] else f"cancel_at={stripe_subscription.get('cancel_at')}"
+        logger.info(f"User {subscription.user_id} canceled subscription ({cancel_reason}) - activating unplugged mode")
+
+        # SET UNPLUGGED MODE (90-day countdown starts now)
+        subscription.unplugged_mode = True
+        subscription.lapse_date = datetime.now()
+        subscription.data_deletion_date = datetime.now() + timedelta(days=90)
+
+        # Store the routine that was active when they canceled
+        active_routine_id = subscription.last_active_routine_id
+        if not active_routine_id:
+            # If not set, get newest routine
+            newest = db.query(Routine).filter_by(user_id=subscription.user_id).order_by(Routine.created_at.desc()).first()
+            if newest:
+                active_routine_id = newest.id
+                logger.info(f"Storing routine {active_routine_id} as last active for unplugged user {subscription.user_id}")
+
+        subscription.last_active_routine_id = active_routine_id
+
+        logger.info(f"User {subscription.user_id} in unplugged mode - 90 days until data deletion")
+
     # Clear lapsed subscription fields when subscription becomes active
-    if stripe_subscription['status'] in ['active', 'trialing']:
+    # BUT ONLY if not scheduled for cancellation
+    elif stripe_subscription['status'] in ['active', 'trialing']:
         subscription.unplugged_mode = False
         subscription.lapse_date = None
         subscription.data_deletion_date = None
@@ -469,11 +499,21 @@ def handle_subscription_updated(db: Session, stripe_subscription):
         logger.info(f"Cleared lapse fields for renewed user {subscription.user_id}")
 
     db.commit()
-    logger.info(f"Updated subscription for user {subscription.user_id}: tier={tier}, status={subscription.status}")
+    logger.info(f"Updated subscription for user {subscription.user_id}: tier={tier}, status={subscription.status}, cancel_at_period_end={stripe_subscription['cancel_at_period_end']}, cancel_at={stripe_subscription.get('cancel_at')}")
 
 
 def handle_subscription_deleted(db: Session, stripe_subscription):
-    """Handle subscription cancellation/deletion"""
+    """Handle subscription cancellation/deletion
+
+    For user-initiated cancellations (portal, API, dashboard):
+    - Puts user in unplugged mode (90-day grace period)
+    - Preserves last active routine
+    - Allows resume without re-subscribing
+
+    For automated cancellations (payment failure, disputes):
+    - Immediate downgrade to free tier
+    - No unplugged mode
+    """
     logger.info(f"Subscription deleted: {stripe_subscription['id']}")
 
     subscription = db.query(Subscription).filter_by(
@@ -484,16 +524,59 @@ def handle_subscription_deleted(db: Session, stripe_subscription):
         logger.warning(f"No subscription found for Stripe subscription {stripe_subscription['id']}")
         return
 
-    # Downgrade to free tier
-    subscription.tier = 'free'
-    subscription.status = 'canceled'
-    subscription.mrr = 0
-    subscription.stripe_subscription_id = None
-    subscription.stripe_price_id = None
-    subscription.cancel_at_period_end = False
+    # Check cancellation reason to determine if user-initiated
+    cancellation_details = stripe_subscription.get('cancellation_details', {})
+    cancellation_reason = cancellation_details.get('reason') if cancellation_details else None
+
+    # Common Stripe cancellation reasons:
+    # - 'cancellation_requested' = User canceled (portal, API, dashboard)
+    # - 'payment_failed' = Auto-canceled after failed payments
+    # - 'payment_disputed' = Chargeback/dispute
+
+    if cancellation_reason == 'cancellation_requested':
+        # User-initiated cancellation (portal/API) - put in unplugged mode
+        from app.models import Routine
+        from datetime import timedelta
+
+        logger.info(f"User {subscription.user_id} canceled subscription (reason: {cancellation_reason}) - activating unplugged mode")
+
+        # Downgrade to free tier
+        subscription.tier = 'free'
+        subscription.status = 'canceled'
+        subscription.mrr = 0
+        subscription.stripe_subscription_id = None
+        subscription.stripe_price_id = None
+        subscription.cancel_at_period_end = False
+
+        # SET UNPLUGGED MODE (90-day countdown, like GPRA "Pause" button)
+        subscription.unplugged_mode = True
+        subscription.lapse_date = datetime.now()
+        subscription.data_deletion_date = datetime.now() + timedelta(days=90)
+
+        # Store the routine that was active when they canceled
+        active_routine_id = subscription.last_active_routine_id
+        if not active_routine_id:
+            # If not set, get newest routine
+            newest = db.query(Routine).filter_by(user_id=subscription.user_id).order_by(Routine.created_at.desc()).first()
+            if newest:
+                active_routine_id = newest.id
+                logger.info(f"Storing routine {active_routine_id} as last active for unplugged user {subscription.user_id}")
+
+        subscription.last_active_routine_id = active_routine_id
+
+        logger.info(f"User {subscription.user_id} in unplugged mode - 90 days until data deletion")
+    else:
+        # Automated cancellation (payment failure, etc.) - just downgrade to free
+        subscription.tier = 'free'
+        subscription.status = 'canceled'
+        subscription.mrr = 0
+        subscription.stripe_subscription_id = None
+        subscription.stripe_price_id = None
+        subscription.cancel_at_period_end = False
+
+        logger.info(f"Subscription auto-canceled (reason: {cancellation_reason or 'unknown'}) for user {subscription.user_id} - downgraded to free tier")
 
     db.commit()
-    logger.info(f"Downgraded user {subscription.user_id} to free tier")
 
 
 def handle_payment_succeeded(db: Session, invoice):
@@ -627,26 +710,43 @@ def set_unplugged_mode(db: Session):
         return jsonify({'error': 'No subscription found'}), 404
 
     try:
-        from app.models import ActiveRoutine, Routine
+        from app.models import Routine
+        from datetime import timedelta
+
+        # Check rate limiting (once per billing period)
+        # If user paused/unpause within current billing period, don't allow another pause
+        if subscription.last_pause_action and subscription.current_period_start:
+            # Check if last pause was within current billing period
+            period_start = subscription.current_period_start.replace(tzinfo=None) if hasattr(subscription.current_period_start, 'replace') else subscription.current_period_start
+            last_pause = subscription.last_pause_action.replace(tzinfo=None) if hasattr(subscription.last_pause_action, 'replace') else subscription.last_pause_action
+
+            if last_pause >= period_start:
+                # Last pause was in current billing period - don't allow another pause
+                # Keep user in plugged-in state
+                period_end = subscription.current_period_end.replace(tzinfo=None) if subscription.current_period_end else None
+                if period_end:
+                    days_until_next_period = (period_end - datetime.now()).days
+                    return jsonify({'error': f'You can only pause/unpause once per billing period. Please try again in {days_until_next_period} days when your next billing period starts.'}), 429
+                else:
+                    return jsonify({'error': 'You can only pause/unpause once per billing period.'}), 429
 
         # Set unplugged mode
         subscription.unplugged_mode = True
+        subscription.last_pause_action = datetime.now()
 
-        # Get ACTUAL active routine (if set) or fall back to newest
-        active_routine_record = db.query(ActiveRoutine).first()
-        active_routine_id = None
+        # Set lapse_date to NOW (when they clicked "Unplugged")
+        # This is the start of their 90-day window
+        subscription.lapse_date = datetime.now()
 
-        if active_routine_record and active_routine_record.routine_id:
-            # Check if that routine belongs to this user
-            active = db.query(Routine).filter_by(
-                id=active_routine_record.routine_id,
-                user_id=user_id
-            ).first()
-            if active:
-                active_routine_id = active.id
-                logger.info(f"User {user_id} set to unplugged mode with active routine {active_routine_id}")
+        # Set data_deletion_date to 90 days from now
+        # (removing the secret 30-day buffer - user sees 90 days, gets 90 days)
+        subscription.data_deletion_date = datetime.now() + timedelta(days=90)
 
-        # Fallback: use newest routine if no active routine found
+        # Store the routine that was active when they went unplugged
+        # Check subscriptions table first (per-user active routine)
+        active_routine_id = subscription.last_active_routine_id
+
+        # If not set, get newest routine
         if not active_routine_id:
             newest = db.query(Routine).filter_by(user_id=user_id).order_by(Routine.created_at.desc()).first()
             if newest:
@@ -657,13 +757,103 @@ def set_unplugged_mode(db: Session):
 
         subscription.last_active_routine_id = active_routine_id
 
+        # Update Stripe subscription to cancel at period end
+        if subscription.stripe_subscription_id:
+            try:
+                stripe.Subscription.modify(
+                    subscription.stripe_subscription_id,
+                    cancel_at_period_end=True
+                )
+                logger.info(f"Stripe subscription {subscription.stripe_subscription_id} set to cancel at period end")
+            except stripe.error.StripeError as stripe_err:
+                db.rollback()
+                logger.error(f"Stripe API error setting cancel_at_period_end: {stripe_err.user_message}")
+                return jsonify({'error': f'Failed to update Stripe subscription: {stripe_err.user_message}'}), 500
+            except Exception as stripe_ex:
+                db.rollback()
+                logger.error(f"Unexpected error updating Stripe subscription: {str(stripe_ex)}")
+                return jsonify({'error': 'Failed to communicate with payment provider'}), 500
+        else:
+            logger.warning(f"User {user_id} has no Stripe subscription ID - skipping Stripe update")
+
         db.commit()
+        logger.info(f"User {user_id} set to unplugged mode - 90 days until deletion (no secret buffer)")
         return jsonify({'success': True})
 
     except Exception as e:
         db.rollback()
         logger.error(f"Error setting unplugged mode: {str(e)}")
         return jsonify({'error': 'Failed to set unplugged mode'}), 500
+
+
+def unpause_subscription(db: Session):
+    """Unpause subscription and restore full access"""
+    from flask_login import current_user
+    if not current_user or not current_user.is_authenticated:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    user_id = current_user.id
+    subscription = db.query(Subscription).filter_by(user_id=user_id).first()
+
+    if not subscription:
+        return jsonify({'error': 'No subscription found'}), 404
+
+    if not subscription.unplugged_mode:
+        return jsonify({'error': 'Subscription is not paused'}), 400
+
+    try:
+        from datetime import timedelta
+
+        # Check rate limiting (once per billing period)
+        if subscription.last_pause_action and subscription.current_period_start:
+            # Check if last pause was within current billing period
+            period_start = subscription.current_period_start.replace(tzinfo=None) if hasattr(subscription.current_period_start, 'replace') else subscription.current_period_start
+            last_pause = subscription.last_pause_action.replace(tzinfo=None) if hasattr(subscription.last_pause_action, 'replace') else subscription.last_pause_action
+
+            if last_pause >= period_start:
+                # Last pause was in current billing period - don't allow unpause in same period
+                period_end = subscription.current_period_end.replace(tzinfo=None) if subscription.current_period_end else None
+                if period_end:
+                    days_until_next_period = (period_end - datetime.now()).days
+                    return jsonify({'error': f'You can only pause/unpause once per billing period. Please try again in {days_until_next_period} days when your next billing period starts.'}), 429
+                else:
+                    return jsonify({'error': 'You can only pause/unpause once per billing period.'}), 429
+
+        # Remove unplugged mode
+        subscription.unplugged_mode = False
+        subscription.last_pause_action = datetime.now()
+
+        # Clear lapse-related dates since they're back to active
+        subscription.lapse_date = None
+        subscription.data_deletion_date = None
+
+        # Reactivate Stripe subscription (remove cancel_at_period_end)
+        if subscription.stripe_subscription_id:
+            try:
+                stripe.Subscription.modify(
+                    subscription.stripe_subscription_id,
+                    cancel_at_period_end=False
+                )
+                logger.info(f"Stripe subscription {subscription.stripe_subscription_id} reactivated (cancel_at_period_end=False)")
+            except stripe.error.StripeError as stripe_err:
+                db.rollback()
+                logger.error(f"Stripe API error reactivating subscription: {stripe_err.user_message}")
+                return jsonify({'error': f'Failed to reactivate Stripe subscription: {stripe_err.user_message}'}), 500
+            except Exception as stripe_ex:
+                db.rollback()
+                logger.error(f"Unexpected error reactivating Stripe subscription: {str(stripe_ex)}")
+                return jsonify({'error': 'Failed to communicate with payment provider'}), 500
+        else:
+            logger.warning(f"User {user_id} has no Stripe subscription ID - skipping Stripe update")
+
+        db.commit()
+        logger.info(f"User {user_id} unpaused subscription - full access restored")
+        return jsonify({'success': True})
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error unpausing subscription: {str(e)}")
+        return jsonify({'error': 'Failed to unpause subscription'}), 500
 
 
 def get_last_payment(db: Session):

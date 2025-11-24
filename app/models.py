@@ -226,6 +226,10 @@ class Subscription(Base):
     deletion_type = Column(String(20), nullable=True)  # 'immediate' or 'scheduled'
     prorated_refund_amount = Column(Numeric(10, 2), nullable=True)  # Calculated prorated refund amount
 
+    # Rate limiting for account actions
+    last_pause_action = Column(DateTime(timezone=True), nullable=True)  # Last pause/unpause timestamp
+    last_deletion_action = Column(DateTime(timezone=True), nullable=True)  # Last schedule/cancel deletion timestamp
+
     __table_args__ = (
         Index('idx_subscriptions_user_id', 'user_id'),
         Index('idx_subscriptions_status', 'status'),

@@ -23,7 +23,7 @@ const AccountSettings = () => {
   const [validating, setValidating] = useState(false);
   const [message, setMessage] = useState(null);
   const [isValid, setIsValid] = useState(null);
-  const [userProfile, setUserProfile] = useState({ username: '', email: '', tier: 'free', billing_period: null, oauth_providers: [] });
+  const [userProfile, setUserProfile] = useState({ username: '', email: '', tier: 'free', billing_period: null, oauth_providers: [], unplugged_mode: false });
   const [routineCount, setRoutineCount] = useState(0);
   const [routineLimit, setRoutineLimit] = useState(1);
 
@@ -84,7 +84,8 @@ const AccountSettings = () => {
           email: data.email || '',
           tier: data.tier || 'free',
           billing_period: data.billing_period || null,
-          oauth_providers: data.oauth_providers || []
+          oauth_providers: data.oauth_providers || [],
+          unplugged_mode: data.unplugged_mode || false
         });
 
         // Set routine limit based on tier
@@ -980,7 +981,7 @@ const AccountSettings = () => {
 
       {/* Account Deletion - Danger Zone */}
       <div className="mt-6">
-        <AccountDeletion userTier={userProfile.tier} />
+        <AccountDeletion userTier={userProfile.tier} unpluggedMode={userProfile.unplugged_mode} />
       </div>
     </div>
   );

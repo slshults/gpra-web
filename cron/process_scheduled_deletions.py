@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.database import SessionLocal
 from app.utils.email_templates import final_deletion_scheduled_email
+from app.utils.account_deletion import delete_user_account
 from sqlalchemy import text
 import stripe
 import logging
@@ -80,7 +81,7 @@ def process_scheduled_deletions():
             logger.info(f"Processing deletion for user {user_id} ({username})")
 
             try:
-                # Step 1: Process Stripe refund
+                # Step 1: Process Stripe refund (if applicable)
                 if stripe_customer_id and refund_amount and refund_amount > 0:
                     logger.info(f"Processing refund of ${refund_amount} for user {user_id}")
                     try:
@@ -99,41 +100,17 @@ def process_scheduled_deletions():
                         logger.error(f"Error processing refund for user {user_id}: {e}")
                         # Continue with deletion even if refund fails
 
-                # Step 2: Delete all user data
-                logger.info(f"Deleting all data for user {user_id}")
+                # Step 2: Delete all user data using centralized deletion utility
+                # This handles:
+                # - All database records (items, routines, chord charts, events, subscription, user)
+                # - PostHog person profile deletion (GDPR compliance)
+                logger.info(f"Deleting account for user {user_id} using delete_user_account() utility")
 
-                # Delete practice events
-                db.execute(text("DELETE FROM practice_events WHERE user_id = :user_id"), {"user_id": user_id})
+                deletion_success = delete_user_account(db, user_id, email)
 
-                # Delete chord charts
-                db.execute(text("""
-                    DELETE FROM chord_charts
-                    WHERE item_id IN (
-                        SELECT item_id FROM items WHERE user_id = :user_id
-                    )
-                """), {"user_id": user_id})
+                if not deletion_success:
+                    raise Exception(f"Account deletion failed for user {user_id}")
 
-                # Delete routine items
-                db.execute(text("""
-                    DELETE FROM routine_items
-                    WHERE routine_id IN (
-                        SELECT id FROM routines WHERE user_id = :user_id
-                    )
-                """), {"user_id": user_id})
-
-                # Delete routines
-                db.execute(text("DELETE FROM routines WHERE user_id = :user_id"), {"user_id": user_id})
-
-                # Delete items
-                db.execute(text("DELETE FROM items WHERE user_id = :user_id"), {"user_id": user_id})
-
-                # Delete subscription
-                db.execute(text("DELETE FROM subscriptions WHERE user_id = :user_id"), {"user_id": user_id})
-
-                # Delete user account (Flask-AppBuilder user table)
-                db.execute(text("DELETE FROM ab_user WHERE id = :user_id"), {"user_id": user_id})
-
-                db.commit()
                 logger.info(f"Successfully deleted all data for user {user_id}")
 
                 # Step 3: Send farewell email
