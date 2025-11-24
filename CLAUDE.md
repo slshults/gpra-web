@@ -4,9 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 #### Note: Anthropic suggests we keep the size of this file below 40K. You can check the current file size in the output of `ls -al CLAUDE.md`. Make sections more succinct as needed, but take care not to remove important context or guidance.
 
-**CRITICAL for Context Window Management**: Use agents/subagents AGGRESSIVELY to conserve context window! The more you delegate to agents, the more work we can accomplish in a single session before the autocompact tool forcibly ends this session. 
+## 👇👇👇👇
+**CRITICAL for Context Window Management**: Delegate to agents and/or subagents AGGRESSIVELY to conserve context window! The more you delegate to agents, the more work we can accomplish in a single session, before the autocompact tool forcibly ends this session. Tokens are sand in our hourglass. Conserve them.
 
-Your role here is choregrapher/stage-manager/director. Send subagents to do things that eat up our tokens. 🙏
+Your role here is choregrapher/air traffic controller/stage-manager/director. Send subagents to do things that eat up our tokens. Don't wait for me to tell you to use agents and/or subagents. Delegate early, delagate often. 🙏 
+
+## ☝️☝️☝️☝️ 
 
 ## Project Status: Hosted Version Development
 
