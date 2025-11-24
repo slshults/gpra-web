@@ -27,10 +27,9 @@ const RegisterPage = () => {
     uppercase: /[A-Z]/.test(password),
     lowercase: /[a-z]/.test(password),
     number: /[0-9]/.test(password),
-    symbol: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+    symbol: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)
   };
 
-  const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
   const passwordsDontMatch = confirmPassword.length > 0 && password !== confirmPassword;
 
   // GDPR-compliant: Load reCAPTCHA only after consent or on button click
@@ -53,6 +52,18 @@ const RegisterPage = () => {
       delete window.onRecaptchaChange;
     };
   }, []);
+
+  // Load reCAPTCHA when user shows intent to register (GDPR-compliant)
+  useEffect(() => {
+    const hasFormActivity = username || email || password;
+    const consent = localStorage.getItem('cookieConsent');
+
+    // If user has started filling the form AND has consented to cookies, load reCAPTCHA proactively
+    if (hasFormActivity && consent === 'all') {
+      loadRecaptchaScript();
+    }
+    // If no consent yet, the fallback in handleRegister will load it on button click
+  }, [username, email, password]);
 
   // Load reCAPTCHA script on-demand (GDPR-compliant)
   const loadRecaptchaScript = () => {
@@ -96,7 +107,7 @@ const RegisterPage = () => {
     if (!/[0-9]/.test(password)) {
       return 'Password must contain at least one number';
     }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
       return 'Password must contain at least one symbol or punctuation character';
     }
     return null;
@@ -463,7 +474,7 @@ const RegisterPage = () => {
               <Button
                 type="submit"
                 className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-                disabled={loading || !recaptchaToken}
+                disabled={loading}
               >
                 {loading ? (
                   <>

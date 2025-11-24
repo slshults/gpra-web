@@ -4,6 +4,7 @@ import { Input } from '@ui/input';
 import { Label } from '@ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@ui/dialog';
 import { Loader2, AlertTriangle, Download, X } from 'lucide-react';
 
 /**
@@ -16,28 +17,48 @@ import { Loader2, AlertTriangle, Download, X } from 'lucide-react';
  *
  * Each deletion path requires typed confirmation phrase and email validation.
  */
-const AccountDeletion = ({ userTier }) => {
+const AccountDeletion = ({ userTier, unpluggedMode }) => {
   const [state, setState] = useState('initial'); // 'initial', 'scheduled', 'immediate'
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
+  const [showDeletionConfirmModal, setShowDeletionConfirmModal] = useState(false);
+  const [stripePortalUrl, setStripePortalUrl] = useState(null);
 
   // Refund calculation state
   const [renewalDate, setRenewalDate] = useState('');
-  const [refundAmount, setRefundAmount] = useState(0);
-  const [daysRemaining, setDaysRemaining] = useState(0);
 
   // Form state
   const [confirmationPhrase, setConfirmationPhrase] = useState('');
   const [email, setEmail] = useState('');
+  const [hasDeletionScheduled, setHasDeletionScheduled] = useState(false);
+  const [isUnplugged, setIsUnplugged] = useState(unpluggedMode || false);
 
   const isFree = userTier === 'free';
 
   useEffect(() => {
-    // Fetch refund calculation if paid tier
+    // Fetch refund calculation and deletion status
     if (!isFree) {
       fetchRefundCalculation();
     }
+    checkDeletionStatus();
   }, [isFree]);
+
+  useEffect(() => {
+    // Sync unplugged state with prop
+    setIsUnplugged(unpluggedMode || false);
+  }, [unpluggedMode]);
+
+  const checkDeletionStatus = async () => {
+    try {
+      const response = await fetch('/api/auth/status');
+      if (response.ok) {
+        const data = await response.json();
+        setHasDeletionScheduled(!!data.deletion_scheduled_for);
+      }
+    } catch (error) {
+      console.error('Error checking deletion status:', error);
+    }
+  };
 
   const fetchRefundCalculation = async () => {
     try {
@@ -45,11 +66,9 @@ const AccountDeletion = ({ userTier }) => {
       if (response.ok) {
         const data = await response.json();
         setRenewalDate(data.renewal_date);
-        setRefundAmount(data.refund_amount);
-        setDaysRemaining(data.days_remaining);
       }
-    } catch (error) {
-      console.error('Error fetching refund calculation:', error);
+    } catch (err) {
+      console.error('Error fetching refund calculation:', err);
     }
   };
 
@@ -72,15 +91,17 @@ const AccountDeletion = ({ userTier }) => {
       if (response.ok) {
         setMessage({
           type: 'success',
-          text: `Account deletion scheduled for ${data.deletion_date}. You'll receive a refund of $${data.refund_amount}.`
+          text: `Account deletion scheduled for ${data.deletion_date}. You can cancel this anytime before then.`
         });
         setState('initial');
         setConfirmationPhrase('');
         setEmail('');
+        setHasDeletionScheduled(true);  // Update state
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to schedule deletion' });
       }
-    } catch (error) {
+    } catch (err) {
+      console.error('Error scheduling deletion:', err);
       setMessage({ type: 'error', text: 'Error scheduling deletion' });
     } finally {
       setLoading(false);
@@ -105,31 +126,96 @@ const AccountDeletion = ({ userTier }) => {
       const data = await response.json();
 
       if (response.ok) {
-        setMessage({
-          type: 'success',
-          text: 'Account deleted successfully. Redirecting to login...'
-        });
-        // Redirect to login after 2 seconds
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 2000);
+        // Show confirmation modal instead of auto-redirecting
+        setStripePortalUrl(data.redirect_url || '/login');
+        setShowDeletionConfirmModal(true);
+        setConfirmationPhrase('');
+        setEmail('');
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to delete account' });
       }
-    } catch (error) {
+    } catch (err) {
+      console.error('Error deleting account:', err);
       setMessage({ type: 'error', text: 'Error deleting account' });
     } finally {
       setLoading(false);
     }
   };
 
+  const handleDeletionConfirmOk = () => {
+    // Redirect to Stripe portal (or login for free users)
+    window.location.href = stripePortalUrl || '/login';
+  };
+
   const downloadPracticeData = () => {
     window.open('/api/practice/download?format=csv', '_blank');
   };
 
-  // Initial view with 3 buttons
+  const handleCancelDeletion = async () => {
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch('/api/user/cancel-deletion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Deletion canceled successfully!' });
+        setHasDeletionScheduled(false);
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to cancel deletion' });
+      }
+    } catch (err) {
+      console.error('Error canceling deletion:', err);
+      setMessage({ type: 'error', text: 'Error canceling deletion' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePauseSubscription = async () => {
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const endpoint = isUnplugged ? '/api/billing/unpause-subscription' : '/api/billing/set-unplugged';
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({
+          type: 'success',
+          text: isUnplugged
+            ? 'Subscription resumed! You now have access to all routines.'
+            : 'Subscription paused. You can now use your most recently active routine for free.'
+        });
+        setIsUnplugged(!isUnplugged); // Toggle state
+        // Reload to update UI
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        setMessage({ type: 'error', text: data.error || `Failed to ${isUnplugged ? 'unpause' : 'pause'} subscription` });
+      }
+    } catch (err) {
+      console.error(`Error ${isUnplugged ? 'unpausing' : 'pausing'} subscription:`, err);
+      setMessage({ type: 'error', text: `Error ${isUnplugged ? 'unpausing' : 'pausing'} subscription` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Render state-specific content
+  let content;
+
   if (state === 'initial') {
-    return (
+    content = (
       <Card className="bg-red-900/10 border-red-700">
         <CardHeader>
           <CardTitle className="text-gray-100 flex items-center gap-2">
@@ -175,14 +261,45 @@ const AccountDeletion = ({ userTier }) => {
             </Button>
           </div>
 
-          {/* 3 action buttons */}
+          {/* Action buttons */}
           <div className="space-y-3">
-            <Button
-              onClick={() => setState('initial')}
-              className="w-full bg-green-600 hover:bg-green-700"
-            >
-              Keep my account
-            </Button>
+            {/* "Keep my account" button - only show if deletion is scheduled */}
+            {hasDeletionScheduled && (
+              <Button
+                onClick={handleCancelDeletion}
+                disabled={loading}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                {loading ? 'Canceling...' : 'Keep my account'}
+              </Button>
+            )}
+
+            {/* "Pause subscription" or "Unpause" button - only show if deletion NOT scheduled */}
+            {!hasDeletionScheduled && !isFree && (
+              <Button
+                onClick={handlePauseSubscription}
+                disabled={loading}
+                variant="outline"
+                className={`w-full h-auto py-4 flex flex-col items-center gap-1 ${
+                  isUnplugged
+                    ? 'border-green-600 text-green-400 hover:bg-green-900/40'
+                    : 'border-orange-600 text-orange-400 hover:bg-orange-900/40'
+                }`}
+              >
+                {loading ? (
+                  isUnplugged ? 'Unpausing...' : 'Pausing...'
+                ) : isUnplugged ? (
+                  <span className="font-semibold">Unpause</span>
+                ) : (
+                  <>
+                    <span className="font-semibold">Pause subscription</span>
+                    <span className="text-xs font-normal leading-tight">
+                      Keep using your most recently active routine for free. We'll save all your other stuff in our DB for another 89 days if you renew by then.
+                    </span>
+                  </>
+                )}
+              </Button>
+            )}
 
             {!isFree && (
               <Button
@@ -212,14 +329,11 @@ const AccountDeletion = ({ userTier }) => {
         </CardContent>
       </Card>
     );
-  }
-
-  // Scheduled deletion form
-  if (state === 'scheduled') {
+  } else if (state === 'scheduled') {
     const expectedPhrase = "If I delete it I cannot get it back";
     const phraseMatches = confirmationPhrase === expectedPhrase;
 
-    return (
+    content = (
       <Card className="bg-orange-900/10 border-orange-700">
         <CardHeader>
           <CardTitle className="text-gray-100">Schedule account deletion</CardTitle>
@@ -234,13 +348,12 @@ const AccountDeletion = ({ userTier }) => {
               <p className="font-semibold mb-2">Here's what will happen:</p>
               <ul className="list-disc pl-5 space-y-1">
                 <li>Your subscription will be canceled</li>
-                <li>You'll receive a prorated refund of <strong>${refundAmount}</strong></li>
                 <li>Your account will stay active until <strong>{renewalDate}</strong></li>
                 <li>On {renewalDate}, all your data will be permanently deleted</li>
                 <li>You can cancel this deletion anytime before {renewalDate}</li>
               </ul>
-              <p className="mt-2 text-xs">
-                Refund will appear in your account within 5-10 business days.
+              <p className="mt-2 text-sm font-semibold text-orange-300">
+                Note: You're paying to use the service until {renewalDate}, so no refunds.
               </p>
             </AlertDescription>
           </Alert>
@@ -263,7 +376,7 @@ const AccountDeletion = ({ userTier }) => {
               }`}
               disabled={loading}
             />
-            {confirmationPhrase.length > 0 && !phraseMatches && (
+            {confirmationPhrase.length >= expectedPhrase.length && !phraseMatches && (
               <p className="text-xs text-red-400">Phrase does not match (case-sensitive)</p>
             )}
           </div>
@@ -301,12 +414,11 @@ const AccountDeletion = ({ userTier }) => {
                 setEmail('');
                 setMessage(null);
               }}
-              variant="outline"
-              className="flex-1 border-gray-600"
+              className="flex-1 bg-green-600 hover:bg-green-700"
               disabled={loading}
             >
               <X className="w-4 h-4 mr-2" />
-              Cancel
+              Nevermind. I'll stay for now
             </Button>
             <Button
               onClick={handleScheduledDeletion}
@@ -326,14 +438,11 @@ const AccountDeletion = ({ userTier }) => {
         </CardContent>
       </Card>
     );
-  }
-
-  // Immediate deletion form
-  if (state === 'immediate') {
+  } else if (state === 'immediate') {
     const expectedPhrase = "If I delete now I cannot get my data or money back";
     const phraseMatches = confirmationPhrase === expectedPhrase;
 
-    return (
+    content = (
       <Card className="bg-red-900/10 border-red-700">
         <CardHeader>
           <CardTitle className="text-gray-100 flex items-center gap-2">
@@ -356,7 +465,11 @@ const AccountDeletion = ({ userTier }) => {
                 <li><strong>PERMANENT</strong> - All data will be permanently erased</li>
                 <li><strong>NO RECOVERY</strong> - You cannot undo this action</li>
                 <li><strong>CANNOT ACCESS GPRA AGAIN</strong> - You'll need to create a new account</li>
+                <li><strong>YOU WILL BE FORGOTTEN</strong> - We won't keep your email address or IP address, or anything. Most of it will be deleted immediately, but some anonymous logs which can't be connected to you (without a warrant) will age out of the logs within 90 days</li>
               </ul>
+              <p className="mt-2 text-sm font-semibold text-orange-300">
+                In addition to no refunds, the remainder of your prepaid period will not be prorated back to you.
+              </p>
             </AlertDescription>
           </Alert>
 
@@ -372,13 +485,15 @@ const AccountDeletion = ({ userTier }) => {
               id="confirm-immediate"
               value={confirmationPhrase}
               onChange={(e) => setConfirmationPhrase(e.target.value)}
-              placeholder="Type the phrase exactly as shown"
+              onPaste={(e) => e.preventDefault()}  // Disable paste
+              autoComplete="off"  // Disable autofill
+              placeholder="Type the phrase exactly as shown (paste disabled)"
               className={`bg-gray-900 border-gray-600 text-gray-100 ${
                 confirmationPhrase.length > 0 && (phraseMatches ? 'border-green-500' : 'border-red-500')
               }`}
               disabled={loading}
             />
-            {confirmationPhrase.length > 0 && !phraseMatches && (
+            {confirmationPhrase.length >= expectedPhrase.length && !phraseMatches && (
               <p className="text-xs text-red-400">Phrase does not match (case-sensitive)</p>
             )}
           </div>
@@ -397,7 +512,9 @@ const AccountDeletion = ({ userTier }) => {
               className="bg-gray-900 border-gray-600 text-gray-100"
               disabled={loading}
             />
-            <p className="text-xs text-gray-500">Must match your account email</p>
+            <p className="text-xs text-gray-500">
+              Must match your account email. Will also be deleted when you click the red button.
+            </p>
           </div>
 
           {/* Message display */}
@@ -416,12 +533,11 @@ const AccountDeletion = ({ userTier }) => {
                 setEmail('');
                 setMessage(null);
               }}
-              variant="outline"
-              className="flex-1 border-gray-600"
+              className="flex-1 bg-green-600 hover:bg-green-700"
               disabled={loading}
             >
               <X className="w-4 h-4 mr-2" />
-              Cancel
+              Nevermind, I'll stay for now.
             </Button>
             <Button
               onClick={handleImmediateDeletion}
@@ -444,7 +560,52 @@ const AccountDeletion = ({ userTier }) => {
     );
   }
 
-  return null;
+  // Always render modal alongside content
+  return (
+    <>
+      {content}
+
+      {/* Deletion Confirmation Modal */}
+      <Dialog open={showDeletionConfirmModal} onOpenChange={setShowDeletionConfirmModal}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-gray-100">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-gray-100">Account deleted</DialogTitle>
+            <DialogDescription className="text-gray-300 space-y-3 pt-4">
+              {isFree ? (
+                // Free tier users - simple message
+                <>
+                  <p>
+                    Ok, done. We've deleted all your stuff.
+                  </p>
+                  <p>
+                    Your account has been deleted. Click Ok to return to login.
+                  </p>
+                </>
+              ) : (
+                // Paid tier users - Stripe portal message
+                <>
+                  <p>
+                    Ok, done. We've deleted all your stuff, and we've cancelled your subscription on Stripe so it won't charge your card again.
+                  </p>
+                  <p>
+                    When you click "Ok", we'll send you to your Stripe portal, which will show you any saved cards and your past invoices. (Sadly, it won't show you confirmation of the cancelled subscription, it will just show you the absence of any subscriptions. 🤷 Please feel free to complain to Stripe about that. I have.)
+                  </p>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={handleDeletionConfirmOk}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              Ok
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 };
 
 export default AccountDeletion;

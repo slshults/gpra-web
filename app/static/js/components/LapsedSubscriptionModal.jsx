@@ -130,7 +130,8 @@ export default function LapsedSubscriptionModal({ isOpen, onClose, daysUntil90, 
             <h3 className="font-semibold mb-2">Resume with a payment</h3>
             <p className="text-sm text-gray-700 mb-3">
               Add or update your payment method to get your goodies back.
-              We're keeping all your routines, items, and chord charts saved in our database for another {daysUntil90} days.
+              We're keeping all your routines, items, and chord charts saved in our database for another {daysUntil90} days
+              (counting from when you paused, canceled, or missed a payment).
             </p>
             <button
               onClick={handlePlugItIn}
@@ -145,7 +146,8 @@ export default function LapsedSubscriptionModal({ isOpen, onClose, daysUntil90, 
             <h3 className="font-semibold mb-2">Go back to freebie mode</h3>
             <p className="text-sm text-gray-700 mb-3">
               Keep using your most recently active routine for free. We'll save all your other stuff
-              in our DB for another {daysUntil90} days if you renew by then.
+              in our DB for another {daysUntil90} days if you renew by then
+              (counting from when you paused, canceled, or missed a payment).
             </p>
             <button
               onClick={handleUnplugged}
