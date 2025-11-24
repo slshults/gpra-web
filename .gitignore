@@ -13,6 +13,7 @@ ENV/
 *.env
 .python-version
 instance/
+Claude.md
 
 # Credentials and secrets
 token.json

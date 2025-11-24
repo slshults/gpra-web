@@ -794,6 +794,7 @@ def auth_status():
     if current_user.is_authenticated:
         # Get user's subscription tier and billing period
         tier = 'free'  # Default
+        actual_tier = 'free'  # Actual tier before unplugged override
         billing_period = None  # Default for free tier
         is_lapsed = False
         unplugged_mode = False
@@ -817,6 +818,7 @@ def auth_status():
                 sub_row = result.fetchone()
                 if sub_row:
                     tier = sub_row[0]
+                    actual_tier = tier  # Store original tier before unplugged override
                     stripe_price_id = sub_row[1]
                     status = sub_row[2]
                     current_period_end = sub_row[3]
@@ -918,6 +920,7 @@ def auth_status():
             "user": current_user.username,
             "email": current_user.email,
             "tier": tier,
+            "actual_tier": actual_tier,  # Actual tier before unplugged override
             "billing_period": billing_period,
             "oauth_providers": oauth_providers,
             "is_lapsed": is_lapsed,

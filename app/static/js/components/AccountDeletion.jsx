@@ -292,9 +292,9 @@ const AccountDeletion = ({ userTier, unpluggedMode }) => {
                   <span className="font-semibold">Unpause</span>
                 ) : (
                   <>
-                    <span className="font-semibold">Pause subscription</span>
+                    <span className="font-semibold">Pause subscription when it expires</span>
                     <span className="text-xs font-normal leading-tight">
-                      Keep using your most recently active routine for free. We'll save all your other stuff in our DB for another 89 days if you renew by then.
+                      Keep using your most current active routine for free when the current paid subscription ends. We'll save all your other stuff in our database for another 90 days if you renew before then.
                     </span>
                   </>
                 )}
@@ -307,7 +307,7 @@ const AccountDeletion = ({ userTier, unpluggedMode }) => {
                 variant="outline"
                 className="w-full border-orange-600 text-orange-400 hover:bg-orange-900/40"
               >
-                Cancel subscription (Delete account on {renewalDate})
+                Delete account after current paid subscription ends on {renewalDate}
               </Button>
             )}
 

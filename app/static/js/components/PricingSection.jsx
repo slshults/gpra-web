@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@ui/card';
 import { Loader2, Check, CreditCard } from 'lucide-react';
@@ -11,6 +11,26 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
   const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState({ title: '', message: '' });
+  const [unpluggedMode, setUnpluggedMode] = useState(false);
+  const [actualTier, setActualTier] = useState('free'); // Track actual tier (before unplugged override)
+
+  // Fetch unplugged mode status on mount
+  useEffect(() => {
+    const fetchUnpluggedStatus = async () => {
+      try {
+        const response = await fetch('/api/auth/status');
+        if (response.ok) {
+          const data = await response.json();
+          setUnpluggedMode(data.unplugged_mode || false);
+          // Store actual tier from DB (before override)
+          setActualTier(data.actual_tier || 'free');
+        }
+      } catch (error) {
+        console.error('Error fetching unplugged status:', error);
+      }
+    };
+    fetchUnpluggedStatus();
+  }, []);
 
   const tiers = [
     {
@@ -144,11 +164,15 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
 
     try {
       // Check if user already has a subscription (not on free tier)
-      const hasSubscription = currentTier !== 'free';
+      // Use actualTier instead of currentTier to handle unplugged mode correctly
+      // Unplugged users have actualTier !== 'free' but show as free
+      const hasSubscription = actualTier !== 'free';
 
-      const endpoint = hasSubscription
-        ? '/api/billing/update-subscription'  // Existing customers - update in place
-        : '/api/billing/create-checkout-session';  // New customers - use checkout
+      // If user is unplugged (canceled/paused), they need a NEW checkout session
+      // Cannot use update-subscription API on a canceled subscription
+      const endpoint = (hasSubscription && !unpluggedMode)
+        ? '/api/billing/update-subscription'  // Existing ACTIVE customers - update in place
+        : '/api/billing/create-checkout-session';  // New customers OR unplugged users - use checkout
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -168,20 +192,20 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
         return;
       }
 
-      if (hasSubscription) {
+      // Check if we got back a checkout URL (new checkout) or update confirmation
+      if (data.url) {
+        // New checkout session OR unplugged user reactivating - redirect to Stripe
+        window.location.href = data.url;
+      } else if (data.details) {
         // Subscription updated in-place, show custom modal
         const modalContent = getSubscriptionUpdateMessage(data.details || {});
         setModalContent(modalContent);
         setModalOpen(true);
         setLoading(null);
       } else {
-        // New checkout session, redirect to Stripe
-        if (data.url) {
-          window.location.href = data.url;
-        } else {
-          setError('Failed to get checkout URL');
-          setLoading(null);
-        }
+        // Unexpected response format
+        setError('Unexpected response from server');
+        setLoading(null);
       }
     } catch (err) {
       // Use modal for errors too
@@ -224,6 +248,34 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
     }
   };
 
+  const handleUnpause = async () => {
+    setLoading('unpause');
+    setError(null);
+
+    try {
+      const response = await fetch('/api/billing/unpause-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setModalContent({
+          title: '✅ Subscription Resumed',
+          message: 'Welcome back! Your subscription has been reactivated. You now have access to all your routines and features. 🎸'
+        });
+        setModalOpen(true);
+      } else {
+        setError(data.error || 'Failed to unpause subscription');
+        setLoading(null);
+      }
+    } catch (_err) {
+      setError('Error unpausing subscription');
+      setLoading(null);
+    }
+  };
+
   const getTierIndex = (tierId) => tiers.findIndex(t => t.id === tierId);
   const currentTierIndex = getTierIndex(currentTier);
 
@@ -246,6 +298,36 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
       <div className="mt-4">
         <h2 className="text-2xl font-bold text-gray-100">Subscription plans</h2>
       </div>
+
+      {/* Unplugged Mode Warning Banner */}
+      {unpluggedMode && (
+        <Card className="bg-orange-900/20 border-orange-700">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-orange-300 mb-1">Your subscription is paused</h3>
+                <p className="text-sm text-gray-300">
+                  You're currently in free mode with access to your last active routine. Click "Unpause" to restore full access to all your routines and features.
+                </p>
+              </div>
+              <Button
+                onClick={handleUnpause}
+                disabled={loading === 'unpause'}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {loading === 'unpause' ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Unpausing...
+                  </>
+                ) : (
+                  'Unpause Subscription'
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Error message */}
       {error && (
@@ -446,15 +528,17 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
         </Card>
       </div>
 
-      {/* Manage Subscription Button (for paid users) */}
-      {currentTier !== 'free' && (
+      {/* Manage Subscription Button (for users with actual subscriptions, including unplugged) */}
+      {actualTier !== 'free' && (
         <Card className="bg-gray-800 border-gray-700 mt-6">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
                 <h3 className="text-lg font-semibold text-gray-100 mb-1">Manage your subscription</h3>
                 <p className="text-sm text-gray-400">
-                  Update payment method, view invoices, or cancel your subscription
+                  {unpluggedMode
+                    ? 'Reactivate your subscription or view billing details'
+                    : 'Update payment method, view invoices, or cancel your subscription'}
                 </p>
               </div>
               <Button

@@ -83,9 +83,9 @@ def create_checkout_session(db: Session):
             }
         }
 
-        # Only add proration_behavior for existing customers with active subscriptions
-        if subscription and subscription.stripe_subscription_id and subscription.status in ['active', 'trialing']:
-            checkout_params['subscription_data']['proration_behavior'] = 'create_prorations'
+        # Note: proration_behavior is NOT supported by Checkout Session API
+        # Stripe handles proration automatically when creating new subscriptions
+        # for existing customers with active subscriptions
 
         # Use existing customer or create new one
         if subscription and subscription.stripe_customer_id:
@@ -415,7 +415,7 @@ def handle_subscription_created(db: Session, stripe_subscription):
         subscription.unplugged_mode = False
         subscription.lapse_date = None
         subscription.data_deletion_date = None
-        subscription.last_active_routine_id = None
+        # DO NOT clear last_active_routine_id - user should keep their active routine when subscribing
         logger.info(f"Cleared lapse fields for renewed user {user_id}")
 
     db.commit()
@@ -460,42 +460,13 @@ def handle_subscription_updated(db: Session, stripe_subscription):
     else:
         subscription.mrr = amount
 
-    # Check if user canceled subscription - activate unplugged mode
-    # Handle both old API (cancel_at_period_end=True) and new API (cancel_at is set to future timestamp)
-    is_canceled = stripe_subscription['cancel_at_period_end'] or stripe_subscription.get('cancel_at') is not None
-
-    if is_canceled:
-        from app.models import Routine
-        from datetime import timedelta
-
-        cancel_reason = "cancel_at_period_end=True" if stripe_subscription['cancel_at_period_end'] else f"cancel_at={stripe_subscription.get('cancel_at')}"
-        logger.info(f"User {subscription.user_id} canceled subscription ({cancel_reason}) - activating unplugged mode")
-
-        # SET UNPLUGGED MODE (90-day countdown starts now)
-        subscription.unplugged_mode = True
-        subscription.lapse_date = datetime.now()
-        subscription.data_deletion_date = datetime.now() + timedelta(days=90)
-
-        # Store the routine that was active when they canceled
-        active_routine_id = subscription.last_active_routine_id
-        if not active_routine_id:
-            # If not set, get newest routine
-            newest = db.query(Routine).filter_by(user_id=subscription.user_id).order_by(Routine.created_at.desc()).first()
-            if newest:
-                active_routine_id = newest.id
-                logger.info(f"Storing routine {active_routine_id} as last active for unplugged user {subscription.user_id}")
-
-        subscription.last_active_routine_id = active_routine_id
-
-        logger.info(f"User {subscription.user_id} in unplugged mode - 90 days until data deletion")
-
     # Clear lapsed subscription fields when subscription becomes active
-    # BUT ONLY if not scheduled for cancellation
-    elif stripe_subscription['status'] in ['active', 'trialing']:
+    # (Unplugged mode is set by handle_subscription_deleted webhook when subscription actually ends)
+    if stripe_subscription['status'] in ['active', 'trialing'] and not (stripe_subscription['cancel_at_period_end'] or stripe_subscription.get('cancel_at')):
         subscription.unplugged_mode = False
         subscription.lapse_date = None
         subscription.data_deletion_date = None
-        subscription.last_active_routine_id = None
+        # DO NOT clear last_active_routine_id - user should keep their active routine across renewals/upgrades
         logger.info(f"Cleared lapse fields for renewed user {subscription.user_id}")
 
     db.commit()
@@ -596,7 +567,7 @@ def handle_payment_succeeded(db: Session, invoice):
             subscription.unplugged_mode = False
             subscription.lapse_date = None
             subscription.data_deletion_date = None
-            subscription.last_active_routine_id = None
+            # DO NOT clear last_active_routine_id - user should keep their active routine across payments
             db.commit()
             logger.info(f"Reactivated subscription for user {subscription.user_id}, cleared lapse fields")
 
@@ -730,19 +701,10 @@ def set_unplugged_mode(db: Session):
                 else:
                     return jsonify({'error': 'You can only pause/unpause once per billing period.'}), 429
 
-        # Set unplugged mode
-        subscription.unplugged_mode = True
+        # Record the pause action timestamp for rate limiting
         subscription.last_pause_action = datetime.now()
 
-        # Set lapse_date to NOW (when they clicked "Unplugged")
-        # This is the start of their 90-day window
-        subscription.lapse_date = datetime.now()
-
-        # Set data_deletion_date to 90 days from now
-        # (removing the secret 30-day buffer - user sees 90 days, gets 90 days)
-        subscription.data_deletion_date = datetime.now() + timedelta(days=90)
-
-        # Store the routine that was active when they went unplugged
+        # Store the routine that was active when they scheduled the pause
         # Check subscriptions table first (per-user active routine)
         active_routine_id = subscription.last_active_routine_id
 
@@ -751,9 +713,9 @@ def set_unplugged_mode(db: Session):
             newest = db.query(Routine).filter_by(user_id=user_id).order_by(Routine.created_at.desc()).first()
             if newest:
                 active_routine_id = newest.id
-                logger.info(f"User {user_id} set to unplugged mode with newest routine {active_routine_id}")
+                logger.info(f"User {user_id} scheduled pause with newest routine {active_routine_id}")
             else:
-                logger.warning(f"User {user_id} set to unplugged mode but has no routines")
+                logger.warning(f"User {user_id} scheduled pause but has no routines")
 
         subscription.last_active_routine_id = active_routine_id
 
@@ -777,7 +739,7 @@ def set_unplugged_mode(db: Session):
             logger.warning(f"User {user_id} has no Stripe subscription ID - skipping Stripe update")
 
         db.commit()
-        logger.info(f"User {user_id} set to unplugged mode - 90 days until deletion (no secret buffer)")
+        logger.info(f"User {user_id} scheduled subscription pause - will enter unplugged mode at period end")
         return jsonify({'success': True})
 
     except Exception as e:
