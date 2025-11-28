@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@ui/card';
-import { Loader2, Check, CreditCard } from 'lucide-react';
+import { Loader2, Check, CreditCard, ChevronRight, ChevronDown } from 'lucide-react';
 import SubscriptionModal from './SubscriptionModal';
 
 const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) => {
@@ -13,6 +13,29 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
   const [modalContent, setModalContent] = useState({ title: '', message: '' });
   const [unpluggedMode, setUnpluggedMode] = useState(false);
   const [actualTier, setActualTier] = useState('free'); // Track actual tier (before unplugged override)
+
+  // Collapsed state for tier cards - persist to sessionStorage
+  const [collapsedTiers, setCollapsedTiers] = useState(() => {
+    const saved = sessionStorage.getItem('pricingTiersCollapsed');
+    // Default: all collapsed except current tier
+    return saved ? JSON.parse(saved) : {
+      free: true,
+      basic: true,
+      thegoods: true,
+      moregoods: true,
+      themost: true,
+      rollyourown: true
+    };
+  });
+
+  // Toggle tier card collapse state
+  const toggleTier = (tierId) => {
+    setCollapsedTiers(prev => {
+      const newState = { ...prev, [tierId]: !prev[tierId] };
+      sessionStorage.setItem('pricingTiersCollapsed', JSON.stringify(newState));
+      return newState;
+    });
+  };
 
   // Fetch unplugged mode status on mount
   useEffect(() => {
@@ -293,12 +316,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
     : 0;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="mt-4">
-        <h2 className="text-2xl font-bold text-gray-100">Subscription plans</h2>
-      </div>
-
+    <div className="space-y-4">
       {/* Unplugged Mode Warning Banner */}
       {unpluggedMode && (
         <Card className="bg-orange-900/20 border-orange-700">
@@ -336,8 +354,8 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
         </div>
       )}
 
-      {/* Pricing Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+      {/* Pricing Cards - Vertical stack with collapsible cards */}
+      <div className="space-y-4">
         {tiers.map((tier, index) => {
           // For the current tier card, show prices based on actual billing period
           // For other cards, show prices based on the selected toggle in the header
@@ -346,6 +364,8 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
           const isCurrent = tier.id === currentTier;
           const isLoadingThis = loading === tier.id;
 
+          const isCollapsed = collapsedTiers[tier.id];
+
           return (
             <Card
               key={tier.id}
@@ -353,21 +373,41 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
                 isCurrent ? 'border-orange-600 border-2' : ''
               }`}
             >
-
-              <CardHeader className="pb-2">
-                <CardTitle className="text-gray-100 text-lg flex items-center gap-2">
-                  {tier.name}
-                  {isCurrent && (
-                    <span className="text-xs font-normal text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded">
-                      Your current plan
-                    </span>
+              <CardHeader
+                className="cursor-pointer select-none"
+                onClick={() => toggleTier(tier.id)}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-gray-100 text-lg flex items-center gap-2">
+                      {tier.name}
+                      {isCurrent && (
+                        <span className="text-xs font-normal text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded">
+                          Your current plan
+                        </span>
+                      )}
+                      {isCollapsed && price > 0 && (
+                        <span className="text-sm font-normal text-gray-400">
+                          ${price}/{displayPeriod === 'monthly' ? 'mo' : 'yr'}
+                        </span>
+                      )}
+                      {isCollapsed && price === 0 && (
+                        <span className="text-sm font-normal text-gray-400">Free</span>
+                      )}
+                    </CardTitle>
+                    <CardDescription className="text-gray-400 text-xs">
+                      {tier.description}
+                    </CardDescription>
+                  </div>
+                  {isCollapsed ? (
+                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-400" />
                   )}
-                </CardTitle>
-                <CardDescription className="text-gray-400 text-xs">
-                  {tier.description}
-                </CardDescription>
+                </div>
               </CardHeader>
 
+              {!isCollapsed && (
               <CardContent className="space-y-3">
                 {/* Price */}
                 <div className="text-center py-2">
@@ -477,19 +517,33 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
                   </>
                 )}
               </CardContent>
+              )}
             </Card>
           );
         })}
 
         {/* Roll your own card */}
         <Card className="relative bg-gray-800 border-gray-700">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-gray-100 text-lg">Roll your own</CardTitle>
-            <CardDescription className="text-gray-400 text-xs">
-              Local-only, on your laptop or desktop
-            </CardDescription>
+          <CardHeader
+            className="cursor-pointer select-none"
+            onClick={() => toggleTier('rollyourown')}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-gray-100 text-lg">Roll your own</CardTitle>
+                <CardDescription className="text-gray-400 text-xs">
+                  Local-only, on your laptop or desktop
+                </CardDescription>
+              </div>
+              {collapsedTiers.rollyourown ? (
+                <ChevronRight className="w-5 h-5 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-400" />
+              )}
+            </div>
           </CardHeader>
 
+          {!collapsedTiers.rollyourown && (
           <CardContent className="space-y-3">
             {/* Price */}
             <div className="text-center py-2">
@@ -525,6 +579,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
               Get it from GitHub
             </Button>
           </CardContent>
+          )}
         </Card>
       </div>
 

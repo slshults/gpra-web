@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
-import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink, Play, Lock, Key } from 'lucide-react';
+import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink, Play, ChevronDown, ChevronRight } from 'lucide-react';
 import PricingSection from './PricingSection';
 import AccountDeletion from './AccountDeletion';
 
@@ -42,6 +42,29 @@ const AccountSettings = () => {
 
   // PostHog analytics state
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
+
+  // Mobile view toggle state
+  const [mobileView, setMobileView] = useState('settings'); // 'settings' or 'subscription'
+
+  // Collapsed cards state - load from sessionStorage or default to all collapsed
+  // Merge with defaults so new keys (like dangerZone) default to collapsed
+  const [collapsedCards, setCollapsedCards] = useState(() => {
+    const defaults = {
+      apiKey: true,
+      practiceData: true,
+      changePassword: true,
+      analytics: true,
+      guidedTour: true,
+      dangerZone: true
+    };
+    const saved = sessionStorage.getItem('accountSettingsCollapsed');
+    return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+  });
+
+  // Save collapsed state to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('accountSettingsCollapsed', JSON.stringify(collapsedCards));
+  }, [collapsedCards]);
 
   useEffect(() => {
     // Fetch current API key status, user profile, routine count, and expiration warning
@@ -333,6 +356,13 @@ const AccountSettings = () => {
     return 'text-green-400';
   };
 
+  const toggleCard = (cardName) => {
+    setCollapsedCards(prev => ({
+      ...prev,
+      [cardName]: !prev[cardName]
+    }));
+  };
+
   const handlePasswordChange = async (e) => {
     e.preventDefault();
     setPasswordMessage(null);
@@ -455,235 +485,120 @@ const AccountSettings = () => {
     <div className="max-w-7xl mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold mb-6 text-gray-100">Account Settings</h1>
 
-      {/* Compact Overview Card */}
-      <Card className="bg-gray-800 border-gray-700 mb-6">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-6 flex-wrap">
-            {/* Avatar */}
-            {/* <img
-              src={getGravatarUrl(userProfile.email)}
-              alt="Profile avatar"
-              className="w-16 h-16 rounded-full border-2 border-gray-600 flex-shrink-0"
-            /> */}
+      {/* Mobile View Toggle - only visible on small screens */}
+      <div className="flex gap-2 mb-4 md:hidden">
+        <Button
+          variant={mobileView === 'settings' ? 'default' : 'outline'}
+          onClick={() => setMobileView('settings')}
+          className={mobileView === 'settings' ? 'bg-orange-600' : 'bg-gray-700 border-gray-600'}
+        >
+          Settings
+        </Button>
+        <Button
+          variant={mobileView === 'subscription' ? 'default' : 'outline'}
+          onClick={() => setMobileView('subscription')}
+          className={mobileView === 'subscription' ? 'bg-orange-600' : 'bg-gray-700 border-gray-600'}
+        >
+          Subscription
+        </Button>
+      </div>
 
-            {/* Account Info */}
-            <div className="flex-1 min-w-[200px]">
-              <h2 className="text-xl font-bold text-gray-100">{userProfile.username || 'Loading...'}</h2>
-              <p className="text-sm text-gray-400">{userProfile.email || 'Loading...'}</p>
-
-              {/* OAuth badges */}
-              {userProfile.oauth_providers && userProfile.oauth_providers.length > 0 && (
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  {userProfile.oauth_providers.includes('google') && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded border border-gray-600">
-                      <div className="w-3 h-3 bg-white rounded-full flex items-center justify-center">
-                        <span className="text-[8px] font-bold text-gray-800">G</span>
-                      </div>
-                      Google
-                    </span>
-                  )}
-                  {userProfile.oauth_providers.includes('tidal') && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded border border-gray-600">
-                      <div className="w-3 h-3 bg-blue-600 rounded-full flex items-center justify-center">
-                        <span className="text-[8px] font-bold text-white">T</span>
-                      </div>
-                      Tidal
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Tier & Usage Stats */}
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-              <div className="text-center sm:text-right">
-                <button
-                  onClick={() => {
-                    const element = document.getElementById('subscription-plans');
-                    if (element) {
-                      const offset = 80; // Keep "Subscription Plans" heading visible below main menu
-                      const elementPosition = element.getBoundingClientRect().top;
-                      const offsetPosition = elementPosition + window.pageYOffset - offset;
-                      window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
-                    }
-                  }}
-                  className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getTierBadgeColor(userProfile.tier)} mb-1 hover:opacity-80 transition-opacity cursor-pointer`}
-                >
-                  {getTierDisplayName(userProfile.tier)}
-                </button>
-                <p className={`text-sm font-medium ${getUsageColor(routineCount, routineLimit)}`}>
-                  {routineCount} / {routineLimit === Infinity ? '∞' : routineLimit} routines
-                  {routineCount >= routineLimit && routineLimit !== Infinity && (
-                    <span className="text-xs text-red-400 ml-1">(at limit)</span>
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Two-column grid for actions */}
+      {/* Two-column grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left Column - Security & Access */}
-        <div>
-          <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center gap-2">
-            <Lock className="w-5 h-5" />
-            Security & Access
-          </h2>
-
-          {/* Change Password Card */}
+        {/* Left Column - Settings */}
+        <div className={`space-y-6 md:block ${mobileView === 'settings' ? '' : 'hidden'}`}>
+          {/* Overview Card - NOT collapsible, always at top */}
           <Card className="bg-gray-800 border-gray-700">
-            <CardHeader>
-              <CardTitle className="text-gray-100">Change Password</CardTitle>
-              <CardDescription className="text-gray-400">
-                Update your account password
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handlePasswordChange} className="space-y-4">
-                {/* Current Password */}
-                <div className="space-y-2">
-                  <Label htmlFor="current-password" className="text-gray-200">
-                    Current Password
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="current-password"
-                      type={showPasswords.current ? 'text' : 'password'}
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
-                      disabled={passwordLoading}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                      disabled={passwordLoading}
-                    >
-                      {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-6 flex-wrap">
+                {/* Account Info */}
+                <div className="flex-1 min-w-[200px]">
+                  <h2 className="text-xl font-bold text-gray-100">{userProfile.username || 'Loading...'}</h2>
+                  <p className="text-sm text-gray-400">{userProfile.email || 'Loading...'}</p>
 
-                {/* New Password */}
-                <div className="space-y-2">
-                  <Label htmlFor="new-password" className="text-gray-200">
-                    New Password
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="new-password"
-                      type={showPasswords.new ? 'text' : 'password'}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
-                      disabled={passwordLoading}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                      disabled={passwordLoading}
-                    >
-                      {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Confirm Password */}
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password" className="text-gray-200">
-                    Confirm New Password
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="confirm-password"
-                      type={showPasswords.confirm ? 'text' : 'password'}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
-                      disabled={passwordLoading}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                      disabled={passwordLoading}
-                    >
-                      {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Password Requirements */}
-                <div className="bg-blue-900/30 border border-blue-700 rounded-md p-3">
-                  <h4 className="text-sm font-semibold text-blue-300 mb-1">Password Requirements:</h4>
-                  <ul className="text-xs text-gray-300 space-y-0.5 list-disc list-inside">
-                    <li>At least 12 characters long</li>
-                    <li>At least one uppercase letter</li>
-                    <li>At least one lowercase letter</li>
-                    <li>At least one number</li>
-                    <li>At least one symbol or punctuation character</li>
-                  </ul>
-                </div>
-
-                {/* Messages */}
-                {passwordMessage && (
-                  <Alert className={passwordMessage.type === 'success' ? 'bg-green-900/30 border-green-700' : 'bg-red-900/30 border-red-700'}>
-                    {passwordMessage.type === 'success' ? (
-                      <Check className="h-4 w-4 text-green-400" />
-                    ) : (
-                      <X className="h-4 w-4 text-red-400" />
-                    )}
-                    <AlertDescription className="text-gray-300">{passwordMessage.text}</AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Submit Button */}
-                <Button
-                  type="submit"
-                  disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword}
-                  className="bg-orange-600 hover:bg-orange-700 w-full"
-                >
-                  {passwordLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Changing Password...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4 mr-2" />
-                      Change Password
-                    </>
+                  {/* OAuth badges */}
+                  {userProfile.oauth_providers && userProfile.oauth_providers.length > 0 && (
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {userProfile.oauth_providers.includes('google') && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded border border-gray-600">
+                          <div className="w-3 h-3 bg-white rounded-full flex items-center justify-center">
+                            <span className="text-[8px] font-bold text-gray-800">G</span>
+                          </div>
+                          Google
+                        </span>
+                      )}
+                      {userProfile.oauth_providers.includes('tidal') && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded border border-gray-600">
+                          <div className="w-3 h-3 bg-blue-600 rounded-full flex items-center justify-center">
+                            <span className="text-[8px] font-bold text-white">T</span>
+                          </div>
+                          Tidal
+                        </span>
+                      )}
+                    </div>
                   )}
-                </Button>
-              </form>
+                </div>
+
+                {/* Tier & Usage Stats */}
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                  <div className="text-center sm:text-right">
+                    <button
+                      onClick={() => {
+                        // Switch to subscription view on mobile, scroll on desktop
+                        if (window.innerWidth < 768) {
+                          setMobileView('subscription');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        } else {
+                          const element = document.getElementById('subscription-card');
+                          if (element) {
+                            const offset = 80;
+                            const elementPosition = element.getBoundingClientRect().top;
+                            const offsetPosition = elementPosition + window.pageYOffset - offset;
+                            window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
+                          }
+                        }
+                      }}
+                      className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getTierBadgeColor(userProfile.tier)} mb-1 hover:opacity-80 transition-opacity cursor-pointer`}
+                    >
+                      {getTierDisplayName(userProfile.tier)}
+                    </button>
+                    <p className={`text-sm font-medium ${getUsageColor(routineCount, routineLimit)}`}>
+                      {routineCount} / {routineLimit === Infinity ? '∞' : routineLimit} routines
+                      {routineCount >= routineLimit && routineLimit !== Infinity && (
+                        <span className="text-xs text-red-400 ml-1">(at limit)</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Right Column - API & Tools */}
-        <div>
-          <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center gap-2">
-            <Key className="w-5 h-5" />
-            API & Tools
-          </h2>
-
-          <div className="space-y-6">
-            {/* API Key Card */}
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-gray-100">Anthropic API Key</CardTitle>
-                <CardDescription className="text-gray-400">
-                  Manage your personal Anthropic API key for autocreate chord charts feature
-                </CardDescription>
-              </CardHeader>
+          {/* API Key Card - Collapsible */}
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader
+              className="cursor-pointer select-none"
+              onClick={() => toggleCard('apiKey')}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-gray-100">Anthropic API key</CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Manage your personal Anthropic API key
+                  </CardDescription>
+                </div>
+                {collapsedCards.apiKey ? (
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+            </CardHeader>
+            {!collapsedCards.apiKey && (
               <CardContent className="space-y-4">
                 {/* Info about API keys */}
                 <div className="bg-blue-900/30 border border-blue-700 rounded-md p-4">
-                  <h3 className="text-sm font-semibold text-blue-300 mb-2">About API Keys</h3>
+                  <h3 className="text-sm font-semibold text-blue-300 mb-2">About API keys</h3>
                   <ul className="text-sm text-gray-300 space-y-1 list-disc list-inside">
                     <li><strong>Free/Basic tiers:</strong> Provide your own key to unlock autocreate</li>
                     <li><strong>The Goods+ tiers:</strong> Autocreate included! Optionally use your own key to save costs</li>
@@ -721,7 +636,7 @@ const AccountSettings = () => {
                 {/* API Key input */}
                 <div className="space-y-2">
                   <Label htmlFor="api-key" className="text-gray-200">
-                    {hasExistingKey ? 'Update API Key' : 'Enter API Key'}
+                    {hasExistingKey ? 'Update API key' : 'Enter API key'}
                   </Label>
                   <div className="flex gap-2" data-tour="api-key-input">
                     <div className="relative flex-1">
@@ -806,7 +721,7 @@ const AccountSettings = () => {
                     ) : (
                       <>
                         <Check className="w-4 h-4 mr-2" />
-                        Save API Key
+                        Save API key
                       </>
                     )}
                   </Button>
@@ -823,16 +738,30 @@ const AccountSettings = () => {
                   )}
                 </div>
               </CardContent>
-            </Card>
+            )}
+          </Card>
 
-            {/* Practice Data Download Card */}
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-gray-100">Practice data download</CardTitle>
-                <CardDescription className="text-gray-400">
-                  Download your practice history (last 90 days)
-                </CardDescription>
-              </CardHeader>
+          {/* Practice Data Download Card - Collapsible */}
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader
+              className="cursor-pointer select-none"
+              onClick={() => toggleCard('practiceData')}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-gray-100">Practice data download</CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Download your practice history (last 90 days)
+                  </CardDescription>
+                </div>
+                {collapsedCards.practiceData ? (
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+            </CardHeader>
+            {!collapsedCards.practiceData && (
               <CardContent className="space-y-4">
                 {/* Expiration Warning */}
                 {showExpirationWarning && (
@@ -895,16 +824,175 @@ const AccountSettings = () => {
                   Practice data is automatically deleted after 90 days. Download your data regularly to keep permanent records.
                 </p>
               </CardContent>
-            </Card>
+            )}
+          </Card>
 
-            {/* Analytics Privacy Card */}
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-gray-100">Analytics & Privacy</CardTitle>
-                <CardDescription className="text-gray-400">
-                  Control whether we can collect analytics to help improve GPRA
-                </CardDescription>
-              </CardHeader>
+          {/* Change Password Card - Collapsible */}
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader
+              className="cursor-pointer select-none"
+              onClick={() => toggleCard('changePassword')}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-gray-100">Change password</CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Update your account password
+                  </CardDescription>
+                </div>
+                {collapsedCards.changePassword ? (
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+            </CardHeader>
+            {!collapsedCards.changePassword && (
+              <CardContent>
+                <form onSubmit={handlePasswordChange} className="space-y-4">
+                  {/* Current Password */}
+                  <div className="space-y-2">
+                    <Label htmlFor="current-password" className="text-gray-200">
+                      Current password
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="current-password"
+                        type={showPasswords.current ? 'text' : 'password'}
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
+                        disabled={passwordLoading}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                        disabled={passwordLoading}
+                      >
+                        {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* New Password */}
+                  <div className="space-y-2">
+                    <Label htmlFor="new-password" className="text-gray-200">
+                      New password
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="new-password"
+                        type={showPasswords.new ? 'text' : 'password'}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
+                        disabled={passwordLoading}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                        disabled={passwordLoading}
+                      >
+                        {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Confirm Password */}
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password" className="text-gray-200">
+                      Confirm new password
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="confirm-password"
+                        type={showPasswords.confirm ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
+                        disabled={passwordLoading}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                        disabled={passwordLoading}
+                      >
+                        {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Password Requirements */}
+                  <div className="bg-blue-900/30 border border-blue-700 rounded-md p-3">
+                    <h4 className="text-sm font-semibold text-blue-300 mb-1">Password requirements:</h4>
+                    <ul className="text-xs text-gray-300 space-y-0.5 list-disc list-inside">
+                      <li>At least 12 characters long</li>
+                      <li>At least one uppercase letter</li>
+                      <li>At least one lowercase letter</li>
+                      <li>At least one number</li>
+                      <li>At least one symbol or punctuation character</li>
+                    </ul>
+                  </div>
+
+                  {/* Messages */}
+                  {passwordMessage && (
+                    <Alert className={passwordMessage.type === 'success' ? 'bg-green-900/30 border-green-700' : 'bg-red-900/30 border-red-700'}>
+                      {passwordMessage.type === 'success' ? (
+                        <Check className="h-4 w-4 text-green-400" />
+                      ) : (
+                        <X className="h-4 w-4 text-red-400" />
+                      )}
+                      <AlertDescription className="text-gray-300">{passwordMessage.text}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Submit Button */}
+                  <Button
+                    type="submit"
+                    disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword}
+                    className="bg-orange-600 hover:bg-orange-700 w-full"
+                  >
+                    {passwordLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Changing password...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        Change password
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            )}
+          </Card>
+
+          {/* Analytics Privacy Card - Collapsible */}
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader
+              className="cursor-pointer select-none"
+              onClick={() => toggleCard('analytics')}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-gray-100">Analytics & privacy</CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Control whether we can collect analytics
+                  </CardDescription>
+                </div>
+                {collapsedCards.analytics ? (
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+            </CardHeader>
+            {!collapsedCards.analytics && (
               <CardContent className="space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
@@ -947,41 +1035,75 @@ const AccountSettings = () => {
                   </p>
                 </div>
               </CardContent>
-            </Card>
+            )}
+          </Card>
 
-          </div>
-        </div>
-      </div>
-
-      {/* Subscription & Billing Section */}
-      <div id="subscription-plans" className="mt-8">
-        <PricingSection currentTier={userProfile.tier} currentBillingPeriod={userProfile.billing_period} />
-      </div>
-
-      {/* Guided Tour Card */}
-      <div className="mt-6">
-        <Card className="bg-gray-800 border-gray-700 max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle className="text-gray-100">Guided tour</CardTitle>
-            <CardDescription className="text-gray-400">
-              Take the interactive tour again to learn about GPRA features
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button
-              onClick={restartTour}
-              className="bg-orange-600 hover:bg-orange-700 w-full"
+          {/* Guided Tour Card - Collapsible */}
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader
+              className="cursor-pointer select-none"
+              onClick={() => toggleCard('guidedTour')}
             >
-              <Play className="w-4 h-4 mr-2" />
-              Restart Tour
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-gray-100">Guided tour</CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Take the interactive tour again
+                  </CardDescription>
+                </div>
+                {collapsedCards.guidedTour ? (
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+            </CardHeader>
+            {!collapsedCards.guidedTour && (
+              <CardContent>
+                <Button
+                  onClick={restartTour}
+                  className="bg-orange-600 hover:bg-orange-700 w-full"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  Restart tour
+                </Button>
+              </CardContent>
+            )}
+          </Card>
 
-      {/* Account Deletion - Danger Zone */}
-      <div className="mt-6">
-        <AccountDeletion userTier={userProfile.tier} unpluggedMode={userProfile.unplugged_mode} />
+          {/* Danger Zone Card - Collapsible */}
+          <Card className="bg-gray-800 border-gray-700 border-red-900/50">
+            <CardHeader
+              className="cursor-pointer select-none"
+              onClick={() => toggleCard('dangerZone')}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-red-400">Danger zone</CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Pause your account, or delete it and all your data to be forgotten.
+                  </CardDescription>
+                </div>
+                {collapsedCards.dangerZone ? (
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+            </CardHeader>
+            {!collapsedCards.dangerZone && (
+              <CardContent className="p-0">
+                <AccountDeletion userTier={userProfile.tier} unpluggedMode={userProfile.unplugged_mode} />
+              </CardContent>
+            )}
+          </Card>
+        </div>
+
+        {/* Right Column - Subscription */}
+        <div id="subscription-card" className={`space-y-6 md:block ${mobileView === 'subscription' ? '' : 'hidden'}`}>
+          {/* Each tier card is now collapsible within PricingSection */}
+          <PricingSection currentTier={userProfile.tier} currentBillingPeriod={userProfile.billing_period} />
+        </div>
       </div>
     </div>
   );

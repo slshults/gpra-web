@@ -42,7 +42,7 @@ Your role here is choregrapher/air traffic controller/stage-manager/director. Se
 
 **Current Production Status**: Multi-tenant SaaS fully operational on DreamCompute (208.113.200.79) with OAuth (Google/Tidal), Stripe subscriptions (5 tiers), GDPR compliance, RLS security, and automated backups. Active routine persistence uses `subscriptions.last_active_routine_id`. Stripe webhooks: `https://guitarpracticeroutine.com/api/webhooks/stripe`
 
-**Cancellation Flow (Nov 2025)**: User-initiated cancellations (via Stripe Portal or GPRA "Pause") trigger 90-day unplugged mode with grace period. Automated cancellations (payment failures) immediately downgrade to free tier. **IMPORTANT**: Users in unplugged mode show as Free tier in UI (via `/api/auth/status` override at routes_v2.py:832-834), even though database tier remains unchanged until subscription deletion. See "Subscription Cancellation & Unplugged Mode" section below.
+**Cancellation Flow (Nov 2025)**: User-initiated pause keeps paid access until period end, THEN enters unplugged mode (90-day grace). Automated cancellations (payment failures) immediately downgrade to free tier. **IMPORTANT**: Pause button text: "Pause subscription when it expires" - users keep full access until subscription period ends. Active routine persistence fixed (Nov 2025): `subscriptions.last_active_routine_id` now preserved across logout, upgrades, renewals. See "Subscription Cancellation & Unplugged Mode" section below.
 
 When working on this codebase, keep in mind we're building for a multi-user hosted environment, not the original single-user local setup.
 
@@ -424,22 +424,29 @@ The `gpr.sh` script runs:
 
 ### Subscription Cancellation & Unplugged Mode
 
-**Updated Nov 2025** - Unified cancellation flow for consistent UX across all cancellation paths.
+**Updated Nov 2025** - Pause behavior fixed: users keep paid access until subscription period ends.
 
 **Two Cancellation Paths:**
-1. **User-initiated** (via Stripe Customer Portal or GPRA "Pause" button) → **Unplugged Mode** (90-day grace period)
+1. **User-initiated** (via Stripe Customer Portal or GPRA "Pause when expires" button) → **Keeps paid access** until period end, then unplugged mode (90-day grace)
 2. **Automated** (payment failures, disputes) → **Immediate downgrade** to free tier
+
+**Pause Flow (FIXED Nov 2025)**:
+- User clicks "Pause subscription when it expires" → Stripe sets `cancel_at_period_end=True`
+- User **keeps full paid access** until `current_period_end` date
+- Unplugged mode ONLY activated when `subscription.deleted` webhook fires at period end
+- `set_unplugged_mode()` no longer sets unplugged mode immediately (lines 733-771 in billing.py)
+- `handle_subscription_updated()` no longer sets unplugged mode when detecting cancellation (lines 463-470 in billing.py)
 
 **Webhook Handlers:**
 
 1. **`handle_subscription_updated()`** - Portal/API cancellations:
    - Detects `cancel_at_period_end=True` OR `cancel_at` is set (Stripe API version compatibility)
-   - Sets unplugged mode immediately (90-day countdown starts)
-   - Subscription stays active until period end, then `subscription.deleted` fires
+   - Updates DB fields only (does NOT set unplugged mode anymore)
+   - User keeps paid access until period end
 
-2. **`handle_subscription_deleted()`** - Final cancellation:
+2. **`handle_subscription_deleted()`** - Final cancellation (at period end):
    - Checks `cancellation_details.reason` from Stripe subscription object
-   - `reason == 'cancellation_requested'` → User canceled → Unplugged mode
+   - `reason == 'cancellation_requested'` → User canceled → NOW sets unplugged mode (90-day countdown starts)
    - Other reasons (`payment_failed`, `payment_disputed`) → Auto-canceled → Free tier downgrade
 
 **IMPORTANT - Stripe API Versions:** Stripe's cancellation API has two formats:

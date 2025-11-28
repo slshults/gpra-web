@@ -456,6 +456,10 @@ export const PracticePage = () => {
   // No chord names found modal state
   const [showNoChordNamesModal, setShowNoChordNamesModal] = useState(false);
 
+  // Timer sound prompt modal state ("More Cowbell" modal)
+  const [showSoundPromptModal, setShowSoundPromptModal] = useState(false);
+  const [pendingTimerItemId, setPendingTimerItemId] = useState(null);
+
   // Notification state - use ref for immediate updates
   const notifyOnCompleteRef = useRef({});
   const [notificationConfirmMessage, setNotificationConfirmMessage] = useState(null);
@@ -1163,13 +1167,14 @@ export const PracticePage = () => {
               if (timerSound.current) {
                 timerSound.current.stop();
               }
-              
+
               // Create and play new sound using Web Audio API
               if (audioBuffer.current && audioContext.current) {
                 timerSound.current = audioContext.current.createBufferSource();
                 timerSound.current.buffer = audioBuffer.current;
                 timerSound.current.connect(gainNode.current);
                 timerSound.current.start();
+                console.log('[AUDIO] Timer completion sound played');
               }
             }
           }
@@ -1462,61 +1467,134 @@ export const PracticePage = () => {
     });
   };
 
+  // Actually start the timer (called after sound preference is set or if already set)
+  const startTimerWithPreference = async (itemId, enableSound = true) => {
+    const routineItem = routine.items.find(item => item['A'] === itemId);
+    if (!routineItem) return;
+
+    // Resume AudioContext if user wants sound
+    if (enableSound && audioContext.current && audioContext.current.state === 'suspended') {
+      try {
+        await audioContext.current.resume();
+        console.log('[AUDIO] AudioContext resumed after user interaction');
+      } catch (error) {
+        console.error('[AUDIO] Failed to resume AudioContext:', error);
+      }
+    }
+
+    // Stop any playing sound when timer controls are used
+    if (timerSound.current) {
+      timerSound.current.stop();
+    }
+
+    // Only initialize timer if it doesn't exist
+    if (!timers[itemId]) {
+      console.log(`Timer ${itemId} not found, initializing...`);
+      const itemDetails = getItemDetails(routineItem['B']);
+      const duration = itemDetails?.['E'] || 5;
+      initTimer(itemId, duration);
+    }
+
+    // Activate the timer
+    setActiveTimers(prev => {
+      const next = new Set(prev);
+      const itemDetails = getItemDetails(routineItem['B']);
+      const itemName = itemDetails?.['C'] || `Item ${itemId}`;
+      console.log(`Activating timer ${itemId}`);
+      next.add(itemId);
+      trackPracticeEvent('started_timer', itemName);
+      return next;
+    });
+  };
+
+  // Handle "Got it" - permanently dismiss the sound info modal
+  const handleSoundModalGotIt = async () => {
+    // Mark as permanently dismissed
+    localStorage.setItem('timerSoundModalDismissed', 'true');
+    sessionStorage.setItem('timerSoundModalDismissedSession', 'true');
+
+    // Track dismissal and set person property in one call (using $set within event)
+    if (window.posthog) {
+      window.posthog.capture('Timer Sound Modal Dismissed', {
+        action: 'got_it',
+        $set: { timer_sound_modal_dismissed: true }
+      });
+    }
+
+    setShowSoundPromptModal(false);
+    if (pendingTimerItemId) {
+      await startTimerWithPreference(pendingTimerItemId, true);
+      setPendingTimerItemId(null);
+    }
+  };
+
+  // Handle "Remind me next time" - dismiss for this session only
+  const handleSoundModalRemind = async () => {
+    // Only mark dismissed for this session
+    sessionStorage.setItem('timerSoundModalDismissedSession', 'true');
+
+    setShowSoundPromptModal(false);
+    if (pendingTimerItemId) {
+      await startTimerWithPreference(pendingTimerItemId, true);
+      setPendingTimerItemId(null);
+    }
+  };
+
   const toggleTimer = async (itemId, e) => {
     e?.stopPropagation(); // Prevent expand/collapse when clicking timer
     const routineItem = routine.items.find(item => item['A'] === itemId);  // Column A is ID
     if (routineItem) {
-      // Resume AudioContext on first user interaction (required for browser autoplay policies)
-      if (audioContext.current && audioContext.current.state === 'suspended') {
-        try {
-          await audioContext.current.resume();
-          console.log('[AUDIO] AudioContext resumed after user interaction');
-        } catch (error) {
-          console.error('[AUDIO] Failed to resume AudioContext:', error);
+      // Check if timer is already active (stopping, not starting)
+      const isCurrentlyActive = activeTimers.has(itemId);
+
+      if (isCurrentlyActive) {
+        // Stopping the timer - no prompt needed
+        if (timerSound.current) {
+          timerSound.current.stop();
         }
-      }
 
-      // Stop any playing sound when timer controls are used
-      if (timerSound.current) {
-        timerSound.current.stop();
-      }
-
-      // Only initialize timer if it doesn't exist
-      if (!timers[itemId]) {
-        console.log(`Timer ${itemId} not found, initializing...`);
-        // Try to get cached item details, fallback to default
-        const itemDetails = getItemDetails(routineItem['B']);
-        const duration = itemDetails?.['E'] || 5;  // Column E is Duration
-        initTimer(itemId, duration);
-      } else {
-        console.log(`Timer ${itemId} exists with value ${timers[itemId]}`);
-      }
-      
-      setActiveTimers(prev => {
-        const next = new Set(prev);
-        const itemDetails = getItemDetails(routineItem['B']);
-        const itemName = itemDetails?.['C'] || `Item ${itemId}`; // Column C is Title
-        
-        if (next.has(itemId)) {
+        setActiveTimers(prev => {
+          const next = new Set(prev);
+          const itemDetails = getItemDetails(routineItem['B']);
+          const itemName = itemDetails?.['C'] || `Item ${itemId}`;
           console.log(`Deactivating timer ${itemId}`);
           next.delete(itemId);
-          
-          // Calculate elapsed time for timer stopped event
-          const initialDuration = (itemDetails?.['E'] || 5) * 60; // Column E is Duration in minutes, convert to seconds
+
+          const initialDuration = (itemDetails?.['E'] || 5) * 60;
           const currentTimer = timers[itemId] || initialDuration;
           const elapsedSeconds = initialDuration - currentTimer;
-          
+
           trackPracticeEvent('timer_stopped', itemName, {
             time_elapsed_seconds: Math.max(0, elapsedSeconds),
             initial_duration_minutes: itemDetails?.['E'] || 5
           });
-        } else {
-          console.log(`Activating timer ${itemId}`);
-          next.add(itemId);
-          trackPracticeEvent('started_timer', itemName);
+          return next;
+        });
+      } else {
+        // Starting the timer - try to enable audio
+        if (audioContext.current && audioContext.current.state === 'suspended') {
+          try {
+            await audioContext.current.resume();
+            console.log('[AUDIO] AudioContext state after resume:', audioContext.current.state);
+          } catch (error) {
+            console.log('[AUDIO] Resume failed:', error);
+          }
         }
-        return next;
-      });
+
+        // Check if user has already dismissed the sound info modal
+        const permanentlyDismissed = localStorage.getItem('timerSoundModalDismissed') === 'true';
+        const sessionDismissed = sessionStorage.getItem('timerSoundModalDismissedSession') === 'true';
+
+        if (permanentlyDismissed || sessionDismissed) {
+          // User has seen the modal before - just start timer
+          await startTimerWithPreference(itemId, true);
+        } else {
+          // First timer start this session - show info modal
+          console.log('[AUDIO] First timer start this session, showing sound info modal');
+          setPendingTimerItemId(itemId);
+          setShowSoundPromptModal(true);
+        }
+      }
     }
   };
 
@@ -4742,6 +4820,43 @@ export const PracticePage = () => {
             </AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmCancel}>
               Yes, damnit, cancel!
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Timer Sound Info Modal - shown first time user starts timer each session */}
+      <AlertDialog open={showSoundPromptModal} onOpenChange={(open) => {
+        if (!open) {
+          handleSoundModalRemind(); // Closing without button = remind next time
+        }
+      }}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center space-x-2">
+              <span>🔔</span>
+              <span>Timer sound</span>
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>A bell will ring when your timer is up. If you don't hear it, click the settings icon in your browser's address bar and enable sound:</p>
+                <img
+                  src="/static/images/chromiumsoundsettings.png"
+                  alt="Browser sound settings - click the settings icon in the address bar and toggle Sound on"
+                  className="rounded border border-gray-600 mx-auto"
+                />
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel onClick={handleSoundModalRemind}>
+              Remind me next time
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleSoundModalGotIt}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Got it
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
