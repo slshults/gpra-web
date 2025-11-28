@@ -142,7 +142,7 @@ export NVM_DIR="$HOME/.nvm"
 
 # Use Node.js 18
 echo -e "${BLUE}Setting up Node.js environment...${NC}"
-nvm use 18 || handle_error "Failed to set Node.js version"
+nvm use 22 || handle_error "Failed to set Node.js version"
 
 # Initial build
 echo -e "${GREEN}Building assets...${NC}"
