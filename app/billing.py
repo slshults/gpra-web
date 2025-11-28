@@ -8,6 +8,22 @@ from app.models import Subscription
 from app.subscription_tiers import SUBSCRIPTION_TIERS
 from datetime import datetime
 
+# Stripe SDK v13+ compatibility - error classes moved from stripe.error to stripe._error
+# Use direct imports to handle both old and new SDK versions
+try:
+    from stripe._error import (
+        StripeError,
+        InvalidRequestError,
+        SignatureVerificationError
+    )
+except ImportError:
+    # Fallback for older SDK versions
+    from stripe.error import (
+        StripeError,
+        InvalidRequestError,
+        SignatureVerificationError
+    )
+
 # Initialize Stripe with secret key
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
@@ -104,7 +120,7 @@ def create_checkout_session(db: Session):
 
         return jsonify({'url': checkout_session.url})
 
-    except stripe.error.StripeError as e:
+    except StripeError as e:
         logger.error(f"Stripe error creating checkout session: {str(e)}")
         return jsonify({'error': f'Stripe error: {str(e)}'}), 400
     except Exception as e:
@@ -147,7 +163,7 @@ def create_portal_session(db: Session):
 
         return jsonify({'url': portal_session.url})
 
-    except stripe.error.StripeError as e:
+    except StripeError as e:
         logger.error(f"Stripe error creating portal session: {str(e)}")
         return jsonify({'error': f'Stripe error: {str(e)}'}), 400
     except Exception as e:
@@ -265,10 +281,10 @@ def update_existing_subscription(db: Session):
             }
         })
 
-    except stripe.error.InvalidRequestError as e:
+    except InvalidRequestError as e:
         logger.error(f"Invalid request updating subscription: {str(e)}")
         return jsonify({'error': f'Invalid request: {str(e)}'}), 400
-    except stripe.error.StripeError as e:
+    except StripeError as e:
         logger.error(f"Stripe error updating subscription: {str(e)}")
         return jsonify({'error': f'Stripe error: {str(e)}'}), 400
     except Exception as e:
@@ -294,7 +310,7 @@ def handle_stripe_webhook(db: Session):
     except ValueError:
         logger.error("Invalid webhook payload")
         return jsonify({'error': 'Invalid payload'}), 400
-    except stripe.error.SignatureVerificationError:
+    except SignatureVerificationError:
         logger.error("Invalid webhook signature")
         return jsonify({'error': 'Invalid signature'}), 400
 
@@ -385,10 +401,10 @@ def handle_subscription_created(db: Session, stripe_subscription):
                 # Using immediate cancellation because they're getting the new tier right away
                 old_stripe_subscription = stripe.Subscription.cancel(old_subscription_id)
                 logger.info(f"Canceled old subscription {old_subscription_id} for user {user_id}, status: {old_stripe_subscription.get('status')}")
-            except stripe.error.InvalidRequestError as e:
+            except InvalidRequestError as e:
                 # Subscription might already be canceled or doesn't exist
                 logger.warning(f"Could not cancel old subscription {old_subscription_id}: {str(e)}")
-            except stripe.error.StripeError as e:
+            except StripeError as e:
                 logger.error(f"Stripe error canceling old subscription {old_subscription_id}: {str(e)}")
 
     # Update subscription with new information
@@ -660,7 +676,7 @@ def resume_subscription(db: Session):
         logger.info(f"Created renewal checkout session for user {user_id}, tier {previous_tier}/{billing_period}")
         return jsonify({'url': checkout_session.url})
 
-    except stripe.error.StripeError as e:
+    except StripeError as e:
         logger.error(f"Stripe error creating renewal checkout: {str(e)}")
         return jsonify({'error': f'Stripe error: {str(e)}'}), 400
     except Exception as e:
@@ -727,7 +743,7 @@ def set_unplugged_mode(db: Session):
                     cancel_at_period_end=True
                 )
                 logger.info(f"Stripe subscription {subscription.stripe_subscription_id} set to cancel at period end")
-            except stripe.error.StripeError as stripe_err:
+            except StripeError as stripe_err:
                 db.rollback()
                 logger.error(f"Stripe API error setting cancel_at_period_end: {stripe_err.user_message}")
                 return jsonify({'error': f'Failed to update Stripe subscription: {stripe_err.user_message}'}), 500
@@ -797,7 +813,7 @@ def unpause_subscription(db: Session):
                     cancel_at_period_end=False
                 )
                 logger.info(f"Stripe subscription {subscription.stripe_subscription_id} reactivated (cancel_at_period_end=False)")
-            except stripe.error.StripeError as stripe_err:
+            except StripeError as stripe_err:
                 db.rollback()
                 logger.error(f"Stripe API error reactivating subscription: {stripe_err.user_message}")
                 return jsonify({'error': f'Failed to reactivate Stripe subscription: {stripe_err.user_message}'}), 500
@@ -865,7 +881,7 @@ def get_last_payment(db: Session):
             'date': payment_date.isoformat()
         })
 
-    except stripe.error.StripeError as e:
+    except StripeError as e:
         logger.error(f"Stripe error fetching last payment: {str(e)}")
         return jsonify({'error': f'Stripe error: {str(e)}'}), 400
     except Exception as e:
