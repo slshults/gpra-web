@@ -9,7 +9,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Your role here is choregrapher/air traffic controller/stage-manager/director. Send subagents to do things that eat up our tokens. Don't wait for me to tell you to use agents and/or subagents. Delegate early, delagate often. 🙏 
 
-## ☝️☝️☝️☝️ 
+## ☝️☝️☝️☝️
+
+## MCP Token Management
+
+**Problem**: MCP tool definitions consume ~15k tokens (7-8% of context) just by being loaded, even when not in use.
+
+**Solution**: Enable MCPs only when needed, disable when done.
+
+**Claude cannot toggle MCPs directly** - this requires user action via the `/mcp` command.
+
+**When to remind the user:**
+- **Before UI testing**: "Please run `/mcp` and ensure `playwright` is enabled"
+- **After UI testing complete**: "Consider running `/mcp` to disable `playwright` and free up ~14k tokens"
+- **Before production debugging**: If remote MCP servers are added later, remind to enable
+- **Session start**: If context is tight, suggest disabling unused MCPs
+
+**Commands for user:**
+- `/mcp` - Interactive MCP management
+- `@playwright disable` - Disable specific server
+- `@playwright enable` - Re-enable server
+- `/context` - Check current token usage
 
 ## Project Status: Hosted Version Development
 
@@ -290,6 +310,12 @@ python run.py           # Start Flask server only (port 5000)
 
 **Quick setup check**: `claude mcp list` should show `playwright` connected. If missing, see skill's `setup.md`.
 
+**reCAPTCHA Handling**: When testing login/register pages, if a reCAPTCHA puzzle appears:
+1. Click "I'm not a robot" checkbox
+2. Wait 30 seconds, take screenshot to check if solved
+3. If unsolved, wait another 30 seconds and check again
+4. If still unsolved after 60 seconds, report to user: "reCAPTCHA puzzle appeared and wasn't solved within 60 seconds. Please solve it and let me know when to continue."
+
 ### PostHog Analytics
 
 **RECOMMENDED**: Use the **`posthog-specialist` agent** for PostHog work. It knows multi-tenant requirements (user_id in all events), event tracking patterns, subscription funnels, and can use PostHog MCP for ad-hoc queries. Invoke with:
@@ -561,12 +587,6 @@ For debugging during development, you can access server logs via:
 
 ### Frontend Compilation Debugging
 If React changes don't take effect (old functionality persists), Vite's watcher may have missed changes. Run `npm run build` to force recompilation.
-
-## PostgreSQL Migration Quirks
-
-**ID Structure**: Column A = DB primary key (auto-increment), Column B = ItemID (string "107"). Frontend must use Column B. Chord charts store comma-separated ItemIDs. Always use ItemIDs for frontend communication, never database primary keys.
-
-**Model Attributes**: ChordChart uses `order_col` (not `order`) and `chord_id` (not `id`). Check `app/models.py` for exact names.
 
 IMPORTANT:
 - No need to run npm to update after changes, the server is running and we have watchers in place to make updates for us as needed while we're developing.
