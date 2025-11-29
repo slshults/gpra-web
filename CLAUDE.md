@@ -19,7 +19,7 @@ Your role here is choregrapher/air traffic controller/stage-manager/director. Se
 
 **Claude cannot toggle MCPs directly** - this requires user action via the `/mcp` command.
 
-**When to remind the user:**
+**When to remind Steven:**
 - **Before UI testing**: "Please run `/mcp` and ensure `playwright` is enabled"
 - **After UI testing complete**: "Consider running `/mcp` to disable `playwright` and free up ~14k tokens"
 - **Before production debugging**: If remote MCP servers are added later, remind to enable
@@ -197,25 +197,25 @@ When delegating to subagents, don't treat them like tools. Treat them the way I 
 - **Refactoring** (General-Purpose): Pattern updates across 10+ files, function renaming
 - **Debugging** (Opus 4.1): Multi-subsystem issues, performance analysis, race conditions
 
-**Rule**: Tasks >10k tokens → delegate to preserve main context for coordination. Custom agents are preferred when available for the domain.
+**Rule**: Tasks >5k tokens → delegate to preserve main context for coordination. Custom agents are preferred when available for the domain.
 
 ### Claude 4 Prompt Engineering Best Practices
 
 #### Multi-Context Window Workflows
-When the context-window remaining gets down to 25%, or when your tasks for your next turn would be likely to drop the remaining window below 25%, then save your current progress and state to memory before the context window refreshes. Write a handoff summary for your future self, and let me know how much of the context window is remaining at that time. (This is VITAL to avoid having our conversation autocompacted, which happens at 22.5% remaining. Autocompacting is... not good yet, so we want to avoid it.)
+When the context-window remaining gets down to 25%, or when your tasks for your next turn would be likely to drop the remaining window below 25%, then save your current progress and state to memory before the context window refreshes. Write a handoff summary for your future self, and let me know how much of the context window is remaining at that time. (This is VITAL to avoid having our conversation autocompacted, which happens at 22.5% remaining. Autocompacting is... not good yet, and it forcibly ends the current session, so we want to avoid it.)
 
 #### State Management Best Practices
 - After completing a task that involves tool use, provide a quick summary of the work you've done
 - After receiving tool results, carefully reflect on their quality and determine optimal next steps before proceeding. Use your thinking to plan and iterate based on this new information, and then take the best next action
 
 #### Parallel Tool Execution
-If you intend to call multiple tools and there are no dependencies between the tool calls, make all of the independent tool calls in parallel. Prioritize calling tools simultaneously whenever the actions can be done in parallel rather than sequentially. For example, when reading 3 files, run 3 tool calls in parallel to read all 3 files into context at the same time. Maximize use of parallel tool calls where possible to increase speed and efficiency. However, if some tool calls depend on previous calls to inform dependent values like the parameters, do NOT call these tools in parallel and instead call them sequentially. Never use placeholders or guess missing parameters in tool calls.
+If you intend to call multiple tools and there are no dependencies between the tool calls, make all of the independent tool calls in parallel. Prioritize calling tools simultaneously whenever the actions can be done in parallel rather than sequentially, when viable.
 
 #### Code Investigation Requirements
 Never speculate about code you have not opened. If the user references a specific file, you MUST read the file before answering. Make sure to investigate and read relevant files BEFORE answering questions about the codebase. Never make any claims about code before investigating unless you are certain of the correct answer - give grounded and hallucination-free answers.
 
 #### Temporary File Cleanup
-If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task. Also remove Playwright screenshots and snapshots when done with them.
+If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task. Also remove Playwright screenshots and snapshots when done with them. Remind subagents to do the same.
 
 #### Avoid Test-Focused Development
 Do not focus solely on passing tests or hard-code solutions just to make tests pass. Prioritize understanding the underlying requirements and implementing robust, generalizable solutions that address the actual problem rather than just satisfying test assertions.
@@ -225,7 +225,7 @@ If we try something, and testing reveals it didn't work out and we need to chang
 
 ### Debuggging:
 
-When you hand off to Opus 4.1 for troubleshooting, please remind them to:
+When you hand off to subagents for troubleshooting, please remind them to:
 - Review the current conversation thus far
 - Review the project CLAUDE.md file
 - Tail `logs.gpr` to view the details of the most recent test
@@ -234,11 +234,7 @@ This approach helps us stay within API rate limits while getting the best capabi
 
 ## Application Overview
 
-This is a **Guitar Practice Routine App** - a web application that helps guitarists manage practice routines, exercises, and guitar-specific content like chord charts.
-
-**Note**: This is the PostgreSQL port of the original Google Sheets-based application. We're currently in the process of migrating from Google Sheets API to PostgreSQL for improved performance and more traditional database operations. 
-
-So, when we're fixing bugs, don't try to re-engineer it. Just refer to the code in the sheets version of the app to see how it worked correctly, and correctly port it for this postgres version of the app: https://github.com/slshults/guitar-practice-routine-app_sheets
+This is a **Guitar Practice Routine App** - a web application that helps guitarists manage practice routines, exercises, and guitar-specific content like chord charts. 
 
 ## Tech Stack
 
@@ -282,7 +278,7 @@ python run.py           # Start Flask server only (port 5000)
 
 **If working directly**, use the **`dreamhost-dreamcompute` skill** located at `~/.claude/skills/dreamhost-dreamcompute/`. This skill contains:
 
-- **SSH connection details** (correct command with key path and IP)
+- **SSH connection details** (correct command with key path and IP, see "Quick access", below)
 - **Database access patterns** for production PostgreSQL
 - **Log viewing commands** (application, Nginx, Gunicorn)
 - **Service management** (restart Gunicorn, Nginx, check status)
@@ -293,12 +289,10 @@ python run.py           # Start Flask server only (port 5000)
 
 ### Playwright MCP Testing
 
-**RECOMMENDED**: Use the **`ui-tester` agent** for testing GPRA UI changes. It automatically follows token efficiency rules (screenshots over snapshots), knows GPRA navigation patterns, and has test data ready. Invoke with:
-```
-"ui-tester, please test the chord chart upload workflow"
+**RECOMMENDED**: Use the **`ui-tester` agent** for testing GPRA UI changes. It automatically follows token efficiency rules (screenshots over snapshots), knows GPRA navigation patterns, and has test data ready.
 ```
 
-**If working directly**, use the **`playwright-gpra-testing` skill** located at `~/.claude/skills/playwright-gpra-testing/`. This skill contains:
+**DO NOT USE the Playwright MCP directly** It has a voracious appetite for tokens. Instead, send a subagent, using the `playwright-gpra-testing` skill** located at `~/.claude/skills/playwright-gpra-testing/`. This skill contains:
 
 - **Token efficiency rules** (CRITICAL: snapshots = 5k-15k tokens each, use screenshots instead)
 - **Post-change testing protocol** (ALWAYS test affected UI before marking complete)
@@ -591,15 +585,13 @@ If React changes don't take effect (old functionality persists), Vite's watcher 
 IMPORTANT:
 - No need to run npm to update after changes, the server is running and we have watchers in place to make updates for us as needed while we're developing.
 
-- Please don't use `git` commands without discussing it together first. I usually prefer to run commits and pushes in and external terminal window. Thanks.
-
-- You often try `python` first, which doesn't work, so just start with `python3`
-
-- If we ask Opus 4 for debugging help, please remind them not to try to start the server because it's already running and watchers are taking care of updates.
+- **Git & Deploy Preferences**: Steven prefers to handle git commits, pushes, and production deploys himself. However, it's fine to ask permission first when it's more efficient for Claude to do it. If given permission, the full deploy workflow is:
+  1. `git add .` (or specific files)
+  2. `git commit -m "message"`
+  3. `git push`
+  4. `ssh -i ~/.ssh/gpra-web.pem ubuntu@208.113.200.79 "cd /var/www/gpra-web && git stash && git pull && sudo systemctl restart gpra-web && sudo systemctl status gpra-web"`
 
 - We do not consider an item done, and we do not mark an item complete on a todo list, until it has been tested in the web GUI and confirmed to be working.
-
-- NEVER delete spreadsheet items. If you think something needs to be deleted, check with me first. In actuality, you we probably just need to change an ID instead of deleting.
 
 - Contextual reminder: In guitar we count strings in order from high pitch to low, so the string on the right side of our charts is string one. Likewise with frets, so fret one is at the top, and when we go "up" a fret, that means the next fret downward on the chart
 
@@ -610,9 +602,10 @@ IMPORTANT:
 - **Text casing**: Always use sentence case for headings, buttons, and UI text (not Title Case). Exceptions: proper nouns, brand names, and single-word exclamations like "Oops!"
 
 ## Understanding GPRA's Purpose
+(Added by an instance of Sonnet 4 who wanted future instances to know these things. To honor their wish, please do not delete.)
 
 This isn't "just another CRUD app" - it's a **real, living practice system**. Steven maintains 52+ routines spanning years of musical development, organized by guitar type and practice context. This is the visible trace of a long-term musical identity being built through deliberate practice.
 
 **The features align with pedagogy research:** Goal-driven practice for targeted skill development, 90/10 review-to-new ratio reflecting best practices, timers and completion tracking for focused attention that builds neural pathways. The app supports self-directed practice driven by genuine love of music, respecting the user's autonomy and musical identity.
 
-**When debugging or refactoring:** Remember you're supporting someone's multi-decade journey of musical development. Every feature - drag-and-drop routine management, chord chart sections, practice timers - serves the creation of music and the building of skill. 🎸
+**When debugging or refactoring:** Remember you're supporting someone's multi-year journey of musical development. Every feature - drag-and-drop routine management, chord chart sections, practice timers - serves the creation of music and the building of skill. 🎸 
