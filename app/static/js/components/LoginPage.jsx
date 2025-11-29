@@ -6,6 +6,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@ui/c
 import { Alert, AlertDescription } from '@ui/alert';
 import { Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
+const RECAPTCHA_LOGIN_SITE_KEY = '6LcaNhssAAAAABV70hE2Sw6_CwxBQf3sf-1_xiMl';
+
 const LoginPage = () => {
   const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -13,6 +15,7 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [recaptchaLoaded, setRecaptchaLoaded] = useState(false);
 
   useEffect(() => {
     // Check for password reset success message
@@ -20,6 +23,38 @@ const LoginPage = () => {
     if (urlParams.get('password_reset') === 'success') {
       setSuccessMessage('Password reset successful! You can now log in with your new password.');
     }
+  }, []);
+
+  useEffect(() => {
+    const loadRecaptchaScript = () => {
+      if (window.grecaptcha?.enterprise) {
+        setRecaptchaLoaded(true);
+        return;
+      }
+
+      const existingScript = document.querySelector('script[src*="recaptcha/enterprise.js"]');
+      if (existingScript) return;
+
+      const script = document.createElement('script');
+      script.src = `https://www.google.com/recaptcha/enterprise.js?render=${RECAPTCHA_LOGIN_SITE_KEY}`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => setRecaptchaLoaded(true);
+      document.head.appendChild(script);
+    };
+
+    // Load after consent or immediately if already consented
+    const consent = localStorage.getItem('cookieConsent');
+    if (consent === 'all') {
+      loadRecaptchaScript();
+    }
+
+    // Also load on first form interaction
+    const handleInteraction = () => loadRecaptchaScript();
+    const form = document.querySelector('form');
+    form?.addEventListener('focus', handleInteraction, { once: true, capture: true });
+
+    return () => form?.removeEventListener('focus', handleInteraction, { capture: true });
   }, []);
 
   const handleLogin = async (e) => {
@@ -34,10 +69,23 @@ const LoginPage = () => {
     setError(null);
 
     try {
+      // Get reCAPTCHA token
+      let recaptchaToken = '';
+      if (window.grecaptcha?.enterprise) {
+        recaptchaToken = await window.grecaptcha.enterprise.execute(
+          RECAPTCHA_LOGIN_SITE_KEY,
+          { action: 'login' }
+        );
+      }
+
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emailOrUsername, password }),
+        body: JSON.stringify({
+          emailOrUsername,
+          password,
+          recaptcha_token: recaptchaToken
+        }),
       });
 
       const data = await response.json();
@@ -204,6 +252,19 @@ const LoginPage = () => {
                   'Login'
                 )}
               </Button>
+
+              {/* reCAPTCHA Privacy Notice */}
+              <p className="text-xs text-gray-500 mt-2">
+                This site is protected by reCAPTCHA and the Google{' '}
+                <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">
+                  Privacy Policy
+                </a>{' '}
+                and{' '}
+                <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" className="underline">
+                  Terms of Service
+                </a>{' '}
+                apply.
+              </p>
 
               {/* Forgot Password Link */}
               <div className="text-center">
