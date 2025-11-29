@@ -25,15 +25,60 @@ def upgrade() -> None:
     1. Remove PostHog fields from user_preferences
     2. Add practice data download fields to user_preferences
     3. Create practice_events table with auto-cleanup trigger
+
+    NOTE: Uses IF NOT EXISTS / IF EXISTS for idempotency (columns may have been added manually)
     """
-    # Step 1: Remove PostHog fields from user_preferences
-    op.drop_column('user_preferences', 'posthog_project_key')
-    op.drop_column('user_preferences', 'posthog_key_updated_at')
+    # Step 1: Remove PostHog fields from user_preferences (if they exist)
+    op.execute("ALTER TABLE user_preferences DROP COLUMN IF EXISTS posthog_project_key;")
+    op.execute("ALTER TABLE user_preferences DROP COLUMN IF EXISTS posthog_key_updated_at;")
 
-    # Step 2: Add practice data download fields to user_preferences
-    op.add_column('user_preferences', sa.Column('last_data_download_at', sa.DateTime(timezone=True), nullable=True))
-    op.add_column('user_preferences', sa.Column('data_expiration_reminder_dismissed_until', sa.DateTime(timezone=True), nullable=True))
+    # Step 2: Add practice data download fields to user_preferences (if they don't exist)
+    op.execute("ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS last_data_download_at TIMESTAMP WITH TIME ZONE;")
+    op.execute("ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS data_expiration_reminder_dismissed_until TIMESTAMP WITH TIME ZONE;")
 
+    # Step 3: Create practice_events table (if it doesn't exist)
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS practice_events (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            event_type VARCHAR(50) NOT NULL,
+            item_name VARCHAR(255),
+            routine_name VARCHAR(255),
+            duration_seconds INTEGER,
+            additional_data JSON,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+        );
+    """)
+
+    # Create indexes (ignore if they already exist)
+    op.execute("CREATE INDEX IF NOT EXISTS idx_practice_events_user_id ON practice_events(user_id);")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_practice_events_created_at ON practice_events(created_at);")
+
+    # Step 4: Create cleanup trigger function and trigger (uses CREATE OR REPLACE)
+    op.execute("""
+        CREATE OR REPLACE FUNCTION cleanup_old_practice_events()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            DELETE FROM practice_events
+            WHERE created_at < NOW() - INTERVAL '90 days';
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+    """)
+
+    op.execute("DROP TRIGGER IF EXISTS trigger_cleanup_old_practice_events ON practice_events;")
+    op.execute("""
+        CREATE TRIGGER trigger_cleanup_old_practice_events
+        AFTER INSERT ON practice_events
+        EXECUTE FUNCTION cleanup_old_practice_events();
+    """)
+
+    # Early return - skip the old non-idempotent code below
+    return
+
+
+def _old_upgrade_not_used() -> None:
+    """Old non-idempotent upgrade code - kept for reference only"""
     # Step 3: Create practice_events table
     op.create_table(
         'practice_events',
