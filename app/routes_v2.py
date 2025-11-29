@@ -950,7 +950,8 @@ def api_login():
     Request body:
         {
             "emailOrUsername": "user@example.com or username",
-            "password": "password123"
+            "password": "password123",
+            "recaptcha_token": "token_string" (optional)
         }
 
     Returns:
@@ -975,6 +976,39 @@ def api_login():
 
     if not email_or_username or not password:
         return jsonify({"error": "Email/username and password are required"}), 400
+
+    # Verify reCAPTCHA if token provided
+    recaptcha_token = data.get('recaptcha_token', '')
+    if recaptcha_token:
+        try:
+            import requests as http_requests
+            api_key = os.getenv('RECAPTCHA_API_KEY')
+
+            if api_key:
+                verify_url = f"https://recaptchaenterprise.googleapis.com/v1/projects/practiceroutineapp/assessments?key={api_key}"
+                payload = {
+                    "event": {
+                        "token": recaptcha_token,
+                        "expectedAction": "login",
+                        "siteKey": "6LcaNhssAAAAABV70hE2Sw6_CwxBQf3sf-1_xiMl"
+                    }
+                }
+
+                verify_response = http_requests.post(verify_url, json=payload, timeout=10)
+                recaptcha_data = verify_response.json()
+
+                token_valid = recaptcha_data.get('tokenProperties', {}).get('valid', False)
+                action_match = recaptcha_data.get('tokenProperties', {}).get('action') == 'login'
+                score = recaptcha_data.get('riskAnalysis', {}).get('score', 0)
+
+                app.logger.info(f"Login reCAPTCHA - valid: {token_valid}, action: {action_match}, score: {score}")
+
+                if token_valid and action_match and score < 0.3:
+                    # Very suspicious - block
+                    return jsonify({"error": "Security verification failed. Please try again."}), 403
+        except Exception as e:
+            app.logger.warning(f"reCAPTCHA verification error (non-blocking): {e}")
+            # Don't block login on reCAPTCHA errors - fail open for availability
 
     # Try to find user by email first, then by username
     user = appbuilder.sm.find_user(email=email_or_username)
@@ -1045,29 +1079,53 @@ def api_register():
 
     try:
         import requests
-        recaptcha_secret = os.getenv('RECAPTCHA_SECRET_KEY')
+        recaptcha_api_key = os.getenv('RECAPTCHA_API_KEY')
 
-        if not recaptcha_secret:
-            app.logger.error("RECAPTCHA_SECRET_KEY not configured")
+        if not recaptcha_api_key:
+            app.logger.error("RECAPTCHA_API_KEY not configured")
             return jsonify({"error": "Registration not available"}), 500
 
-        # Verify token with Google
+        # Verify token with reCAPTCHA Enterprise API
+        # Note: No expectedAction for checkbox widgets (they don't use actions like execute() does)
+        verify_url = f"https://recaptchaenterprise.googleapis.com/v1/projects/practiceroutineapp/assessments?key={recaptcha_api_key}"
+        verify_payload = {
+            "event": {
+                "token": recaptcha_token,
+                "siteKey": "6LcjIvQrAAAAAM4psu6wJT3NlL8RIwH4tNiiAJ6C"
+            }
+        }
+
         verify_response = requests.post(
-            'https://www.google.com/recaptcha/api/siteverify',
-            data={
-                'secret': recaptcha_secret,
-                'response': recaptcha_token
-            },
+            verify_url,
+            json=verify_payload,
             timeout=10
         )
 
         verify_data = verify_response.json()
 
-        if not verify_data.get('success'):
-            app.logger.warning(f"reCAPTCHA verification failed: {verify_data.get('error-codes', [])}")
+        # Check for API errors
+        if 'error' in verify_data:
+            app.logger.error(f"reCAPTCHA API error: {verify_data.get('error')}")
+            return jsonify({"error": "reCAPTCHA verification failed. Please try again."}), 500
+
+        # Validate token properties
+        token_props = verify_data.get('tokenProperties', {})
+        if not token_props.get('valid'):
+            app.logger.warning(f"reCAPTCHA token invalid: {verify_data}")
             return jsonify({"error": "reCAPTCHA verification failed. Please try again."}), 400
 
-        app.logger.info("reCAPTCHA verification successful")
+        # Log the action (checkbox widgets may return different actions than execute() calls)
+        action = token_props.get('action', 'unknown')
+        app.logger.info(f"reCAPTCHA action: {action}")
+
+        # Check risk score (0.0-1.0, higher = more likely human)
+        risk_score = verify_data.get('riskAnalysis', {}).get('score', 0.0)
+        app.logger.info(f"reCAPTCHA verification successful - score: {risk_score}")
+
+        # Reject if score is too low (likely bot)
+        if risk_score < 0.5:
+            app.logger.warning(f"reCAPTCHA score too low: {risk_score} (threshold: 0.5)")
+            return jsonify({"error": "reCAPTCHA verification failed. Please try again."}), 400
 
     except Exception as e:
         app.logger.error(f"reCAPTCHA verification error: {e}")

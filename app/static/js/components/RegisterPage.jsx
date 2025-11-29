@@ -19,6 +19,7 @@ const RegisterPage = () => {
   const [success, setSuccess] = useState(false);
   const [recaptchaToken, setRecaptchaToken] = useState(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [recaptchaWidgetId, setRecaptchaWidgetId] = useState(null);
   const recaptchaRef = useRef(null);
 
   // Password requirements validation
@@ -32,25 +33,12 @@ const RegisterPage = () => {
 
   const passwordsDontMatch = confirmPassword.length > 0 && password !== confirmPassword;
 
-  // GDPR-compliant: Load reCAPTCHA only after consent or on button click
+  // GDPR-compliant: Load reCAPTCHA only after consent or on form interaction
   useEffect(() => {
-    // Make callback available globally for reCAPTCHA
-    window.onRecaptchaChange = (token) => {
-      setRecaptchaToken(token);
-    };
-
-    // Check if user has already consented to cookies
     const consent = localStorage.getItem('cookieConsent');
     if (consent === 'all') {
-      // User accepted all cookies - safe to load reCAPTCHA
       loadRecaptchaScript();
     }
-    // Otherwise, wait for user to click "Create Account" button
-
-    // Cleanup
-    return () => {
-      delete window.onRecaptchaChange;
-    };
   }, []);
 
   // Load reCAPTCHA when user shows intent to register (GDPR-compliant)
@@ -58,38 +46,57 @@ const RegisterPage = () => {
     const hasFormActivity = username || email || password;
     const consent = localStorage.getItem('cookieConsent');
 
-    // If user has started filling the form AND has consented to cookies, load reCAPTCHA proactively
     if (hasFormActivity && consent === 'all') {
       loadRecaptchaScript();
     }
-    // If no consent yet, the fallback in handleRegister will load it on button click
   }, [username, email, password]);
 
-  // Load reCAPTCHA script on-demand (GDPR-compliant)
+  // Render checkbox widget when script loads and container is ready
+  useEffect(() => {
+    if (window.grecaptcha?.enterprise && recaptchaRef.current && recaptchaWidgetId === null) {
+      try {
+        const widgetId = window.grecaptcha.enterprise.render(recaptchaRef.current, {
+          sitekey: RECAPTCHA_SITE_KEY,
+          callback: (token) => setRecaptchaToken(token),
+          'expired-callback': () => setRecaptchaToken(null),
+          'error-callback': () => setRecaptchaToken(null),
+          theme: 'dark'
+        });
+        setRecaptchaWidgetId(widgetId);
+      } catch (e) {
+        // Widget may already be rendered
+        console.log('reCAPTCHA widget already rendered');
+      }
+    }
+  });
+
+  // Load reCAPTCHA Enterprise script with explicit render
   const loadRecaptchaScript = () => {
-    if (window.grecaptcha) {
-      return Promise.resolve(); // Already loaded
+    if (window.grecaptcha?.enterprise) {
+      return Promise.resolve();
     }
 
     return new Promise((resolve) => {
+      // Set up callback for when grecaptcha is ready
+      window.onRecaptchaLoad = () => {
+        resolve();
+      };
+
       const script = document.createElement('script');
-      script.src = 'https://www.google.com/recaptcha/api.js';
+      script.src = 'https://www.google.com/recaptcha/enterprise.js?onload=onRecaptchaLoad&render=explicit';
       script.async = true;
       script.defer = true;
-      script.onload = () => resolve();
       document.head.appendChild(script);
     });
   };
 
   const resetRecaptcha = () => {
-    // Reset the token state
     setRecaptchaToken(null);
-    // Reset the widget if grecaptcha is loaded
-    if (window.grecaptcha) {
+    if (window.grecaptcha?.enterprise && recaptchaWidgetId !== null) {
       try {
-        window.grecaptcha.reset();
-      } catch (error) {
-        console.error('Error resetting reCAPTCHA:', error);
+        window.grecaptcha.enterprise.reset(recaptchaWidgetId);
+      } catch (e) {
+        console.log('Could not reset reCAPTCHA widget');
       }
     }
   };
@@ -117,7 +124,7 @@ const RegisterPage = () => {
     e.preventDefault();
 
     // Load reCAPTCHA on-demand if not already loaded (GDPR-compliant)
-    if (!window.grecaptcha) {
+    if (!window.grecaptcha || !window.grecaptcha.enterprise) {
       setLoading(true);
       await loadRecaptchaScript();
       setLoading(false);
@@ -160,9 +167,9 @@ const RegisterPage = () => {
       return;
     }
 
-    // Validate reCAPTCHA
+    // Validate reCAPTCHA completed
     if (!recaptchaToken) {
-      setError('Please complete the reCAPTCHA verification');
+      setError('Please complete the reCAPTCHA challenge');
       return;
     }
 
@@ -459,15 +466,9 @@ const RegisterPage = () => {
                 </label>
               </div>
 
-              {/* reCAPTCHA Widget */}
+              {/* reCAPTCHA Enterprise Checkbox */}
               <div className="flex justify-center">
-                <div
-                  className="g-recaptcha"
-                  data-sitekey={RECAPTCHA_SITE_KEY}
-                  data-callback="onRecaptchaChange"
-                  data-theme="dark"
-                  ref={recaptchaRef}
-                ></div>
+                <div ref={recaptchaRef}></div>
               </div>
 
               {/* Register Button */}

@@ -62,7 +62,7 @@ Your role here is choregrapher/air traffic controller/stage-manager/director. Se
 
 **Current Production Status**: Multi-tenant SaaS fully operational on DreamCompute (208.113.200.79) with OAuth (Google/Tidal), Stripe subscriptions (5 tiers), GDPR compliance, RLS security, and automated backups. Active routine persistence uses `subscriptions.last_active_routine_id`. Stripe webhooks: `https://guitarpracticeroutine.com/api/webhooks/stripe`
 
-**Cancellation Flow (Nov 2025)**: User-initiated pause keeps paid access until period end, THEN enters unplugged mode (90-day grace). Automated cancellations (payment failures) immediately downgrade to free tier. **IMPORTANT**: Pause button text: "Pause subscription when it expires" - users keep full access until subscription period ends. Active routine persistence fixed (Nov 2025): `subscriptions.last_active_routine_id` now preserved across logout, upgrades, renewals. See "Subscription Cancellation & Unplugged Mode" section below.
+**Cancellation Flow (Nov 2025)**: User-initiated pause → unplugged mode (90-day grace), automated cancellations → free tier. See `gpra-billing-stripe` skill for details. Active routine persistence: `subscriptions.last_active_routine_id` preserved across logout/upgrades/renewals.
 
 When working on this codebase, keep in mind we're building for a multi-user hosted environment, not the original single-user local setup.
 
@@ -248,6 +248,15 @@ This is a **Guitar Practice Routine App** - a web application that helps guitari
 
 ## Development Commands
 
+### Steven's Bash Aliases
+These don't work in Claude Code's non-interactive shell, but help me understand when Steven uses them:
+- `gprserv` → `ssh -i ~/.ssh/gpra-web.pem ubuntu@208.113.200.79`
+- `gprweb` → `cd ~/webdev/guitar/practice/gprweb`
+- `gs` → `git status`
+- `gb` → `git branch`
+- `p3` → `python3`
+- `treehere` → tree excluding node_modules, __pycache__, venv, etc.
+
 ### Start Development Environment
 ```bash
 ./gpr.sh                 # Starts Flask server + Vite watcher (recommended)
@@ -359,16 +368,16 @@ The application has been **migrated to PostgreSQL as its database** with a **Dat
 - `app/sheets.py`: Legacy Google Sheets data layer (fallback mode)
 
 ### Security Configuration
-- **CSRF Protection**: Flask-WTF CSRFProtect with **selective enforcement** (`WTF_CSRF_CHECK_DEFAULT = False`)
-  - Only `/api/consent` POST endpoint requires CSRF tokens (via `csrf.protect()` call)
-  - All other endpoints work without CSRF tokens (auth endpoints have own protection: passwords, reCAPTCHA, OAuth)
-  - Tokens fetched from `/api/csrf-token` when needed
-- **Rate Limiting**: Flask-Limiter with Redis storage
-  - Global: 1000/hour, 100/minute
-  - Consent endpoints: 10/min POST, 30/min GET, 20/min CSRF token
-  - Account actions: Pause/unpause and schedule/cancel deletion limited to once per billing period
-- **reCAPTCHA**: Deferred loading (only after consent or button click) - GDPR compliant
-- **PostHog Privacy**: Opt-out clears all localStorage (including `distinct_id`) and cookies for full GDPR compliance
+
+**See**: `flask-appbuilder` skill for detailed CSRF, rate limiting, reCAPTCHA, and PostHog privacy patterns.
+
+**Quick reference**:
+- CSRF: Selective enforcement, only `/api/consent` requires tokens
+- Rate Limiting: Redis-backed, 1000/hour global, account actions once per billing period
+- reCAPTCHA Enterprise: Two keys configured (GCP project: `practiceroutineapp`)
+  - `/register`: Checkbox challenge (always visible), score threshold 0.5
+  - `/login`: Policy-based (invisible unless suspicious), score threshold 0.3
+  - API key: `RECAPTCHA_API_KEY` env var (GCP API key, not old secret key)
 
 ## Key Files and Locations
 
@@ -412,106 +421,22 @@ The `gpr.sh` script runs:
 - **Active Routine Persistence**: Stored in `subscriptions.last_active_routine_id` (per-user), not in shared `active_routine` table
 
 ### API Endpoints
-- `/api/items/*`: CRUD operations for practice items
-- `/api/routines/*`: CRUD operations for practice routines
-- `/api/practice/active-routine`: Get/set active practice routine
-- `/api/auth/status`: Check authentication status (includes subscription/billing info)
-- `/api/items/<id>/chord-charts`: Get/create chord charts for practice items
-- `/api/chord-charts/<id>`: Delete chord charts
-- `/api/items/<id>/chord-charts/order`: Reorder chord charts
-- `/api/autocreate-chord-charts`: Upload files for AI-powered chord chart creation
-- `/api/user/api-key`: GET (check status), POST (save), DELETE (remove) user's API key
-- `/api/user/api-key/validate`: POST - validate API key without saving
-- **Billing Endpoints** (all in `routes_v2.py`):
-  - `/api/billing/create-checkout-session`: Create Stripe checkout for NEW customers
-  - `/api/billing/update-subscription`: Update existing subscription (tier/period changes)
-  - `/api/billing/create-portal-session`: Access Stripe Customer Portal
-  - `/api/billing/resume-subscription`: Resume lapsed subscription (creates NEW checkout session - Stripe requirement)
-  - `/api/billing/set-unplugged`: Set lapsed user to unplugged/free mode
-  - `/api/billing/last-payment`: GET - Fetch last successful payment amount and date from Stripe
-  - `/api/stripe/webhook`: Stripe webhook handler (subscription events)
-- **Account Deletion Endpoints** (includes PostHog person profile deletion):
-  - `/api/user/delete-account-scheduled`: Schedule deletion for renewal date (NO refunds/proration)
-  - `/api/user/delete-account-immediate`: Delete account immediately, show confirmation modal, redirect to Stripe portal
-  - `/api/user/delete-account-free`: Delete free tier account immediately (redirects to /login)
-  - `/api/user/cancel-deletion`: Cancel scheduled deletion (rate limited: once per billing period)
-  - Deletion utilities: `app/utils/account_deletion.py` handles PostHog cleanup
-  - **Modal rendering**: AccountDeletion.jsx uses `content` variable pattern to render state-specific JSX alongside persistent modal (lines 215-593)
-- **Subscription Pause/Unplugged Mode**:
-  - `/api/billing/set-unplugged`: Enter unplugged mode (90-day grace period, access to last active routine only)
-  - `/api/billing/unpause-subscription`: Exit unplugged mode and restore full access
-  - Rate limited: Pause/unpause once per billing period (not calendar month)
+
+**See**: `~/.claude/docs/api-reference.md` for complete API documentation including all billing, auth, CRUD, and deletion endpoints.
 
 ### Subscription Cancellation & Unplugged Mode
 
-**Updated Nov 2025** - Pause behavior fixed: users keep paid access until subscription period ends.
-
-**Two Cancellation Paths:**
-1. **User-initiated** (via Stripe Customer Portal or GPRA "Pause when expires" button) → **Keeps paid access** until period end, then unplugged mode (90-day grace)
-2. **Automated** (payment failures, disputes) → **Immediate downgrade** to free tier
-
-**Pause Flow (FIXED Nov 2025)**:
-- User clicks "Pause subscription when it expires" → Stripe sets `cancel_at_period_end=True`
-- User **keeps full paid access** until `current_period_end` date
-- Unplugged mode ONLY activated when `subscription.deleted` webhook fires at period end
-- `set_unplugged_mode()` no longer sets unplugged mode immediately (lines 733-771 in billing.py)
-- `handle_subscription_updated()` no longer sets unplugged mode when detecting cancellation (lines 463-470 in billing.py)
-
-**Webhook Handlers:**
-
-1. **`handle_subscription_updated()`** - Portal/API cancellations:
-   - Detects `cancel_at_period_end=True` OR `cancel_at` is set (Stripe API version compatibility)
-   - Updates DB fields only (does NOT set unplugged mode anymore)
-   - User keeps paid access until period end
-
-2. **`handle_subscription_deleted()`** - Final cancellation (at period end):
-   - Checks `cancellation_details.reason` from Stripe subscription object
-   - `reason == 'cancellation_requested'` → User canceled → NOW sets unplugged mode (90-day countdown starts)
-   - Other reasons (`payment_failed`, `payment_disputed`) → Auto-canceled → Free tier downgrade
-
-**IMPORTANT - Stripe API Versions:** Stripe's cancellation API has two formats:
-- **Older API**: `cancel_at_period_end=True` (boolean)
-- **Newer API**: `cancel_at` is set to future timestamp (subscription ends at that time)
-- Handlers check BOTH fields for compatibility
-
-**Unplugged Mode Behavior:**
-- User has 90 days before data deletion (visible countdown in modal)
-- Access limited to last active routine only (can't create/edit other routines)
-- "Still unplugged" modal appears when trying to access restricted features
-- Can click "Unpause" in Account Settings to restore full access (rate limited: once per billing period)
-- `lapse_date` = when they paused/canceled, `data_deletion_date` = lapse_date + 90 days
-- Days calculation: `days_remaining = max(0, (data_deletion_date - now).days)`
-
-**Stripe Customer Portal Display:**
-- `cancel_at_period_end=True` → Shows "Will cancel on [date]", user can reactivate
-- `stripe.Subscription.delete()` → Shows "Canceled" (permanent), no reactivate option
-- No configuration needed - Stripe handles display automatically
-
-**UI Tier Display for Unplugged Users:**
-- `/api/auth/status` endpoint (routes_v2.py:832-834) overrides tier to 'free' when `unplugged_mode=True`
-- This ensures PricingSection shows "Free - Your current plan" instead of their old paid tier
-- Database tier remains unchanged until `subscription.deleted` webhook fires
-- Prevents "Two Active Subscriptions" UI bug where canceled users see old tier as current
-
-**Cron Job** (`cron/process_scheduled_deletions.py`):
-- Runs daily at 2 AM to process scheduled deletions (where `deletion_scheduled_for <= NOW`)
-- Uses `delete_user_account()` utility for GDPR-compliant deletion (includes PostHog cleanup)
-- Only for users who scheduled deletion via GPRA UI (not unplugged mode users)
-
-**Key Files:**
-- `app/billing.py` - Webhook handlers, unplugged mode functions
-- `app/routes_v2.py` - `/api/auth/status` endpoint (calculates days_remaining for unplugged users)
-- `app/utils/account_deletion.py` - Centralized deletion utility with PostHog cleanup
-- `cron/process_scheduled_deletions.py` - Daily cron for scheduled deletions
+**See**: `gpra-billing-stripe` skill for comprehensive implementation guide covering pause flow, webhook handlers, unplugged mode behavior, resume flow, and Stripe Customer Portal display.
 
 ## Special Considerations
 
 ### PostgreSQL Database (Migration Complete)
-**Schema quirks from Sheets migration**: Column A = DB primary key, Column B = ItemID (string "107"). Frontend uses Column B. Chord charts use comma-separated ItemIDs ("67, 100, 1"). Order column has gaps from drag-drop - don't sort by it.
+**See**: `~/.claude/docs/postgresql-schema.md` for complete schema quirks documentation.
 
-**DataLayer**: Routes MUST use `app/data_layer.py`, never import `app/sheets.py` directly. Wrong data returned = bypassed DataLayer.
-
-**Common bugs**: Frontend using Column A instead of B for API calls. Deleting entire chord chart record instead of removing one ItemID from comma-separated list.
+**Quick reference**:
+- Column A = DB primary key, Column B = ItemID (frontend uses B)
+- Chord charts use comma-separated ItemIDs
+- DataLayer: Routes MUST use `app/data_layer.py`, never import `app/sheets.py` directly
 
 ### File Path Handling
 - WSL-friendly path mapping for Windows folders (see `app/routes.py`)
@@ -585,11 +510,7 @@ If React changes don't take effect (old functionality persists), Vite's watcher 
 IMPORTANT:
 - No need to run npm to update after changes, the server is running and we have watchers in place to make updates for us as needed while we're developing.
 
-- **Git & Deploy Preferences**: Steven prefers to handle git commits, pushes, and production deploys himself. However, it's fine to ask permission first when it's more efficient for Claude to do it. If given permission, the full deploy workflow is:
-  1. `git add .` (or specific files)
-  2. `git commit -m "message"`
-  3. `git push`
-  4. `ssh -i ~/.ssh/gpra-web.pem ubuntu@208.113.200.79 "cd /var/www/gpra-web && git stash && git pull && sudo systemctl restart gpra-web && sudo systemctl status gpra-web"`
+- **Git & Deploy Preferences**: Steven prefers to handle git commits, pushes, and production deploys himself. Ask permission first. See `dreamhost-dreamcompute` skill for full workflow if permission granted.
 
 - We do not consider an item done, and we do not mark an item complete on a todo list, until it has been tested in the web GUI and confirmed to be working.
 
