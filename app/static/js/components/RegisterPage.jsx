@@ -20,6 +20,7 @@ const RegisterPage = () => {
   const [recaptchaToken, setRecaptchaToken] = useState(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [recaptchaWidgetId, setRecaptchaWidgetId] = useState(null);
+  const [recaptchaReady, setRecaptchaReady] = useState(false);
   const recaptchaRef = useRef(null);
 
   // Password requirements validation
@@ -53,7 +54,7 @@ const RegisterPage = () => {
 
   // Render checkbox widget when script loads and container is ready
   useEffect(() => {
-    if (window.grecaptcha?.enterprise && recaptchaRef.current && recaptchaWidgetId === null) {
+    if (recaptchaReady && window.grecaptcha?.enterprise && recaptchaRef.current && recaptchaWidgetId === null) {
       try {
         const widgetId = window.grecaptcha.enterprise.render(recaptchaRef.current, {
           sitekey: RECAPTCHA_SITE_KEY,
@@ -68,17 +69,24 @@ const RegisterPage = () => {
         console.log('reCAPTCHA widget already rendered');
       }
     }
-  });
+  }, [recaptchaReady, recaptchaWidgetId]);
 
   // Load reCAPTCHA Enterprise script with explicit render
   const loadRecaptchaScript = () => {
     if (window.grecaptcha?.enterprise) {
+      setRecaptchaReady(true);
+      return Promise.resolve();
+    }
+
+    // Check if script is already being loaded
+    if (document.querySelector('script[src*="recaptcha/enterprise.js"]')) {
       return Promise.resolve();
     }
 
     return new Promise((resolve) => {
       // Set up callback for when grecaptcha is ready
       window.onRecaptchaLoad = () => {
+        setRecaptchaReady(true);
         resolve();
       };
 

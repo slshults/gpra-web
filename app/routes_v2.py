@@ -994,7 +994,9 @@ def api_login():
                     }
                 }
 
-                verify_response = http_requests.post(verify_url, json=payload, timeout=10)
+                # Include Referer header to satisfy GCP API key restrictions
+                headers = {'Referer': request.url_root}
+                verify_response = http_requests.post(verify_url, json=payload, headers=headers, timeout=10)
                 recaptcha_data = verify_response.json()
 
                 token_valid = recaptcha_data.get('tokenProperties', {}).get('valid', False)
@@ -1095,9 +1097,14 @@ def api_register():
             }
         }
 
+        # Include Referer header to satisfy GCP API key restrictions
+        referer_value = request.url_root
+        app.logger.info(f"reCAPTCHA verification using Referer: {referer_value}")
+        headers = {'Referer': referer_value}
         verify_response = requests.post(
             verify_url,
             json=verify_payload,
+            headers=headers,
             timeout=10
         )
 
