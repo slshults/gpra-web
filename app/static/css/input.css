@@ -275,3 +275,13 @@ body.light-mode {
 .theme-toggle:hover {
   opacity: 1;
 }
+
+/* Half-size reCAPTCHA badge - Google allows hiding when text attribution is present,
+   but we'll show it small instead. Scale to 50% anchored to bottom-right. */
+.grecaptcha-badge {
+  transform: scale(0.5) !important;
+  transform-origin: right bottom !important;
+  right: 0 !important;
+  bottom: 14px !important;
+  visibility: visible !important;
+}

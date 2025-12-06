@@ -1,5 +1,20 @@
 {% extends "base.html.jinja" %}
 
+{% block extra_css %}
+<!-- Load CookieConsent.css which includes grecaptcha-badge hiding rule -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+<!-- Position theme toggle for auth pages (lower-left) -->
+<style>
+  .theme-toggle {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    margin-top: 0;
+    z-index: 1000;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div id="auth-root" data-page="{{ page }}"></div>
 {% endblock %}
