@@ -230,6 +230,10 @@ class Subscription(Base):
     last_pause_action = Column(DateTime(timezone=True), nullable=True)  # Last pause/unpause timestamp
     last_deletion_action = Column(DateTime(timezone=True), nullable=True)  # Last schedule/cancel deletion timestamp
 
+    # Complimentary account tracking
+    is_complimentary = Column(Boolean, default=False, nullable=False)  # True for free-forever accounts (beta testers, friends, contributors)
+    complimentary_reason = Column(String(255), nullable=True)  # Reason for complimentary access (e.g., "Beta tester", "Friend", "Contributor")
+
     __table_args__ = (
         Index('idx_subscriptions_user_id', 'user_id'),
         Index('idx_subscriptions_status', 'status'),

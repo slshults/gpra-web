@@ -4,8 +4,16 @@ let lastConnectionAttempt = 0;
 let connectionCheckInterval = null;
 const CONNECTION_CHECK_DELAY = 30000; // 30 seconds between reconnection attempts
 
+// Check if we're in debug/dev mode (set by Flask in base.html.jinja)
+const isDebugMode = () => typeof window !== 'undefined' && window.GPRA_DEBUG === true;
+
 // Frontend logging utility that sends logs to backend
 export const serverLog = async (message, level = 'DEBUG', context = {}) => {
+  // Only send logs to server in debug mode
+  if (!isDebugMode()) {
+    return;
+  }
+
   // Skip sending to server if we know it's down and haven't waited long enough
   if (isServerDown && Date.now() - lastConnectionAttempt < CONNECTION_CHECK_DELAY) {
     return;

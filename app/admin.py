@@ -112,6 +112,12 @@ def init_admin(app: Flask, db_session):
         # Exclude 'username' from sortable columns (it's a @property, not a DB column)
         order_columns = ['id', 'item_id', 'title', 'duration', 'tuning', 'user_id', 'created_at']
 
+        # Use column_formatters for display-only properties instead of model @property
+        # This prevents FAB from trying to populate these fields during edit operations
+        column_formatters = {
+            'username': lambda view, context, model, name: model.username
+        }
+
     class RoutineModelView(BaseModelView):
         datamodel = SQLAInterface(Routine)
         route_base = '/admin/routines'
@@ -124,6 +130,12 @@ def init_admin(app: Flask, db_session):
         }
         # Exclude 'username' from sortable columns (it's a @property, not a DB column)
         order_columns = ['id', 'name', 'user_id', 'created_at', 'order']
+
+        # Use column_formatters for display-only properties instead of model @property
+        # This prevents FAB from trying to populate these fields during edit operations
+        column_formatters = {
+            'username': lambda view, context, model, name: model.username
+        }
 
     class RoutineItemModelView(BaseModelView):
         datamodel = SQLAInterface(RoutineItem)
@@ -145,6 +157,13 @@ def init_admin(app: Flask, db_session):
         # Exclude 'username' and 'section_label' from sortable columns (they're @property, not DB columns)
         order_columns = ['chord_id', 'item_id', 'title', 'user_id', 'created_at']
 
+        # Use column_formatters for display-only properties instead of model @property
+        # This prevents FAB from trying to populate these fields during edit operations
+        column_formatters = {
+            'username': lambda view, context, model, name: model.username,
+            'section_label': lambda view, context, model, name: model.section_label
+        }
+
     class CommonChordModelView(BaseModelView):
         datamodel = SQLAInterface(CommonChord)
         route_base = '/admin/commonchords'
@@ -164,19 +183,42 @@ def init_admin(app: Flask, db_session):
     class SubscriptionModelView(BaseModelView):
         datamodel = SQLAInterface(Subscription)
         route_base = '/admin/subscriptions'
-        list_columns = ['id', 'user_id', 'username', 'email', 'tier', 'status', 'mrr', 'created_at']
+        list_columns = ['id', 'user_id', 'username', 'email', 'tier', 'status', 'is_complimentary', 'mrr', 'created_at']
         show_columns = ['id', 'user_id', 'username', 'email', 'stripe_subscription_id', 'stripe_price_id',
-                       'tier', 'status', 'mrr', 'current_period_start',
+                       'tier', 'status', 'is_complimentary', 'complimentary_reason', 'mrr', 'current_period_start',
                        'current_period_end', 'cancel_at_period_end',
                        'created_at', 'updated_at']
-        search_columns = ['tier', 'status']
+        # Note: stripe_subscription_id and stripe_price_id removed - they have UNIQUE constraints
+        # and FAB sends empty strings which violate uniqueness. These are managed by Stripe webhooks anyway.
+        edit_columns = ['tier', 'status', 'is_complimentary', 'complimentary_reason',
+                       'mrr', 'current_period_start', 'current_period_end', 'cancel_at_period_end']
+        add_columns = ['user_id', 'tier', 'status', 'is_complimentary', 'complimentary_reason']
+        search_columns = ['tier', 'status', 'is_complimentary']
         label_columns = {
             'username': 'Username',
-            'email': 'Email'
+            'email': 'Email',
+            'is_complimentary': 'Complimentary Account',
+            'complimentary_reason': 'Complimentary Reason'
         }
         base_order = ('id', 'desc')
         # Exclude 'username' and 'email' from sortable columns (they're @property, not DB columns)
-        order_columns = ['id', 'user_id', 'tier', 'status', 'mrr', 'created_at']
+        order_columns = ['id', 'user_id', 'tier', 'status', 'is_complimentary', 'mrr', 'created_at']
+
+        # Use column_formatters for display-only properties instead of model @property
+        # This prevents FAB from trying to populate these fields during edit operations
+        column_formatters = {
+            'username': lambda view, context, model, name: model.username,
+            'email': lambda view, context, model, name: model.email
+        }
+
+        def pre_update(self, item):
+            """Hook called BEFORE updating a subscription - log what's about to be updated"""
+            logger.info(f"SubscriptionModelView.pre_update() - About to update subscription id={item.id}, user_id={item.user_id}")
+            logger.info(f"  Changes: is_complimentary={item.is_complimentary}, reason={item.complimentary_reason}")
+
+        def post_update(self, item):
+            """Hook called AFTER updating - confirm success"""
+            logger.info(f"SubscriptionModelView.post_update() - Successfully updated subscription id={item.id}")
 
     # Register views with AppBuilder
     appbuilder.add_view(

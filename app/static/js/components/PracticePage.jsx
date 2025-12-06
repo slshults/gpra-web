@@ -460,11 +460,6 @@ export const PracticePage = () => {
   const [showSoundPromptModal, setShowSoundPromptModal] = useState(false);
   const [pendingTimerItemId, setPendingTimerItemId] = useState(null);
 
-  // Notification state - use ref for immediate updates
-  const notifyOnCompleteRef = useRef({});
-  const [notificationConfirmMessage, setNotificationConfirmMessage] = useState(null);
-  const [originalTitle, setOriginalTitle] = useState(null);
-
   // Rotating processing messages for entertainment
   const processingMessages = [
     "✨ Claude is making magic happen",
@@ -504,82 +499,6 @@ export const PracticePage = () => {
     "I promise this is the most interesting thing happening on your screen right now. Probably.",
     "Currently debating whether that's a Cadd9 or just someone's finger slipped on the photo"
   ];
-
-  // Request notification permission and set up completion notification
-  const handleNotifyRequest = async (itemId) => {
-    console.log('[NOTIFY] Notification button clicked for itemId:', itemId);
-
-    // Always enable title notification - use ref for immediate updates
-    notifyOnCompleteRef.current[itemId] = true;
-    setNotificationConfirmMessage(itemId);
-    console.log('[NOTIFY] Notification enabled for itemId:', itemId);
-    console.log('[NOTIFY] Current ref state:', notifyOnCompleteRef.current);
-
-    // Clear the confirmation message after 10 seconds
-    setTimeout(() => {
-      setNotificationConfirmMessage(null);
-    }, 10000);
-
-    // Also request browser notification permission if supported
-    if ('Notification' in window && Notification.permission === 'default') {
-      try {
-        console.log('[NOTIFY] Requesting browser notification permission...');
-        await Notification.requestPermission();
-      } catch (error) {
-        console.error('[NOTIFY] Error requesting notification permission:', error);
-      }
-    }
-  };
-
-  // Send notification when charts are ready (browser notification + title flash)
-  const sendCompletionNotification = (itemName) => {
-    console.log('[NOTIFY] Attempting to send notification for:', itemName);
-
-    // Change page title to notify user
-    if (!originalTitle) {
-      setOriginalTitle(document.title);
-    }
-    document.title = '🎸 Chord charts ready!';
-    console.log('[NOTIFY] Changed title to: Chord charts ready!');
-
-    // Also try browser notification if supported
-    if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        console.log('[NOTIFY] Creating browser notification...');
-        new Notification('Chord charts ready! 🎸', {
-          body: `Your chord charts for "${itemName}" are finally ready!`,
-          icon: '/static/favicon.ico',
-          tag: 'chord-charts-ready'
-        });
-        console.log('[NOTIFY] Browser notification created successfully');
-      } catch (error) {
-        console.error('[NOTIFY] Error sending browser notification:', error);
-      }
-    }
-  };
-
-  // Restore original title on any user interaction
-  const restoreTitle = useCallback(() => {
-    if (originalTitle) {
-      document.title = originalTitle;
-      setOriginalTitle(null);
-      console.log('[NOTIFY] Restored original title');
-    }
-  }, [originalTitle]);
-
-  // Add click listener to restore title on any user interaction
-  useEffect(() => {
-    if (originalTitle) {
-      const handleClick = () => restoreTitle();
-      document.addEventListener('click', handleClick);
-      document.addEventListener('keydown', handleClick);
-
-      return () => {
-        document.removeEventListener('click', handleClick);
-        document.removeEventListener('keydown', handleClick);
-      };
-    }
-  }, [originalTitle, restoreTitle]);
 
   // Helper function to group chords into sections based on persisted metadata
   const getChordSections = (itemId) => {
@@ -3211,16 +3130,6 @@ export const PracticePage = () => {
         const itemDetails = getItemDetails(itemId);
         const itemName = itemDetails?.['C'] || `Item ${itemId}`;
 
-        // Send notification if user requested it
-        console.log('[NOTIFY] Checking notification request for itemId:', itemId);
-        console.log('[NOTIFY] notifyOnComplete ref:', notifyOnCompleteRef.current);
-        if (notifyOnCompleteRef.current[itemId]) {
-          console.log('[NOTIFY] User requested notification, sending...');
-          sendCompletionNotification(itemName);
-        } else {
-          console.log('[NOTIFY] No notification requested for this item');
-        }
-
         // Track autocreate chord charts success
         const routineItem = routine.items.find(item => item['B'] === itemId);
         if (routineItem) {
@@ -3380,16 +3289,6 @@ export const PracticePage = () => {
       // Get item details once for reuse
       const itemDetails = getItemDetails(itemId);
       const itemName = itemDetails?.['C'] || `Item ${itemId}`;
-
-      // Send notification if user requested it
-      console.log('[NOTIFY] Checking notification request for itemId (direct flow):', itemId);
-      console.log('[NOTIFY] notifyOnComplete ref (direct flow):', notifyOnCompleteRef.current);
-      if (notifyOnCompleteRef.current[itemId]) {
-        console.log('[NOTIFY] User requested notification (direct flow), sending...');
-        sendCompletionNotification(itemName);
-      } else {
-        console.log('[NOTIFY] No notification requested for this item (direct flow)');
-      }
 
       // Track autocreate chord charts success (direct upload flow)
       const routineItem = routine.items.find(item => item['B'] === itemId);
@@ -3635,20 +3534,6 @@ export const PracticePage = () => {
                 </div>
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-400"
-                      onClick={(e) => toggleTimer(routineItem['A'], e)}
-                      title={activeTimers.has(routineItem['A']) ? "Pause timer" : "Start timer"}
-                    >
-                      {activeTimers.has(routineItem['A']) ? (
-                        <PauseIcon className="h-5 w-5" />
-                      ) : (
-                        <PlayIcon className="h-5 w-5" />
-                      )}
-                    </Button>
-
                     <Button
                       variant="ghost"
                       size="sm"
@@ -4012,12 +3897,20 @@ export const PracticePage = () => {
                                                   </div>
                                                 </div>
 
-                                                {/* Column 2: YouTube URL */}
+                                                {/* Column 2: YouTube URL - wrapped in form for Enter key support */}
                                                 <div className="flex flex-col">
                                                   <div className="text-center mb-2">
                                                     <p className="text-gray-400 text-sm font-medium">YouTube guitar lesson</p>
                                                   </div>
-                                                  <div className="flex-1 flex flex-col justify-center">
+                                                  <form
+                                                    className="flex-1 flex flex-col justify-center"
+                                                    onSubmit={(e) => {
+                                                      e.preventDefault();
+                                                      if (youtubeUrls[itemReferenceId]?.trim()) {
+                                                        handleProcessFiles(itemReferenceId);
+                                                      }
+                                                    }}
+                                                  >
                                                     <input
                                                       type="url"
                                                       placeholder="YouTube guitar lesson URL (transcript required)"
@@ -4032,7 +3925,7 @@ export const PracticePage = () => {
                                                       maxLength={500}
                                                       className="w-full p-3 bg-gray-700 text-white rounded border-2 border-gray-600 focus:border-gray-500 text-sm"
                                                     />
-                                                  </div>
+                                                  </form>
                                                 </div>
 
                                                 {/* Column 3: Manual Chord Input */}
@@ -4172,33 +4065,15 @@ export const PracticePage = () => {
                                               )}
                                               {progress === 'processing' && (
                                                 <div className="space-y-3" role="status" aria-live="polite">
-                                                  {notificationConfirmMessage === itemReferenceId ? (
-                                                    <div className="text-center space-y-3">
-                                                      <div className="text-green-400 text-sm">
-                                                        ✅ Got it, you can go do stuff in other tabs, we'll notify you when the charts are ready
-                                                      </div>
+                                                  <div className="flex items-center justify-center space-x-2">
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500" aria-hidden="true"></div>
+                                                    <div className="flex items-center">
+                                                      <span className="text-white">{processingMessages[processingMessageIndex]}</span>
+                                                      <div className="ml-2 animate-spin" aria-hidden="true">⚙️</div>
                                                     </div>
-                                                  ) : (
-                                                    <div className="flex items-center justify-center space-x-2">
-                                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500" aria-hidden="true"></div>
-                                                      <div className="flex items-center">
-                                                        <span className="text-white">{processingMessages[processingMessageIndex]}</span>
-                                                        <div className="ml-2 animate-spin" aria-hidden="true">⚙️</div>
-                                                      </div>
-                                                    </div>
-                                                  )}
+                                                  </div>
                                                   <br />
-                                                  <div className="flex gap-2 justify-center">
-                                                    {!notifyOnCompleteRef.current[itemReferenceId] && !notificationConfirmMessage && (
-                                                      <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleNotifyRequest(itemReferenceId)}
-                                                        className="text-blue-400 hover:text-blue-300 border-blue-600"
-                                                      >
-                                                        🔔 Notify me when ready
-                                                      </Button>
-                                                    )}
+                                                  <div className="flex justify-center">
                                                     <Button
                                                       variant="outline"
                                                       size="sm"

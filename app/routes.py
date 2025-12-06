@@ -35,7 +35,7 @@ logging.basicConfig(level=logging.DEBUG)
 @app.route('/')
 def index():
     posthog_key = os.getenv('POSTHOG_API_KEY', '')
-    return render_template('index.html.jinja', posthog_key=posthog_key)
+    return render_template('index.html.jinja', posthog_key=posthog_key, debug=app.debug)
 
 # Item routes
 @app.route('/api/items', methods=['GET', 'POST'])
@@ -1720,7 +1720,7 @@ You are analyzing {len(reference_files)} reference chord diagram files.
         # Use Sonnet 4.5 for visual analysis
         llm_start_time = time.time()
         response = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-opus-4-5-20251101",
             max_tokens=4000,
             messages=[{
                 "role": "user",
@@ -1731,7 +1731,7 @@ You are analyzing {len(reference_files)} reference chord diagram files.
 
         # Track LLM generation with PostHog Analytics
         llm_analytics.track_generation(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-opus-4-5-20251101",
             input_messages=[{"role": "user", "content": "Visual chord diagram analysis"}],
             output_choices=[{"message": {"content": response.content[0].text}}],
             usage={
@@ -1844,7 +1844,7 @@ Analyze the files below:"""
 
         # Use Sonnet 4 for file type detection
         response = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-opus-4-5-20251101",
             max_tokens=3000,
             messages=[{
                 "role": "user",
@@ -2120,7 +2120,7 @@ Thanks so much for being thorough with this, you rock Claude! 🤘🎸🚀"""
         app.logger.info("Using Sonnet 4.5 for chord chart visual analysis")
         llm_start_time = time.time()
         response = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-opus-4-5-20251101",
             max_tokens=6000,
             messages=[{
                 "role": "user",
@@ -2133,7 +2133,7 @@ Thanks so much for being thorough with this, you rock Claude! 🤘🎸🚀"""
 
         # Track LLM generation with PostHog Analytics
         llm_analytics.track_generation(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-opus-4-5-20251101",
             input_messages=[{"role": "user", "content": "Chord chart processing and analysis"}],
             output_choices=[{"message": {"content": response_text}}],
             usage={
@@ -2267,9 +2267,9 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
         app.logger.info(f"[AUTOCREATE] Message content types: {[item.get('type', 'unknown') for item in message_content]}")
         
         try:
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-sonnet-4-5-20250929")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-5-20251101")
             response = client.messages.create(
-                model="claude-sonnet-4-5-20250929",
+                model="claude-opus-4-5-20251101",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
                 temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
