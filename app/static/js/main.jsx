@@ -9,6 +9,7 @@ import NavMenu from '@components/NavMenu';
 import RoutinesPage from '@components/RoutinesPage';
 import ImportsPage from '@components/ImportsPage';
 import AccountSettings from '@components/AccountSettings';
+import FAQPage from '@components/FAQPage';
 import GuidedTour from '@components/GuidedTour';
 import LapsedSubscriptionModal from '@components/LapsedSubscriptionModal';
 import UnpluggedAccessModal from '@components/UnpluggedAccessModal';
@@ -35,6 +36,8 @@ const PageContent = () => {
       return <ImportsPage />;
     case 'Account':
       return <AccountSettings />;
+    case 'FAQ':
+      return <FAQPage />;
     default:
       return <div>Page not implemented yet</div>;
   }
@@ -140,6 +143,13 @@ const App = () => {
       <footer className="bg-gray-800 border-t border-gray-700 mt-8 py-6">
         <div className="container mx-auto px-4 text-center text-sm text-gray-400">
           <div className="space-x-4">
+            <button
+              onClick={() => setActivePage('FAQ')}
+              className="hover:text-orange-400 transition-colors"
+            >
+              FAQ
+            </button>
+            <span>·</span>
             <a href="/privacy" className="hover:text-orange-400 transition-colors">
               Privacy
             </a>

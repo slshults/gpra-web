@@ -419,6 +419,11 @@ The `gpr.sh` script runs:
 - **Session management**: Flask-AppBuilder security manager, `session.clear()` on logout for proper OAuth state cleanup
 - **Row-Level Security (RLS)**: Middleware filters all queries by user_id
 - **Active Routine Persistence**: Stored in `subscriptions.last_active_routine_id` (per-user), not in shared `active_routine` table
+- **Auth page CSS**: Custom CSS for login/register pages goes in `input.css`, compiles to `CookieConsent.css`, loaded via `auth.html.jinja` `extra_css` block
+
+### FAB Admin Gotchas
+- **Unique constraints + empty strings**: FAB sends empty strings `''` for blank form fields. If a column has a UNIQUE constraint (like `stripe_subscription_id`), multiple records with empty values will violate uniqueness. **Solution**: Remove such columns from `edit_columns` in admin.py.
+- **@property columns**: Don't include model `@property` methods in `edit_columns`. Use `column_formatters` for display-only computed values in list/show views.
 
 ### API Endpoints
 
