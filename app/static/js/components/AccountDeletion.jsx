@@ -280,7 +280,7 @@ const AccountDeletion = ({ userTier, unpluggedMode }) => {
                 onClick={handlePauseSubscription}
                 disabled={loading}
                 variant="outline"
-                className={`w-full h-auto py-4 flex flex-col items-center gap-1 ${
+                className={`w-full h-auto py-5 px-4 flex flex-col items-center gap-2 ${
                   isUnplugged
                     ? 'border-green-600 text-green-400 hover:bg-green-900/40'
                     : 'border-orange-600 text-orange-400 hover:bg-orange-900/40'
@@ -293,8 +293,8 @@ const AccountDeletion = ({ userTier, unpluggedMode }) => {
                 ) : (
                   <>
                     <span className="font-semibold">Pause subscription when it expires</span>
-                    <span className="text-xs font-normal leading-tight">
-                      Keep using your most current active routine for free when the current paid subscription ends. We'll save all your other stuff in our database for another 90 days if you renew before then.
+                    <span className="text-xs font-normal leading-normal text-center whitespace-normal max-w-full">
+                      Keep using your most recently active routine for free when your paid subscription ends. <br/> We'll save your other routines for 90 days in case you renew.
                     </span>
                   </>
                 )}

@@ -61,7 +61,8 @@ def index():
     return render_template('index.html.jinja',
                          posthog_key=posthog_key,
                          ads_enabled=ads_enabled,
-                         adsense_publisher_id=adsense_publisher_id)
+                         adsense_publisher_id=adsense_publisher_id,
+                         debug=app.debug)
 
 # Custom auth page routes (serve React pages)
 @app.route('/login')
@@ -122,15 +123,16 @@ def items():
         try:
             # Get user's subscription tier
             subscription = db.execute(text("""
-                SELECT tier FROM subscriptions WHERE user_id = :user_id
+                SELECT tier, is_complimentary FROM subscriptions WHERE user_id = :user_id
             """), {'user_id': current_user.id}).fetchone()
 
             # Default to 'free' tier if no subscription
             tier = subscription[0] if subscription else 'free'
+            is_complimentary = subscription[1] if subscription else False
             app.logger.info(f"User {current_user.id} has subscription tier: {tier}")
 
             # Get tier limits
-            tier_config = get_tier_limits(tier)
+            tier_config = get_tier_limits(tier, is_complimentary)
             items_limit = tier_config['items_limit']
 
             # Count existing items for this user
@@ -486,7 +488,7 @@ def _get_autocreate_api_key():
         db = SessionLocal()
         try:
             result = db.execute(text("""
-                SELECT s.tier
+                SELECT s.tier, s.is_complimentary
                 FROM subscriptions s
                 WHERE s.user_id = :user_id
                 AND s.status = 'active'
@@ -494,7 +496,8 @@ def _get_autocreate_api_key():
 
             if result:
                 tier = result[0]
-                if is_feature_enabled(tier, 'autocreate'):
+                is_complimentary = result[1] if result else False
+                if is_feature_enabled(tier, 'autocreate', is_complimentary):
                     # Tier includes autocreate, use system key
                     system_key = os.getenv('ANTHROPIC_API_KEY')
                     if system_key:
@@ -1099,7 +1102,8 @@ def api_register():
 
         # Include Referer header to satisfy GCP API key restrictions
         referer_value = request.url_root
-        app.logger.info(f"reCAPTCHA verification using Referer: {referer_value}")
+        if app.debug:
+            app.logger.info(f"reCAPTCHA verification using Referer: {referer_value}")
         headers = {'Referer': referer_value}
         verify_response = requests.post(
             verify_url,
@@ -2302,15 +2306,16 @@ def routines():
             try:
                 # Get user's subscription tier
                 subscription = db.execute(text("""
-                    SELECT tier FROM subscriptions WHERE user_id = :user_id
+                    SELECT tier, is_complimentary FROM subscriptions WHERE user_id = :user_id
                 """), {'user_id': current_user.id}).fetchone()
 
                 # Default to 'free' tier if no subscription
                 tier = subscription[0] if subscription else 'free'
+                is_complimentary = subscription[1] if subscription else False
                 app.logger.info(f"User {current_user.id} has subscription tier: {tier}")
 
                 # Get tier limits
-                tier_config = get_tier_limits(tier)
+                tier_config = get_tier_limits(tier, is_complimentary)
                 routines_limit = tier_config['routines_limit']
 
                 # Count existing routines for this user
@@ -2954,7 +2959,7 @@ Analyze the files below:"""
         # Use Sonnet 4 for file type detection
         llm_start_time = time.time()
         response = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-opus-4-5-20251101",
             max_tokens=3000,
             messages=[{
                 "role": "user",
@@ -2966,7 +2971,7 @@ Analyze the files below:"""
         # Track LLM Analytics for file type detection
         from app.utils.llm_analytics import llm_analytics
         llm_analytics.track_generation(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-opus-4-5-20251101",
             input_messages=[{"role": "user", "content": "File type detection for guitar content"}],
             output_choices=[{"message": {"content": response.content[0].text}}],
             usage={
@@ -3168,7 +3173,7 @@ If you can't determine sections, use "Main" as the section name.""",
         llm_start_time = time.time()
         try:
             response = client.messages.create(
-                model="claude-sonnet-4-5-20250929",
+                model="claude-opus-4-5-20251101",
                 max_tokens=8000,
                 messages=[{
                     "role": "user",
@@ -3201,7 +3206,7 @@ If you can't determine sections, use "Main" as the section name.""",
 
             # Track the LLM generation with PostHog LLM Analytics
             generation_id = track_llm_generation(
-                model="claude-sonnet-4-5-20250929",
+                model="claude-opus-4-5-20251101",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from uploaded guitar files"  # Simplified for privacy
@@ -3230,7 +3235,7 @@ If you can't determine sections, use "Main" as the section name.""",
 
             # Track failed generation
             generation_id = track_llm_generation(
-                model="claude-sonnet-4-5-20250929",
+                model="claude-opus-4-5-20251101",
                 input_messages=[{"role": "user", "content": "Extract chord names from uploaded guitar files"}],
                 output_choices=[],
                 latency_seconds=llm_latency / 1000,  # Will be converted back to ms in track_llm_generation
@@ -3647,7 +3652,7 @@ Thanks so much for being thorough with this, you rock Claude! 🤘🎸🚀"""
         app.logger.info("Using Sonnet 4.5 for chord chart visual analysis")
         llm_start_time = time.time()
         response = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-opus-4-5-20251101",
             max_tokens=6000,
             messages=[{
                 "role": "user",
@@ -3661,7 +3666,7 @@ Thanks so much for being thorough with this, you rock Claude! 🤘🎸🚀"""
         # Track LLM generation with PostHog Analytics
         from app.utils.llm_analytics import llm_analytics
         llm_analytics.track_generation(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-opus-4-5-20251101",
             input_messages=[{"role": "user", "content": "Chord chart processing and analysis"}],
             output_choices=[{"message": {"content": response_text}}],
             usage={
@@ -3965,9 +3970,9 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
         app.logger.info(f"[AUTOCREATE] Message content types: {[item.get('type', 'unknown') for item in message_content]}")
 
         try:
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-sonnet-4-5-20250929")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-5-20251101")
             response = client.messages.create(
-                model="claude-sonnet-4-5-20250929",
+                model="claude-opus-4-5-20251101",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
                 temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
@@ -4208,9 +4213,9 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
         app.logger.info(f"[AUTOCREATE] Message content types: {[item.get('type', 'unknown') for item in message_content]}")
 
         try:
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-sonnet-4-5-20250929")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-5-20251101")
             response = client.messages.create(
-                model="claude-sonnet-4-5-20250929",
+                model="claude-opus-4-5-20251101",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
                 temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
@@ -4686,7 +4691,7 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
 **Important:** Be conservative - if you see clear gibberish artifacts, mark as CORRUPTED even if some parts look good."""
 
         response = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-opus-4-5-20251101",
             max_tokens=100,  # Short response needed
             temperature=0.1,
             messages=[{"role": "user", "content": assessment_prompt}]

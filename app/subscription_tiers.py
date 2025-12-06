@@ -56,13 +56,52 @@ SUBSCRIPTION_TIERS = {
         'stripe_price_id_monthly': 'price_1SOC5WJTZIlESiBEsfcyxKWa',
         'stripe_price_id_yearly': 'price_1SOC5fJTZIlESiBEvaMXyyXP',
     },
+    'complimentary': {
+        'name': 'complimentary',
+        'display_name': 'Complimentary',
+        'items_limit': 999999,  # Effectively unlimited
+        'routines_limit': 999999,  # Effectively unlimited
+        'autocreate_enabled': True,
+        'price_monthly': 0,
+        'price_yearly': 0,
+        'stripe_price_id_monthly': None,
+        'stripe_price_id_yearly': None,
+    },
 }
 
-def get_tier_limits(tier: str) -> dict:
-    """Get limits for a subscription tier"""
+def get_tier_limits(tier: str = None, is_complimentary: bool = False) -> dict:
+    """Get limits for a subscription tier
+
+    Args:
+        tier: Subscription tier name (e.g., 'free', 'basic', 'thegoods')
+        is_complimentary: Whether this is a complimentary account (overrides tier limits)
+
+    Returns:
+        Dictionary with tier configuration including limits and features
+    """
+    # Complimentary accounts get unlimited access
+    if is_complimentary:
+        return SUBSCRIPTION_TIERS['complimentary']
+
+    # Default to free tier if no tier specified
+    if tier is None:
+        tier = 'free'
+
     return SUBSCRIPTION_TIERS.get(tier, SUBSCRIPTION_TIERS['free'])
 
-def is_feature_enabled(tier: str, feature: str) -> bool:
-    """Check if a feature is enabled for a tier"""
-    tier_config = get_tier_limits(tier)
+def is_feature_enabled(tier: str = None, feature: str = None, is_complimentary: bool = False) -> bool:
+    """Check if a feature is enabled for a tier
+
+    Args:
+        tier: Subscription tier name
+        feature: Feature name to check (e.g., 'autocreate')
+        is_complimentary: Whether this is a complimentary account
+
+    Returns:
+        True if feature is enabled, False otherwise
+    """
+    if feature is None:
+        return False
+
+    tier_config = get_tier_limits(tier, is_complimentary)
     return tier_config.get(f'{feature}_enabled', False)

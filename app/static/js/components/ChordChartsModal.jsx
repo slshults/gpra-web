@@ -340,6 +340,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   const [scrollBackContext, setScrollBackContext] = useState({});
   const [deletingSection, setDeletingSection] = useState(new Set());
 
+
   // Copy modal state (copied from PracticePage)
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [copySourceItemId, setCopySourceItemId] = useState(null);
@@ -460,6 +461,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
     return () => clearInterval(interval);
   }, [autocreateProgress, processingMessages]);
+
 
   // Copy modal: Detect items with existing charts when selection changes (copied from PracticePage)
   useEffect(() => {
@@ -2027,12 +2029,20 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                                     </div>
                                   </div>
 
-                                  {/* Column 2: YouTube URL */}
+                                  {/* Column 2: YouTube URL - wrapped in form for Enter key support */}
                                   <div className="flex flex-col">
                                     <div className="text-center mb-2">
                                       <p className="text-gray-400 text-sm font-medium">YouTube guitar lesson</p>
                                     </div>
-                                    <div className="flex-1 flex flex-col justify-center">
+                                    <form
+                                      className="flex-1 flex flex-col justify-center"
+                                      onSubmit={(e) => {
+                                        e.preventDefault();
+                                        if (youtubeUrls[itemReferenceId]?.trim()) {
+                                          handleProcessFiles(itemReferenceId);
+                                        }
+                                      }}
+                                    >
                                       <input
                                         type="url"
                                         placeholder="YouTube guitar lesson URL (transcript required)"
@@ -2047,7 +2057,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                                         maxLength={500}
                                         className="w-full p-3 bg-gray-700 text-white rounded border-2 border-gray-600 focus:border-gray-500 text-sm"
                                       />
-                                    </div>
+                                    </form>
                                   </div>
 
                                   {/* Column 3: Manual Chord Input */}

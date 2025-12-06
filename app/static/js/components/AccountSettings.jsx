@@ -601,7 +601,7 @@ const AccountSettings = () => {
                   <h3 className="text-sm font-semibold text-blue-300 mb-2">About API keys</h3>
                   <ul className="text-sm text-gray-300 space-y-1 list-disc list-inside">
                     <li><strong>Free/Basic tiers:</strong> Provide your own key to unlock autocreate</li>
-                    <li><strong>The Goods+ tiers:</strong> Autocreate included! Optionally use your own key to save costs</li>
+                    <li><strong>The Goods+ tiers:</strong> Autocreate included! Optionally use your own key to use your own rate limits</li>
                     <li>Your key is encrypted and stored securely</li>
                     <li>
                       Get your API key from{' '}
