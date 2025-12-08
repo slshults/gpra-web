@@ -210,6 +210,15 @@ body.light-mode {
   border-color: #d1d5db !important;
 }
 
+.light-mode .border-gray-700 {
+  border-color: #e5e7eb !important;
+}
+
+/* Preserve orange accent text in light mode */
+.light-mode .text-orange-400 {
+  color: #f97316 !important;
+}
+
 .light-mode h1,
 .light-mode h2,
 .light-mode h3,

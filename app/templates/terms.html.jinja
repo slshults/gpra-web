@@ -1,14 +1,54 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terms of Service - Guitar Practice Routine App</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+    <script>
+        // Apply theme immediately to prevent flash (light-mode system)
+        (function() {
+            if (localStorage.getItem('lightMode') === 'true') {
+                document.body.classList.add('light-mode');
+            }
+        })();
+    </script>
+    <style>
+        /* Theme toggle positioning */
+        .theme-toggle {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        .theme-toggle:hover {
+            opacity: 1;
+        }
+    </style>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900">
+<body class="bg-gray-900">
+    <!-- App Title Banner -->
+    <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <a href="/" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                <span class="text-3xl">🎸</span>
+                <span class="text-xl font-semibold text-white">Guitar Practice Routine App</span>
+            </a>
+            <nav class="flex gap-4 text-sm">
+                <a href="/faq" class="text-gray-400 hover:text-white transition-colors">FAQ</a>
+                <a href="/terms" class="text-orange-400 font-medium">Terms</a>
+                <a href="/privacy" class="text-gray-400 hover:text-white transition-colors">Privacy</a>
+                <a href="#" class="text-gray-400 hover:text-white transition-colors" title="Coming soon">Feedback</a>
+            </nav>
+        </div>
+    </header>
+
     <div class="max-w-4xl mx-auto px-4 py-8">
-        <!-- Header -->
+        <!-- Page Header -->
         <div class="mb-8">
             <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">Terms of Service</h1>
             <p class="text-sm text-gray-600 dark:text-gray-400">Last Updated: November 18, 2025</p>
@@ -277,11 +317,27 @@
         <!-- Footer Links -->
         <div class="text-center text-sm text-gray-600 dark:text-gray-400 py-4 border-t border-gray-200 dark:border-gray-700">
             <a href="/" class="hover:underline">Back to GPRA</a>
-            {' · '}
-            <a href="/privacy" class="hover:underline">Privacy Policy</a>
-            {' · '}
-            <a href="mailto:support@guitarpracticeroutine.com" class="hover:underline">Contact</a>
+            ·
+            <a href="/faq" class="hover:underline">FAQ</a>
+            ·
+            <a href="/privacy" class="hover:underline">Privacy</a>
+            ·
+            <a href="#" class="hover:underline" title="Coming soon">Feedback</a>
         </div>
     </div>
+
+    <!-- Theme Toggle -->
+    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+        <img id="light-mode-toggle"
+             src="{{ url_for('static', filename='images/lightmodetoggle.png') }}"
+             alt="Switch to Light Mode"
+             style="height: 20px; width: 40px; display: block;">
+        <img id="dark-mode-toggle"
+             src="{{ url_for('static', filename='images/darkmodetoggle.png') }}"
+             alt="Switch to Dark Mode"
+             style="height: 20px; width: 40px; display: none;">
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
 </body>
 </html>

@@ -158,8 +158,8 @@ const App = () => {
               Terms
             </a>
             <span>·</span>
-            <a href="mailto:support@guitarpracticeroutine.com" className="hover:text-orange-400 transition-colors">
-              Contact
+            <a href="#" className="hover:text-orange-400 transition-colors" title="Coming soon">
+              Feedback
             </a>
           </div>
         </div>
