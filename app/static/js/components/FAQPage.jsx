@@ -395,10 +395,10 @@ const FAQPage = () => {
           If you didn't find what you're looking for, feel free to reach out.
         </p>
         <a
-          href="mailto:support@guitarpracticeroutine.com"
+          href="#"
           className="inline-block px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors"
         >
-          Contact support
+          Share feedback
         </a>
       </div>
     </div>

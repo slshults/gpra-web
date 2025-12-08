@@ -96,7 +96,9 @@ def create_checkout_session(db: Session):
                 'border_style': 'rounded',
                 'background_color': '#1f2937',  # gray-800 - matches GPRA dark background
                 'button_color': '#ea580c',      # orange-600 - matches GPRA primary buttons
-            }
+            },
+            # Allow users to enter promotion codes on Stripe's checkout page
+            'allow_promotion_codes': True,
         }
 
         # Note: proration_behavior is NOT supported by Checkout Session API
