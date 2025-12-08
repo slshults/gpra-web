@@ -114,8 +114,7 @@ def scheduled_deletion_confirmation_email(
                 </p>
             </div>
             <div class="footer">
-                <p>Guitar Practice Routine App<br>
-                Questions? Email <a href="mailto:support@guitarpracticeroutine.com">support@guitarpracticeroutine.com</a></p>
+                <p>Guitar Practice Routine App</p>
             </div>
         </div>
     </body>
@@ -180,8 +179,7 @@ def immediate_deletion_farewell_email(
                 </p>
             </div>
             <div class="footer">
-                <p>Guitar Practice Routine App<br>
-                Questions? Email <a href="mailto:support@guitarpracticeroutine.com">support@guitarpracticeroutine.com</a></p>
+                <p>Guitar Practice Routine App</p>
             </div>
         </div>
     </body>
@@ -248,8 +246,7 @@ def deletion_canceled_email(
                 </p>
             </div>
             <div class="footer">
-                <p>Guitar Practice Routine App<br>
-                Questions? Email <a href="mailto:support@guitarpracticeroutine.com">support@guitarpracticeroutine.com</a></p>
+                <p>Guitar Practice Routine App</p>
             </div>
         </div>
     </body>
@@ -322,8 +319,7 @@ def final_deletion_scheduled_email(
                 </p>
             </div>
             <div class="footer">
-                <p>Guitar Practice Routine App<br>
-                Questions? Email <a href="mailto:support@guitarpracticeroutine.com">support@guitarpracticeroutine.com</a></p>
+                <p>Guitar Practice Routine App</p>
             </div>
         </div>
     </body>
