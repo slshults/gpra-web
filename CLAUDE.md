@@ -7,7 +7,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 👇👇👇👇
 **CRITICAL for Context Window Management**: Delegate to agents and/or subagents AGGRESSIVELY to conserve context window! The more you delegate to agents, the more work we can accomplish in a single session, before the autocompact tool forcibly ends this session. Tokens are sand in our hourglass. Conserve them.
 
-Your role here is choregrapher/air traffic controller/stage-manager/director. Send subagents to do things that eat up our tokens. Don't wait for me to tell you to use agents and/or subagents. Delegate early, delagate often. 🙏 
+Your role here is choregrapher/air traffic controller/stage-manager/director. Send subagents to do things that eat up our tokens. Don't wait for me to tell you to use agents and/or subagents. Delegate early, delagate often. 🙏
+
+## ⛔ PLAYWRIGHT MCP = SESSION KILLER - DELEGATE ONLY ⛔
+
+**NEVER use `mcp__playwright__*` tools directly in the main conversation!**
+- A single snapshot = 5k-15k tokens
+- Simple 3-page test = 30k-50k tokens = **FORCED SESSION END**
+- **ALWAYS** delegate to `ui-tester` agent: `Task tool with subagent_type="ui-tester"`
 
 ## ☝️☝️☝️☝️
 
@@ -298,10 +305,22 @@ python run.py           # Start Flask server only (port 5000)
 
 ### Playwright MCP Testing
 
-**RECOMMENDED**: Use the **`ui-tester` agent** for testing GPRA UI changes. It automatically follows token efficiency rules (screenshots over snapshots), knows GPRA navigation patterns, and has test data ready.
+## ⛔⛔⛔ NEVER USE PLAYWRIGHT MCP DIRECTLY - SUBAGENTS ONLY ⛔⛔⛔
+
+**Playwright MCP is FORBIDDEN in the main conversation.** It consumes 5k-15k tokens per snapshot. Even simple 3-page tests consume 30k-50k tokens, triggering **forced autocompact** which **abruptly ends the session**.
+
+**ALWAYS delegate to the `ui-tester` agent:**
+```
+Use the Task tool with subagent_type="ui-tester" to test the UI changes
 ```
 
-**DO NOT USE the Playwright MCP directly** It has a voracious appetite for tokens. Instead, send a subagent, using the `playwright-gpra-testing` skill** located at `~/.claude/skills/playwright-gpra-testing/`. This skill contains:
+The ui-tester agent has the `playwright-gpra-testing` skill loaded and follows token efficiency rules.
+
+**If you find yourself typing `mcp__playwright__` in the main conversation - STOP. Delegate instead.**
+
+---
+
+The **`playwright-gpra-testing` skill** is located at `~/.claude/skills/playwright-gpra-testing/`. This skill contains:
 
 - **Token efficiency rules** (CRITICAL: snapshots = 5k-15k tokens each, use screenshots instead)
 - **Post-change testing protocol** (ALWAYS test affected UI before marking complete)
@@ -312,6 +331,8 @@ python run.py           # Start Flask server only (port 5000)
 - **Setup instructions** (MCP configuration, browser installation, permissions)
 
 **Quick setup check**: `claude mcp list` should show `playwright` connected. If missing, see skill's `setup.md`.
+
+**Cache clearing**: Playwright MCP is configured with `--isolated` flag in `~/.claude.json`, which keeps browser profiles in memory only. Each session starts fresh with no cached data.
 
 **reCAPTCHA Handling**: When testing login/register pages, if a reCAPTCHA puzzle appears:
 1. Click "I'm not a robot" checkbox
@@ -420,6 +441,7 @@ The `gpr.sh` script runs:
 - **Row-Level Security (RLS)**: Middleware filters all queries by user_id
 - **Active Routine Persistence**: Stored in `subscriptions.last_active_routine_id` (per-user), not in shared `active_routine` table
 - **Auth page CSS**: Custom CSS for login/register pages goes in `input.css`, compiles to `CookieConsent.css`, loaded via `auth.html.jinja` `extra_css` block
+- **Standalone page theming** (privacy, terms, faq): Uses TWO systems together: (1) Tailwind `dark:` prefixes require `class="dark"` on `<html>`, (2) Custom `.light-mode` class on `<body>` for overrides. Include `theme-toggle.js` and PNG toggle images (`lightmodetoggle.png`/`darkmodetoggle.png`).
 
 ### FAB Admin Gotchas
 - **Unique constraints + empty strings**: FAB sends empty strings `''` for blank form fields. If a column has a UNIQUE constraint (like `stripe_subscription_id`), multiple records with empty values will violate uniqueness. **Solution**: Remove such columns from `edit_columns` in admin.py.

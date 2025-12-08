@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frequently Asked Questions - Guitar Practice Routine App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+    <script>
+        // Apply theme immediately to prevent flash (light-mode system)
+        (function() {
+            if (localStorage.getItem('lightMode') === 'true') {
+                document.body.classList.add('light-mode');
+            }
+        })();
+    </script>
+    <style>
+        /* Theme toggle positioning */
+        .theme-toggle {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        .theme-toggle:hover {
+            opacity: 1;
+        }
+        /* Custom styles for details/summary elements */
+        details > summary {
+            cursor: pointer;
+            user-select: none;
+            list-style: none;
+        }
+        details > summary::-webkit-details-marker {
+            display: none;
+        }
+        details[open] > summary .chevron-icon {
+            transform: rotate(90deg);
+        }
+        .chevron-icon {
+            transition: transform 0.2s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-900">
+    <!-- App Title Banner -->
+    <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <a href="/" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                <span class="text-3xl">🎸</span>
+                <span class="text-xl font-semibold text-white">Guitar Practice Routine App</span>
+            </a>
+            <nav class="flex gap-4 text-sm">
+                <a href="/faq" class="text-orange-400 font-medium">FAQ</a>
+                <a href="/terms" class="text-gray-400 hover:text-white transition-colors">Terms</a>
+                <a href="/privacy" class="text-gray-400 hover:text-white transition-colors">Privacy</a>
+                <a href="#" class="text-gray-400 hover:text-white transition-colors" title="Coming soon">Feedback</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Page Header -->
+        <div class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">Frequently asked questions</h1>
+            <p class="text-gray-600 dark:text-gray-400">Find answers to common questions about using Guitar Practice Routine App</p>
+        </div>
+
+        <!-- Getting Started -->
+        <details class="bg-white dark:bg-gray-800 rounded-lg shadow-md mb-4" open>
+            <summary class="p-6 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Getting started</h2>
+                    <svg class="chevron-icon w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </div>
+            </summary>
+            <div class="px-6 pb-6 space-y-4">
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>What are practice items?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        Practice items are the building blocks of your practice routine. An item can be anything you want to practice: a song, an exercise, a technique, a reminder, or even a warm-up routine. Each item can have details like notes, YouTube links, local file paths, and chord charts attached to it.
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>What are routines?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        Routines are organized collections of practice items. You create routines to group related items together for structured practice sessions. For example, you might have a "Morning Warmup" routine, a "Jazz Standards" routine, or a "Blues Practice" routine. You can have multiple routines and switch between them based on what you want to work on.
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How do I create practice items?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        Go to the Items page and use the "Add new item" form at the top. You can add details like the item name, notes, links to YouTube videos, paths to local files (like songbooks), and attach chord charts. After creating items, you can add them to routines.
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How do I create and organize routines?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        On the Routines page, enter a name for your new routine and click "+ Add". Once created, click the edit icon (✏️) next to the routine to add items to it. You can drag and drop items to reorder them within the routine.
+                    </div>
+                </details>
+
+                <details class="pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>What is an active routine?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        The active routine is the one that appears on your Practice page. To make a routine active, go to the Routines page and click the "+" button next to the routine you want to practice. Only one routine can be active at a time.
+                    </div>
+                </details>
+            </div>
+        </details>
+
+        <!-- Practice Features -->
+        <details class="bg-white dark:bg-gray-800 rounded-lg shadow-md mb-4" open>
+            <summary class="p-6 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Practice features</h2>
+                    <svg class="chevron-icon w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </div>
+            </summary>
+            <div class="px-6 pb-6 space-y-4">
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How do practice timers work?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        Each practice item can have a timer. Click the timer button to start counting up from zero. The timer helps you track how long you spend on each item. You can stop, restart, or reset timers as needed during your practice session.
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How does completion tracking work?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        You can mark items as complete during your practice session by clicking the checkbox next to each item. This helps you track your progress through a routine. Completion status resets when you start a new practice session, so you can use the same routine day after day.
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>Can I link YouTube videos to practice items?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        Yes! When creating or editing an item, you can paste a YouTube URL in the "YouTube link" field. The video will be embedded in the item's details, making it easy to reference tutorial videos or play-along tracks during practice.
+                    </div>
+                </details>
+
+                <details class="pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>Can I link to files on my computer?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        Yes, you can add file paths to items (like paths to PDF songbooks or sheet music on your computer). This is especially useful if you have local resources you want to reference during practice. The app supports both Windows and WSL file paths.
+                    </div>
+                </details>
+            </div>
+        </details>
+
+        <!-- Chord Charts -->
+        <details class="bg-white dark:bg-gray-800 rounded-lg shadow-md mb-4" open>
+            <summary class="p-6 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Chord charts</h2>
+                    <svg class="chevron-icon w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </div>
+            </summary>
+            <div class="px-6 pb-6 space-y-4">
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>What are chord charts?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        Chord charts are visual diagrams showing how to play chords on guitar. GPRA displays them as interactive chord grids with fret positions, finger placements, and tuning information. You can attach multiple chord charts to each practice item, organized by song sections (intro, verse, chorus, etc.).
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>What is the autocreate feature?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        Autocreate uses AI (Claude) to automatically generate chord charts from various sources: PDF files, images of chord charts, YouTube lesson videos, or just by typing the names of chord sections and chords. This saves you from manually creating chord diagrams one by one.
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How do I use autocreate?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        <strong>Free and Basic tiers:</strong> Enter your own Anthropic API key on the Account page (this is the "byoClaude" model - bring your own Claude). You'll need an API key from <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">Anthropic Console</a>.<br><br>
+                        <strong>The Goods tier and above:</strong> Autocreate is included! Just use the feature without needing your own API key.
+                    </div>
+                </details>
+
+                <details class="pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>Can I create chord charts manually?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        Yes! You can manually create and edit chord charts using the chord chart editor. This gives you full control over fret positions, finger placements, and chord names. You can access the editor from the Practice, Routines, or Items pages.
+                    </div>
+                </details>
+            </div>
+        </details>
+
+        <!-- Account Management -->
+        <details class="bg-white dark:bg-gray-800 rounded-lg shadow-md mb-4" open>
+            <summary class="p-6 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Account management</h2>
+                    <svg class="chevron-icon w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </div>
+            </summary>
+            <div class="px-6 pb-6 space-y-4">
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How do I change my password?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        Go to the Account page, expand the "Change password" section, and enter your current password along with your new password. Your new password must be at least 12 characters long and include uppercase letters, lowercase letters, numbers, and symbols.
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How do I change my email address?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        Currently, email changes need to be handled through the Stripe Customer Portal. On the Account page, scroll to your subscription tier and click "Manage billing". This will take you to Stripe where you can update your email address.
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>I signed up with Google or Tidal. Can I set a password?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        If you signed up using OAuth (Google or Tidal), you don't have a password by default. You can use the "Change password" section on the Account page to set one - just leave the "Current password" field empty and enter your new password twice.
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How do I restart the guided tour?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        On the Account page, expand the "Guided tour" section and click the "Restart tour" button. This will reload the page and take you through the interactive tour again.
+                    </div>
+                </details>
+
+                <details class="pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How do I manage my Anthropic API key?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        On the Account page, expand the "Anthropic API key" section. You can add, validate, update, or delete your API key here. Your key is encrypted and stored securely. You can use the "Validate" button to check if your key is working before saving it.
+                    </div>
+                </details>
+            </div>
+        </details>
+
+        <!-- Billing & Subscriptions -->
+        <details class="bg-white dark:bg-gray-800 rounded-lg shadow-md mb-4" open>
+            <summary class="p-6 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Billing and subscriptions</h2>
+                    <svg class="chevron-icon w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </div>
+            </summary>
+            <div class="px-6 pb-6 space-y-4">
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>What are the different subscription tiers?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        GPRA offers 5 tiers:
+                        <ul class="list-disc pl-6 mt-2 space-y-1">
+                            <li><strong>Free:</strong> 15 items, 1 routine, byoClaude for autocreate</li>
+                            <li><strong>Basic:</strong> 80 items, 5 routines, byoClaude for autocreate</li>
+                            <li><strong>The Goods:</strong> 200 items, 10 routines, autocreate included</li>
+                            <li><strong>More Goods:</strong> 600 items, 25 routines, autocreate included</li>
+                            <li><strong>The Most:</strong> 1500 items, 50 routines, autocreate included</li>
+                        </ul>
+                        All paid tiers can be billed monthly or yearly (yearly saves ~25%).
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How do I upgrade or downgrade my subscription?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        On the Account page, find the subscription tier you want in the right column and click the "Upgrade" or "Change tier" button. This will take you through the Stripe checkout process for tier changes.
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How do I cancel my subscription?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        There are two ways to stop your paid subscription:
+                        <ul class="list-disc pl-6 mt-2 space-y-1">
+                            <li><strong>Pause (recommended):</strong> On the Account page in the "Danger zone" section, click "Pause subscription when it expires". You'll keep access to your most recently active routine for free, and we'll save your other routines for 90 days in case you renew.</li>
+                            <li><strong>Cancel:</strong> Use the Stripe Customer Portal (click "Manage billing" on the Account page) to fully cancel your subscription. You'll keep access until the end of your billing period, then revert to the free tier.</li>
+                        </ul>
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>What is unplugged mode?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        Unplugged mode is a grace period after your paid subscription ends. You can still access your most recently active routine for free for 90 days. Your other routines are saved during this time in case you decide to renew. After 90 days, if you haven't renewed, your account will be permanently downgraded to the free tier and excess data will be deleted.
+                    </div>
+                </details>
+
+                <details class="pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How do I view my invoices and payment methods?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        On the Account page, find your current subscription tier and click "Manage billing". This opens the Stripe Customer Portal where you can view invoices, update payment methods, and manage your subscription details.
+                    </div>
+                </details>
+            </div>
+        </details>
+
+        <!-- Data & Privacy -->
+        <details class="bg-white dark:bg-gray-800 rounded-lg shadow-md mb-4" open>
+            <summary class="p-6 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Data and privacy</h2>
+                    <svg class="chevron-icon w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </div>
+            </summary>
+            <div class="px-6 pb-6 space-y-4">
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How do I download my practice data?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        On the Account page, expand the "Practice data download" section and click "Download CSV" or "Download JSON". This will download your practice history from the last 90 days. Practice data older than 90 days is automatically deleted, so download regularly if you want to keep permanent records.
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>Does GPRA track my activity?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        We use PostHog for anonymous usage analytics to help improve the app. This is opt-in only - you'll see a cookie consent banner when you first visit, and you can change your preference anytime on the Account page in the "Analytics and privacy" section. We never sell your data.
+                    </div>
+                </details>
+
+                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How do I delete my account?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        On the Account page, expand the "Danger zone" section. You have two deletion options:
+                        <ul class="list-disc pl-6 mt-2 space-y-1">
+                            <li><strong>Schedule deletion:</strong> Your account will be deleted at the end of your current billing period (paid users only)</li>
+                            <li><strong>Delete immediately:</strong> Your account and all data are deleted right away (no refunds for paid users)</li>
+                        </ul>
+                        Both options require you to type a confirmation phrase and verify your email. Account deletion is permanent and cannot be undone.
+                    </div>
+                </details>
+
+                <details class="pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>How is my data protected?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-400 leading-relaxed pl-2">
+                        Your data is protected with industry-standard security measures:
+                        <ul class="list-disc pl-6 mt-2 space-y-1">
+                            <li>All connections use HTTPS encryption</li>
+                            <li>Passwords are hashed using secure algorithms</li>
+                            <li>API keys are encrypted before storage</li>
+                            <li>Row-Level Security (RLS) isolates your data from other users</li>
+                            <li>Regular automated backups</li>
+                        </ul>
+                        See our <a href="/privacy" class="text-orange-600 dark:text-orange-400 hover:underline">Privacy Policy</a> for full details.
+                    </div>
+                </details>
+            </div>
+        </details>
+
+        <!-- Contact Section -->
+        <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Still have questions?</h2>
+            <p class="text-gray-700 dark:text-gray-300 mb-4">
+                If you didn't find what you're looking for, feel free to reach out.
+            </p>
+            <a href="mailto:support@guitarpracticeroutine.com"
+               class="inline-block px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
+                Contact support
+            </a>
+        </div>
+
+        <!-- Footer Links -->
+        <div class="text-center text-sm text-gray-600 dark:text-gray-400 py-4 border-t border-gray-200 dark:border-gray-700">
+            <a href="/" class="hover:underline">Back to GPRA</a>
+            ·
+            <a href="/terms" class="hover:underline">Terms</a>
+            ·
+            <a href="/privacy" class="hover:underline">Privacy</a>
+            ·
+            <a href="#" class="hover:underline" title="Coming soon">Feedback</a>
+        </div>
+    </div>
+
+    <!-- Theme Toggle -->
+    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+        <img id="light-mode-toggle"
+             src="{{ url_for('static', filename='images/lightmodetoggle.png') }}"
+             alt="Switch to Light Mode"
+             style="height: 20px; width: 40px; display: block;">
+        <img id="dark-mode-toggle"
+             src="{{ url_for('static', filename='images/darkmodetoggle.png') }}"
+             alt="Switch to Dark Mode"
+             style="height: 20px; width: 40px; display: none;">
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+</body>
+</html>
