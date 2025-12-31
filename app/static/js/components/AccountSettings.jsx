@@ -579,6 +579,7 @@ const AccountSettings = () => {
             <CardHeader
               className="cursor-pointer select-none"
               onClick={() => toggleCard('apiKey')}
+              data-tour="api-key-card-header"
             >
               <div className="flex items-center justify-between">
                 <div>

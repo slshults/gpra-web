@@ -286,10 +286,22 @@ const GuidedTour = () => {
             onNextClick: () => {
               // Navigate to Account BEFORE Step 6 initializes
               setActivePage('Account');
-              // Wait for navigation, then manually advance
+              // Wait for navigation, then expand API key card, then advance
               setTimeout(() => {
-                driverObj.moveNext();
-              }, 200);
+                // Check if the API key input is visible (card expanded)
+                const apiKeyInput = document.querySelector('[data-tour="api-key-input"]');
+                if (!apiKeyInput) {
+                  // Card is collapsed, click header to expand
+                  const apiKeyCardHeader = document.querySelector('[data-tour="api-key-card-header"]');
+                  if (apiKeyCardHeader) {
+                    apiKeyCardHeader.click();
+                  }
+                }
+                // Wait for card expansion animation, then advance
+                setTimeout(() => {
+                  driverObj.moveNext();
+                }, 300);
+              }, 400);
               return false;
             }
           }
