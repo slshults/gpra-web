@@ -22,6 +22,7 @@ const AccountDeletion = ({ userTier, unpluggedMode }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [showDeletionConfirmModal, setShowDeletionConfirmModal] = useState(false);
+  const [showPauseConfirmModal, setShowPauseConfirmModal] = useState(false);
   const [stripePortalUrl, setStripePortalUrl] = useState(null);
 
   // Refund calculation state
@@ -148,7 +149,7 @@ const AccountDeletion = ({ userTier, unpluggedMode }) => {
   };
 
   const downloadPracticeData = () => {
-    window.open('/api/practice/download?format=csv', '_blank');
+    window.open('/api/user/practice-data/download?format=csv', '_blank');
   };
 
   const handleCancelDeletion = async () => {
@@ -178,6 +179,7 @@ const AccountDeletion = ({ userTier, unpluggedMode }) => {
   };
 
   const handlePauseSubscription = async () => {
+    setShowPauseConfirmModal(false);
     setLoading(true);
     setMessage(null);
 
@@ -277,7 +279,7 @@ const AccountDeletion = ({ userTier, unpluggedMode }) => {
             {/* "Pause subscription" or "Unpause" button - only show if deletion NOT scheduled */}
             {!hasDeletionScheduled && !isFree && (
               <Button
-                onClick={handlePauseSubscription}
+                onClick={() => setShowPauseConfirmModal(true)}
                 disabled={loading}
                 variant="outline"
                 className={`w-full h-auto py-5 px-4 flex flex-col items-center gap-2 ${
@@ -564,6 +566,53 @@ const AccountDeletion = ({ userTier, unpluggedMode }) => {
   return (
     <>
       {content}
+
+      {/* Pause/Unpause Confirmation Modal */}
+      <Dialog open={showPauseConfirmModal} onOpenChange={setShowPauseConfirmModal}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-gray-100">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-gray-100">
+              {isUnplugged ? 'Resume subscription?' : 'Pause subscription?'}
+            </DialogTitle>
+            <DialogDescription className="text-gray-300 space-y-3 pt-4">
+              {isUnplugged ? (
+                <p>
+                  Your subscription will resume and you'll be charged when your next billing period arrives.
+                  You'll regain access to all your routines.
+                </p>
+              ) : (
+                <>
+                  <p>
+                    When your paid period ends, you'll only have access to your most recently active routine.
+                  </p>
+                  <p>
+                    Your other routines will be saved for 90 days in case you decide to come back.
+                  </p>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-3 sm:gap-3">
+            <Button
+              onClick={() => setShowPauseConfirmModal(false)}
+              variant="outline"
+              className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePauseSubscription}
+              className={`flex-1 ${
+                isUnplugged
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : 'bg-orange-600 hover:bg-orange-700'
+              }`}
+            >
+              {isUnplugged ? 'Resume' : 'Pause'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Deletion Confirmation Modal */}
       <Dialog open={showDeletionConfirmModal} onOpenChange={setShowDeletionConfirmModal}>

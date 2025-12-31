@@ -67,7 +67,12 @@ Your role here is choregrapher/air traffic controller/stage-manager/director. Se
 - ✅ Frontend: Account management complete, billing UI with pricing section
 - ✅ Infrastructure: Production configs, proper secrets management
 
-**Current Production Status**: Multi-tenant SaaS fully operational on DreamCompute (208.113.200.79) with OAuth (Google/Tidal), Stripe subscriptions (5 tiers), GDPR compliance, RLS security, and automated backups. Active routine persistence uses `subscriptions.last_active_routine_id`. Stripe webhooks: `https://guitarpracticeroutine.com/api/webhooks/stripe`
+**Current Production Status**: Multi-tenant SaaS fully operational on DreamCompute (208.113.200.79) with OAuth (Google/Tidal), Stripe subscriptions (5 tiers), GDPR compliance, RLS security, and automated backups. Active routine persistence uses `subscriptions.last_active_routine_id`. Stripe webhooks: `https://guitarpracticeroutine.com/api/webhooks/stripe`. **Full test sweep completed Dec 30, 2025** - app ready for launch.
+
+**Test Accounts** (for UI testing):
+- Free users: `imatest1` through `imatest12` with email `imatestN@shults.org` / Password: `t3stP4ss!t3stP4ss!`
+- Admin: `gpra-admin@shults.org` / Password: `jQ8c8C$Qo80dF@`
+- Stripe test card: `4242 4242 4242 4242` (any future expiry, any CVC)
 
 **Cancellation Flow (Nov 2025)**: User-initiated pause → unplugged mode (90-day grace), automated cancellations → free tier. See `gpra-billing-stripe` skill for details. Active routine persistence: `subscriptions.last_active_routine_id` preserved across logout/upgrades/renewals.
 
