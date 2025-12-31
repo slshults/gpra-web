@@ -356,6 +356,8 @@ The **`playwright-gpra-testing` skill** is located at `~/.claude/skills/playwrig
 - **Best practices** (event naming, privacy/GDPR, performance patterns)
 - **Common queries** (user behavior, debugging, retention analysis)
 
+**Event Naming Convention**: All events use **snake_case past tense** (e.g., `practice_timer_started`, `chord_chart_created`, `user_logged_in`). Frontend tracking via `analytics.js` utilities, backend via `posthog_client.py`.
+
 **Cookie Consent Integration**: PostHog initialization in `base.html.jinja` checks `localStorage.cookieConsent` before loading. Only tracks if user explicitly accepts ('all'), opts out by default for GDPR compliance.
 
 **Token conservation**: PostHog MCP is disabled by default. Enable when needed, disable when done.

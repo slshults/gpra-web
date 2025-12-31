@@ -409,6 +409,9 @@ def handle_subscription_created(db: Session, stripe_subscription):
             except StripeError as e:
                 logger.error(f"Stripe error canceling old subscription {old_subscription_id}: {str(e)}")
 
+    # Store old tier for tracking
+    old_tier = subscription.tier if subscription.tier else 'free'
+
     # Update subscription with new information
     subscription.stripe_subscription_id = stripe_subscription['id']
     subscription.stripe_customer_id = stripe_subscription['customer']
@@ -423,6 +426,7 @@ def handle_subscription_created(db: Session, stripe_subscription):
     # Calculate MRR (convert from cents, normalize to monthly)
     amount = stripe_subscription['items']['data'][0]['price']['unit_amount'] / 100
     interval = stripe_subscription['items']['data'][0]['price']['recurring']['interval']
+    billing_period = 'yearly' if interval == 'year' else 'monthly'
     if interval == 'year':
         subscription.mrr = amount / 12
     else:
@@ -439,6 +443,13 @@ def handle_subscription_created(db: Session, stripe_subscription):
     db.commit()
     logger.info(f"Updated subscription for user {user_id}: tier={tier}, status={subscription.status}")
 
+    # Track subscription created event
+    from app.utils.posthog_client import track_event
+    track_event(user_id, 'subscription_created', {
+        'tier': tier,
+        'billing_period': billing_period
+    })
+
 
 def handle_subscription_updated(db: Session, stripe_subscription):
     """Handle subscription updates (upgrades, downgrades, renewals)"""
@@ -452,6 +463,10 @@ def handle_subscription_updated(db: Session, stripe_subscription):
     if not subscription:
         logger.warning(f"No subscription found for Stripe subscription {stripe_subscription['id']}")
         return
+
+    # Store old tier and price for tracking
+    old_tier = subscription.tier
+    old_price_id = subscription.stripe_price_id
 
     # Determine tier from price ID
     price_id = stripe_subscription['items']['data'][0]['price']['id']
@@ -473,6 +488,7 @@ def handle_subscription_updated(db: Session, stripe_subscription):
     # Update MRR
     amount = stripe_subscription['items']['data'][0]['price']['unit_amount'] / 100
     interval = stripe_subscription['items']['data'][0]['price']['recurring']['interval']
+    billing_period = 'yearly' if interval == 'year' else 'monthly'
     if interval == 'year':
         subscription.mrr = amount / 12
     else:
@@ -489,6 +505,50 @@ def handle_subscription_updated(db: Session, stripe_subscription):
 
     db.commit()
     logger.info(f"Updated subscription for user {subscription.user_id}: tier={tier}, status={subscription.status}, cancel_at_period_end={stripe_subscription['cancel_at_period_end']}, cancel_at={stripe_subscription.get('cancel_at')}")
+
+    # Track subscription updated event
+    from app.utils.posthog_client import track_event
+
+    # Determine what changed
+    tier_changed = old_tier != tier
+    price_changed = old_price_id != price_id
+
+    if tier_changed:
+        # Tier upgrade or downgrade
+        tier_order = ['free', 'basic', 'thegoods', 'moregoods', 'themost']
+        old_index = tier_order.index(old_tier) if old_tier in tier_order else 0
+        new_index = tier_order.index(tier) if tier in tier_order else 0
+
+        if new_index > old_index:
+            track_event(subscription.user_id, 'subscription_upgraded', {
+                'tier_before': old_tier,
+                'tier_after': tier,
+                'billing_period': billing_period
+            })
+        elif new_index < old_index:
+            track_event(subscription.user_id, 'subscription_downgraded', {
+                'tier_before': old_tier,
+                'tier_after': tier,
+                'billing_period': billing_period
+            })
+    elif price_changed and not tier_changed:
+        # Billing period change (same tier, different price)
+        # Determine old billing period
+        old_billing_period = None
+        for tier_key, tier_config in SUBSCRIPTION_TIERS.items():
+            if old_price_id == tier_config.get('stripe_price_id_monthly'):
+                old_billing_period = 'monthly'
+                break
+            elif old_price_id == tier_config.get('stripe_price_id_yearly'):
+                old_billing_period = 'yearly'
+                break
+
+        if old_billing_period and old_billing_period != billing_period:
+            track_event(subscription.user_id, 'billing_period_changed', {
+                'tier': tier,
+                'period_before': old_billing_period,
+                'period_after': billing_period
+            })
 
 
 def handle_subscription_deleted(db: Session, stripe_subscription):
@@ -554,6 +614,17 @@ def handle_subscription_deleted(db: Session, stripe_subscription):
         subscription.last_active_routine_id = active_routine_id
 
         logger.info(f"User {subscription.user_id} in unplugged mode - 90 days until data deletion")
+
+        # Track subscription paused event
+        from app.utils.posthog_client import track_event
+        track_event(subscription.user_id, 'subscription_paused', {
+            'tier': 'free',
+            'pause_reason': 'user_initiated'
+        })
+        track_event(subscription.user_id, 'subscription_canceled', {
+            'tier': 'free',
+            'cancellation_type': 'pause'
+        })
     else:
         # Automated cancellation (payment failure, etc.) - just downgrade to free
         subscription.tier = 'free'
@@ -564,6 +635,13 @@ def handle_subscription_deleted(db: Session, stripe_subscription):
         subscription.cancel_at_period_end = False
 
         logger.info(f"Subscription auto-canceled (reason: {cancellation_reason or 'unknown'}) for user {subscription.user_id} - downgraded to free tier")
+
+        # Track subscription canceled event (automated)
+        from app.utils.posthog_client import track_event
+        track_event(subscription.user_id, 'subscription_canceled', {
+            'tier': 'free',
+            'cancellation_type': 'instant_delete'
+        })
 
     db.commit()
 
@@ -604,6 +682,13 @@ def handle_payment_failed(db: Session, invoice):
             subscription.status = 'past_due'
             db.commit()
             logger.warning(f"Subscription for user {subscription.user_id} is past due")
+
+            # Track payment failure
+            from app.utils.posthog_client import track_event
+            track_event(subscription.user_id, 'payment_failed', {
+                'tier': subscription.tier,
+                'failure_reason': invoice.get('last_finalization_error', {}).get('message', 'unknown')
+            })
 
 
 def resume_subscription(db: Session):
@@ -828,6 +913,13 @@ def unpause_subscription(db: Session):
 
         db.commit()
         logger.info(f"User {user_id} unpaused subscription - full access restored")
+
+        # Track subscription resumed event
+        from app.utils.posthog_client import track_event
+        track_event(user_id, 'subscription_resumed', {
+            'tier': subscription.tier
+        })
+
         return jsonify({'success': True})
 
     except Exception as e:

@@ -30,7 +30,8 @@ dependencies = [
     "requests",
     "itsdangerous",
     "stripe",
-    "flask-appbuilder"
+    "flask-appbuilder",
+    "posthog"
 ]
 
 [tool.setuptools]

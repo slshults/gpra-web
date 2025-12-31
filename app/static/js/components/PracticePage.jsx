@@ -1434,7 +1434,7 @@ export const PracticePage = () => {
 
     // Track dismissal and set person property in one call (using $set within event)
     if (window.posthog) {
-      window.posthog.capture('Timer Sound Modal Dismissed', {
+      window.posthog.capture('timer_sound_modal_dismissed', {
         action: 'got_it',
         $set: { timer_sound_modal_dismissed: true }
       });

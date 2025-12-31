@@ -668,10 +668,15 @@ def autocreate_chord_charts():
             else:
                 return jsonify({'error': 'Anthropic API key not configured'}), 500
 
-        # Initialize Anthropic client
-        import anthropic
+        # Initialize Anthropic client with PostHog instrumentation
         from app.utils.llm_analytics import track_llm_generation, track_llm_span
-        client = anthropic.Anthropic(api_key=api_key)
+        from app.utils.posthog_client import create_instrumented_anthropic_client
+
+        # Get user_id for PostHog analytics (needed for both client and tracking)
+        user_id = current_user.id if current_user.is_authenticated else None
+
+        # Create client with LLM auto-instrumentation and proper distinct_id
+        client = create_instrumented_anthropic_client(api_key, user_id=user_id)
         app.logger.info(f"[AUTOCREATE] Anthropic client initialized successfully")
 
         # Prepare the Claude analysis request
@@ -679,7 +684,7 @@ def autocreate_chord_charts():
         app.logger.debug("Sending files to Claude for analysis")
 
         # Process with simplified autocreate logic
-        analysis_result = analyze_files_with_claude(client, uploaded_files, item_id)
+        analysis_result = analyze_files_with_claude(client, uploaded_files, item_id, user_id)
         app.logger.info(f"[AUTOCREATE] Claude analysis completed, result type: {type(analysis_result)}")
         
         app.logger.debug("Claude analysis complete, creating chord charts")
@@ -922,11 +927,17 @@ def auth_status():
         if current_user.username and current_user.username.isdigit():
             oauth_providers.append('tidal')
 
+        # Compute PostHog distinct_id (email or tidalNNNNN for Tidal users)
+        from app.utils.posthog_client import get_posthog_distinct_id
+        posthog_distinct_id = get_posthog_distinct_id(current_user.id, current_user.email)
+
         return jsonify({
             "authenticated": True,
             "hasSpreadsheetAccess": True,  # Always true for authenticated users
             "user": current_user.username,
+            "user_id": current_user.id,  # Integer user ID for backend reference
             "email": current_user.email,
+            "posthog_distinct_id": posthog_distinct_id,  # Coordinated distinct_id for PostHog
             "tier": tier,
             "actual_tier": actual_tier,  # Actual tier before unplugged override
             "billing_period": billing_period,
@@ -1015,6 +1026,12 @@ def api_login():
 
                 if token_valid and action_match and score < 0.3:
                     # Very suspicious - block
+                    from app.utils.posthog_client import track_event
+                    track_event(None, 'recaptcha_failed', {
+                        'action': 'login',
+                        'score': score,
+                        'reason': 'low_score'
+                    })
                     return jsonify({"error": "Security verification failed. Please try again."}), 403
         except Exception as e:
             app.logger.warning(f"reCAPTCHA verification error (non-blocking): {e}")
@@ -1029,6 +1046,13 @@ def api_login():
 
     if not user:
         app.logger.warning(f"Login attempt for non-existent user: {email_or_username}")
+        # Note: This event will be skipped by track_event() since there's no user_id
+        # Failed logins for non-existent users are logged server-side only
+        from app.utils.posthog_client import track_event
+        track_event(None, 'user_login_failed', {
+            'login_method': 'email',
+            'failure_reason': 'user_not_found'
+        })
         return jsonify({"error": "Invalid email/username or password"}), 401
 
     # Check password using Flask-AppBuilder's security manager
@@ -1036,11 +1060,32 @@ def api_login():
     from werkzeug.security import check_password_hash
     if not check_password_hash(user.password, password):
         app.logger.warning(f"Invalid password for user: {email_or_username}")
+        # Track failed login
+        from app.utils.posthog_client import track_event
+        track_event(user.id, 'user_login_failed', {
+            'login_method': 'email',
+            'failure_reason': 'invalid_password'
+        })
         return jsonify({"error": "Invalid email/username or password"}), 401
 
     # Login successful - create Flask-Login session
     login_user(user, remember=False)
     app.logger.info(f"User logged in via API: {user.username} ({user.email})")
+
+    # Track login event
+    from app.utils.posthog_client import track_event
+    track_event(user.id, 'user_logged_in', {
+        'login_method': 'email',
+        'oauth_provider': None
+    })
+
+    # Track reCAPTCHA event if token was provided
+    if recaptcha_token:
+        recaptcha_score = recaptcha_data.get('riskAnalysis', {}).get('score', 0) if 'recaptcha_data' in locals() else None
+        track_event(user.id, 'recaptcha_passed', {
+            'action': 'login',
+            'score': recaptcha_score
+        })
 
     return jsonify({
         "success": True,
@@ -1141,10 +1186,22 @@ def api_register():
         # Reject if score is too low (likely bot)
         if risk_score < 0.5:
             app.logger.warning(f"reCAPTCHA score too low: {risk_score} (threshold: 0.5)")
+            from app.utils.posthog_client import track_event
+            track_event(None, 'recaptcha_failed', {
+                'action': 'register',
+                'score': risk_score,
+                'reason': 'low_score'
+            })
             return jsonify({"error": "reCAPTCHA verification failed. Please try again."}), 400
 
     except Exception as e:
         app.logger.error(f"reCAPTCHA verification error: {e}")
+        from app.utils.posthog_client import track_event
+        track_event(None, 'recaptcha_failed', {
+            'action': 'register',
+            'score': None,
+            'reason': 'api_error'
+        })
         return jsonify({"error": "Unable to verify reCAPTCHA. Please try again."}), 500
 
     # Validate inputs
@@ -1210,6 +1267,19 @@ def api_register():
         # Automatically log the user in
         login_user(user)
         app.logger.info(f"User automatically logged in after registration: {user.username}")
+
+        # Track registration event
+        from app.utils.posthog_client import track_event
+        track_event(user.id, 'user_registered', {
+            'registration_method': 'email',
+            'oauth_provider': None
+        })
+
+        # Track reCAPTCHA success
+        track_event(user.id, 'recaptcha_passed', {
+            'action': 'register',
+            'score': risk_score
+        })
 
         return jsonify({
             "success": True,
@@ -1572,6 +1642,11 @@ def save_user_api_key():
             db.commit()
 
             app.logger.info(f"API key saved successfully for user {current_user.id}")
+
+            # Track API key added event
+            from app.utils.posthog_client import track_event
+            track_event(current_user.id, 'api_key_added', {})
+
             return jsonify({
                 "success": True,
                 "message": "API key saved successfully"
@@ -1611,6 +1686,11 @@ def delete_user_api_key():
             db.commit()
 
             app.logger.info(f"API key deleted for user {current_user.id}")
+
+            # Track API key removed event
+            from app.utils.posthog_client import track_event
+            track_event(current_user.id, 'api_key_removed', {})
+
             return jsonify({
                 "success": True,
                 "message": "API key deleted successfully"
@@ -1657,9 +1737,19 @@ def validate_user_api_key():
 
     is_valid, error_message = validate_anthropic_api_key(api_key)
 
+    from app.utils.posthog_client import track_event
+
     if is_valid:
+        # Track successful validation
+        track_event(current_user.id, 'api_key_validated', {
+            'validation_result': True
+        })
         return jsonify({"valid": True})
     else:
+        # Track failed validation
+        track_event(current_user.id, 'api_key_validation_failed', {
+            'reason': error_message
+        })
         return jsonify({"valid": False, "error": error_message})
 
 # Practice Data Download Routes
@@ -2148,6 +2238,10 @@ def change_password():
         appbuilder.session.commit()
         app.logger.info(f"Password changed for user: {current_user.username}")
 
+        # Track password change event
+        from app.utils.posthog_client import track_event
+        track_event(current_user.id, 'password_changed', {})
+
         return jsonify({
             "success": True,
             "message": "Password changed successfully"
@@ -2524,16 +2618,40 @@ def active_routine():
     elif request.method == 'POST':
         if not request.is_json:
             return jsonify({"error": "Request must be JSON"}), 400
-            
+
         routine_id = request.json.get('routine_id')
         if not routine_id:
             return jsonify({"error": "routine_id is required"}), 400
-            
+
         success = data_layer.set_active_routine(int(routine_id))
+
+        # Track routine activated event
+        if success and current_user.is_authenticated:
+            from app.utils.posthog_client import track_event
+            routine = data_layer.get_routine(int(routine_id))
+            track_event(current_user.id, 'routine_activated', {
+                'routine_name': routine.get('name') if routine else 'Unknown',
+                'source': 'user'
+            })
+
         return jsonify({"success": success})
-        
+
     elif request.method == 'DELETE':
+        # Get active routine before clearing it for tracking
+        active = None
+        if current_user.is_authenticated:
+            active = data_layer.get_active_routine()
+
         success = data_layer.clear_active_routine()
+
+        # Track routine deactivated event
+        if success and current_user.is_authenticated and active:
+            from app.utils.posthog_client import track_event
+            track_event(current_user.id, 'routine_deactivated', {
+                'routine_name': active.get('routine', {}).get('name', 'Unknown'),
+                'source': 'user'
+            })
+
         return jsonify({"success": success})
 
 @app.route('/api/practice/active-routine/lightweight', methods=['GET'])
@@ -2865,7 +2983,7 @@ def open_folder():
 
 # Autocreate helper functions
 
-def detect_file_types_with_sonnet(client, uploaded_files):
+def detect_file_types_with_sonnet(client, uploaded_files, user_id=None):
     """Detect file types using Sonnet 4 model (ported from sheets version)"""
     import time
     import json
@@ -2976,7 +3094,7 @@ Analyze the files below:"""
         # Track LLM Analytics for file type detection
         from app.utils.llm_analytics import llm_analytics
         llm_analytics.track_generation(
-            model="claude-opus-4-5-20251101",
+            model="claude-opus-4-5-20241022",
             input_messages=[{"role": "user", "content": "File type detection for guitar content"}],
             output_choices=[{"message": {"content": response.content[0].text}}],
             usage={
@@ -2988,7 +3106,8 @@ Analyze the files below:"""
                 "function": "detect_file_types_with_sonnet",
                 "file_count": len(uploaded_files),
                 "analysis_type": "file_type_detection"
-            }
+            },
+            user_id=user_id
         )
 
         response_text = response.content[0].text
@@ -3031,7 +3150,7 @@ Analyze the files below:"""
             "analysis": {"error": str(e)}
         }
 
-def analyze_files_with_claude(client, uploaded_files, item_id):
+def analyze_files_with_claude(client, uploaded_files, item_id, user_id=None):
     """Analyze files and route to appropriate processing function (complete sheets version)"""
     try:
         app.logger.info(f"[AUTOCREATE] analyze_files_with_claude called with {len(uploaded_files)} files for item {item_id}")
@@ -3048,17 +3167,17 @@ def analyze_files_with_claude(client, uploaded_files, item_id):
             # Skip detection, go straight to processing
             if forced_type == 'chord_charts':
                 app.logger.info(f"[AUTOCREATE] Processing as chord charts (user choice)")
-                return process_chord_charts_directly(client, uploaded_files, item_id)
+                return process_chord_charts_directly(client, uploaded_files, item_id, user_id=user_id)
             elif forced_type == 'chord_names':
                 app.logger.info(f"[AUTOCREATE] Processing as chord names (user choice)")
-                return process_chord_names_with_lyrics(client, uploaded_files, item_id)
+                return process_chord_names_with_lyrics(client, uploaded_files, item_id, user_id=user_id)
             else:
                 app.logger.warning(f"[AUTOCREATE] Unknown forced type: {forced_type}, falling back to chord names")
-                return process_chord_names_with_lyrics(client, uploaded_files, item_id)
+                return process_chord_names_with_lyrics(client, uploaded_files, item_id, user_id=user_id)
 
         # Step 1: File type detection using Sonnet 4
         app.logger.info(f"[AUTOCREATE] Step 1: Analyzing {len(uploaded_files)} files to detect content type using Sonnet 4")
-        file_type_result = detect_file_types_with_sonnet(client, uploaded_files)
+        file_type_result = detect_file_types_with_sonnet(client, uploaded_files, user_id=user_id)
 
         # Step 2: Process based on detected content type
         if file_type_result.get('has_mixed_content'):
@@ -3075,14 +3194,14 @@ def analyze_files_with_claude(client, uploaded_files, item_id):
 
         # Step 3: Process files based on detected type
         if primary_type == 'chord_charts':
-            return process_chord_charts_directly(client, uploaded_files, item_id)
+            return process_chord_charts_directly(client, uploaded_files, item_id, user_id=user_id)
         elif primary_type == 'chord_names':
             # Check if this is a YouTube transcript
             is_youtube_transcript = any(file_data.get('name') == 'youtube_transcript.txt' for file_data in uploaded_files)
             if is_youtube_transcript:
-                return process_chord_names_from_youtube_transcript(client, uploaded_files, item_id)
+                return process_chord_names_from_youtube_transcript(client, uploaded_files, item_id, user_id=user_id)
             else:
-                return process_chord_names_with_lyrics(client, uploaded_files, item_id)
+                return process_chord_names_with_lyrics(client, uploaded_files, item_id, user_id=user_id)
         elif primary_type == 'tablature':
             return {
                 'error': 'unsupported_format',
@@ -3098,7 +3217,7 @@ def analyze_files_with_claude(client, uploaded_files, item_id):
         else:
             # Fallback to chord names processing (most common case)
             app.logger.warning(f"Unknown primary_type '{primary_type}', falling back to chord names processing")
-            return process_chord_names_with_lyrics(client, uploaded_files, item_id)
+            return process_chord_names_with_lyrics(client, uploaded_files, item_id, user_id=user_id)
 
     except Exception as e:
         app.logger.error(f"Error in Claude analysis: {str(e)}")
@@ -3210,6 +3329,8 @@ If you can't determine sections, use "Main" as the section name.""",
                 app.logger.info(f"[USAGE] Input tokens: {usage_dict['input_tokens']}, Output tokens: {usage_dict['output_tokens']}")
 
             # Track the LLM generation with PostHog LLM Analytics
+            # CRITICAL: Pass user_id from autocreate route
+            # Note: user_id comes from simple_analyze_files caller, need to add to function signature
             generation_id = track_llm_generation(
                 model="claude-opus-4-5-20251101",
                 input_messages=[{
@@ -3231,7 +3352,8 @@ If you can't determine sections, use "Main" as the section name.""",
                     "prompt_caching_enabled": True,
                     "cache_hit": bool(usage_dict.get('cache_read_input_tokens', 0) > 0)
                 },
-                privacy_mode=False  # Set to True to exclude actual input/output
+                privacy_mode=False,  # Set to True to exclude actual input/output
+                user_id=current_user.id if current_user.is_authenticated else None
             )
 
         except Exception as api_error:
@@ -3251,7 +3373,8 @@ If you can't determine sections, use "Main" as the section name.""",
                     "item_id": item_id,
                     "file_count": len(uploaded_files),
                     "error_type": type(api_error).__name__
-                }
+                },
+                user_id=current_user.id if current_user.is_authenticated else None
             )
             raise api_error
 
@@ -3482,7 +3605,7 @@ If you can't determine sections, use "Main" as the section name.""",
         app.logger.error(f"Error in simple_analyze_files: {str(e)}")
         return {'error': f'Analysis failed: {str(e)}'}
 
-def process_chord_charts_directly(client, uploaded_files, item_id):
+def process_chord_charts_directly(client, uploaded_files, item_id, user_id=None):
     """Process files containing chord charts for direct import (complete sheets version)"""
     import time
     import json
@@ -3684,7 +3807,8 @@ Thanks so much for being thorough with this, you rock Claude! 🤘🎸🚀"""
                 "file_count": len(uploaded_files),
                 "analysis_type": "chord_chart_processing",
                 "item_id": str(item_id)
-            }
+            },
+            user_id=user_id
         )
 
         response_text = response.content[0].text
@@ -3873,7 +3997,7 @@ def copy_chord_charts_route():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-def process_chord_names_from_youtube_transcript(client, uploaded_files, item_id):
+def process_chord_names_from_youtube_transcript(client, uploaded_files, item_id, user_id=None):
     """Process YouTube transcript files to extract chord names from spoken dialogue"""
     try:
         app.logger.info(f"[AUTOCREATE] process_chord_names_from_youtube_transcript called with {len(uploaded_files)} files for item {item_id}")
@@ -3975,6 +4099,8 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
         app.logger.info(f"[AUTOCREATE] Message content types: {[item.get('type', 'unknown') for item in message_content]}")
 
         try:
+            import time
+            llm_start_time = time.time()
             app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-5-20251101")
             response = client.messages.create(
                 model="claude-opus-4-5-20251101",
@@ -3982,12 +4108,80 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                 temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
             )
+            llm_end_time = time.time()
+            llm_latency = llm_end_time - llm_start_time
+
             app.logger.info(f"[AUTOCREATE] API call successful, response received with {len(response.content)} content items")
             if response.content:
                 app.logger.info(f"[AUTOCREATE] Response content length: {len(response.content[0].text) if response.content[0].text else 0} characters")
+
+            # Track LLM generation with PostHog LLM Analytics
+            from app.utils.llm_analytics import track_llm_generation
+
+            # Extract usage information
+            usage_dict = {}
+            if hasattr(response, 'usage') and response.usage:
+                usage = response.usage
+                usage_dict = {
+                    "input_tokens": getattr(usage, 'input_tokens', 0),
+                    "output_tokens": getattr(usage, 'output_tokens', 0)
+                }
+
+            track_llm_generation(
+                model="claude-opus-4-5-20251101",
+                input_messages=[{
+                    "role": "user",
+                    "content": "Extract chord names from YouTube transcript"
+                }],
+                output_choices=[{
+                    "role": "assistant",
+                    "content": response.content[0].text[:200] + "..." if len(response.content[0].text) > 200 else response.content[0].text
+                }],
+                usage=usage_dict,
+                latency_seconds=llm_latency,
+                status="success",
+                custom_properties={
+                    "feature": "autocreate_chord_charts",
+                    "analysis_type": "youtube_transcript_chords",
+                    "item_id": item_id,
+                    "file_count": len(uploaded_files),
+                    "content_type": "youtube_transcript"
+                },
+                user_id=user_id
+            )
+
         except Exception as api_error:
             app.logger.error(f"[AUTOCREATE] API call failed: {str(api_error)}")
             app.logger.error(f"[AUTOCREATE] API error type: {type(api_error)}")
+
+            # Track failed LLM generation
+            from app.utils.llm_analytics import track_llm_generation
+            if 'llm_start_time' in locals():
+                llm_end_time = time.time()
+                llm_latency = llm_end_time - llm_start_time
+            else:
+                llm_latency = 0
+
+            track_llm_generation(
+                model="claude-opus-4-5-20251101",
+                input_messages=[{
+                    "role": "user",
+                    "content": "Extract chord names from YouTube transcript"
+                }],
+                output_choices=[],
+                latency_seconds=llm_latency,
+                status="error",
+                error=str(api_error),
+                custom_properties={
+                    "feature": "autocreate_chord_charts",
+                    "analysis_type": "youtube_transcript_chords",
+                    "item_id": item_id,
+                    "file_count": len(uploaded_files),
+                    "error_type": type(api_error).__name__
+                },
+                user_id=user_id
+            )
+
             return {'error': f'Claude API call failed: {str(api_error)}'}
 
         # Parse Claude's response
@@ -4063,7 +4257,7 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
 
 
 
-def process_chord_names_with_lyrics(client, uploaded_files, item_id):
+def process_chord_names_with_lyrics(client, uploaded_files, item_id, user_id=None):
     """Process files with chord names above lyrics using CommonChords lookup"""
     try:
         app.logger.info(f"[AUTOCREATE] process_chord_names_with_lyrics called with {len(uploaded_files)} files for item {item_id}")
@@ -4100,11 +4294,11 @@ def process_chord_names_with_lyrics(client, uploaded_files, item_id):
                     app.logger.info(f"[AUTOCREATE] Feeding complete OCR text to existing Sonnet processing (preserves sections)")
 
                     # NEW: Assess OCR trustworthiness using Sonnet 4 intelligence
-                    ocr_assessment = assess_ocr_trustworthiness(client, ocr_result['raw_text'], file_data['name'])
+                    ocr_assessment = assess_ocr_trustworthiness(client, ocr_result['raw_text'], file_data['name'], user_id=user_id)
                     if not ocr_assessment['trustworthy']:
                         app.logger.info(f"[AUTOCREATE] OCR contains gibberish ({ocr_assessment['reason']}), falling back to visual analysis")
                         # Fall back to Opus 4.1 visual analysis for complex layouts
-                        return process_chord_charts_directly(client, uploaded_files, item_id)
+                        return process_chord_charts_directly(client, uploaded_files, item_id, user_id=user_id)
 
                     app.logger.info(f"[AUTOCREATE] OCR text assessed as trustworthy, proceeding with Sonnet processing")
                     # Continue to existing Sonnet processing below (no return here)
@@ -4218,6 +4412,8 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
         app.logger.info(f"[AUTOCREATE] Message content types: {[item.get('type', 'unknown') for item in message_content]}")
 
         try:
+            import time
+            llm_start_time = time.time()
             app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-5-20251101")
             response = client.messages.create(
                 model="claude-opus-4-5-20251101",
@@ -4225,12 +4421,79 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                 temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
             )
+            llm_end_time = time.time()
+            llm_latency = llm_end_time - llm_start_time
+
             app.logger.info(f"[AUTOCREATE] API call successful, response received with {len(response.content)} content items")
             if response.content:
                 app.logger.info(f"[AUTOCREATE] Response content length: {len(response.content[0].text) if response.content[0].text else 0} characters")
+
+            # Track LLM generation with PostHog LLM Analytics
+            from app.utils.llm_analytics import track_llm_generation
+
+            # Extract usage information
+            usage_dict = {}
+            if hasattr(response, 'usage') and response.usage:
+                usage = response.usage
+                usage_dict = {
+                    "input_tokens": getattr(usage, 'input_tokens', 0),
+                    "output_tokens": getattr(usage, 'output_tokens', 0)
+                }
+
+            track_llm_generation(
+                model="claude-opus-4-5-20251101",
+                input_messages=[{
+                    "role": "user",
+                    "content": "Extract chord names from lyrics sheet"
+                }],
+                output_choices=[{
+                    "role": "assistant",
+                    "content": response.content[0].text[:200] + "..." if len(response.content[0].text) > 200 else response.content[0].text
+                }],
+                usage=usage_dict,
+                latency_seconds=llm_latency,
+                status="success",
+                custom_properties={
+                    "feature": "autocreate_chord_charts",
+                    "analysis_type": "chord_names_with_lyrics",
+                    "item_id": item_id,
+                    "file_count": len(uploaded_files)
+                },
+                user_id=user_id
+            )
+
         except Exception as api_error:
             app.logger.error(f"[AUTOCREATE] API call failed: {str(api_error)}")
             app.logger.error(f"[AUTOCREATE] API error type: {type(api_error)}")
+
+            # Track failed LLM generation
+            from app.utils.llm_analytics import track_llm_generation
+            if 'llm_start_time' in locals():
+                llm_end_time = time.time()
+                llm_latency = llm_end_time - llm_start_time
+            else:
+                llm_latency = 0
+
+            track_llm_generation(
+                model="claude-opus-4-5-20251101",
+                input_messages=[{
+                    "role": "user",
+                    "content": "Extract chord names from lyrics sheet"
+                }],
+                output_choices=[],
+                latency_seconds=llm_latency,
+                status="error",
+                error=str(api_error),
+                custom_properties={
+                    "feature": "autocreate_chord_charts",
+                    "analysis_type": "chord_names_with_lyrics",
+                    "item_id": item_id,
+                    "file_count": len(uploaded_files),
+                    "error_type": type(api_error).__name__
+                },
+                user_id=user_id
+            )
+
             return {'error': f'Claude API call failed: {str(api_error)}'}
 
         # Parse Claude's response
@@ -4664,7 +4927,7 @@ def create_chord_charts_from_data(chord_data, item_id):
         app.logger.error(f"Error creating chord charts: {str(e)}")
         raise
 
-def assess_ocr_trustworthiness(client, ocr_text, filename):
+def assess_ocr_trustworthiness(client, ocr_text, filename, user_id=None):
     """
     Use Sonnet 4 to intelligently assess if OCR text contains too much gibberish.
     Returns dict with 'trustworthy' bool and 'reason' string.
@@ -4695,14 +4958,54 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
 
 **Important:** Be conservative - if you see clear gibberish artifacts, mark as CORRUPTED even if some parts look good."""
 
+        import time
+        llm_start_time = time.time()
         response = client.messages.create(
             model="claude-opus-4-5-20251101",
             max_tokens=100,  # Short response needed
             temperature=0.1,
             messages=[{"role": "user", "content": assessment_prompt}]
         )
+        llm_end_time = time.time()
+        llm_latency = llm_end_time - llm_start_time
 
         assessment_result = response.content[0].text.strip().upper()
+        trustworthy = "TRUSTWORTHY" in assessment_result
+
+        # Track LLM generation with PostHog LLM Analytics
+        from app.utils.llm_analytics import track_llm_generation
+
+        # Extract usage information
+        usage_dict = {}
+        if hasattr(response, 'usage') and response.usage:
+            usage = response.usage
+            usage_dict = {
+                "input_tokens": getattr(usage, 'input_tokens', 0),
+                "output_tokens": getattr(usage, 'output_tokens', 0)
+            }
+
+        track_llm_generation(
+            model="claude-opus-4-5-20251101",
+            input_messages=[{
+                "role": "user",
+                "content": "Assess OCR text trustworthiness"
+            }],
+            output_choices=[{
+                "role": "assistant",
+                "content": assessment_result
+            }],
+            usage=usage_dict,
+            latency_seconds=llm_latency,
+            status="success",
+            custom_properties={
+                "feature": "autocreate_chord_charts",
+                "analysis_type": "ocr_trustworthiness_check",
+                "ocr_text_length": len(ocr_text),
+                "trustworthy": trustworthy,
+                "filename": filename
+            },
+            user_id=user_id
+        )
 
         if "TRUSTWORTHY" in assessment_result:
             app.logger.info(f"[AUTOCREATE] OCR assessment: TRUSTWORTHY")
@@ -4717,6 +5020,35 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
 
     except Exception as e:
         app.logger.error(f"[AUTOCREATE] OCR trustworthiness assessment failed: {str(e)}")
+
+        # Track failed LLM generation
+        from app.utils.llm_analytics import track_llm_generation
+        if 'llm_start_time' in locals():
+            llm_end_time = time.time()
+            llm_latency = llm_end_time - llm_start_time
+        else:
+            llm_latency = 0
+
+        track_llm_generation(
+            model="claude-opus-4-5-20251101",
+            input_messages=[{
+                "role": "user",
+                "content": "Assess OCR text trustworthiness"
+            }],
+            output_choices=[],
+            latency_seconds=llm_latency,
+            status="error",
+            error=str(e),
+            custom_properties={
+                "feature": "autocreate_chord_charts",
+                "analysis_type": "ocr_trustworthiness_check",
+                "ocr_text_length": len(ocr_text),
+                "filename": filename,
+                "error_type": type(e).__name__
+            },
+            user_id=user_id
+        )
+
         # Default to untrusted on error - better safe than sorry
         return {'trustworthy': False, 'reason': f'Assessment error: {str(e)}'}
 # ============================================================================
