@@ -1580,8 +1580,10 @@ def autocreate_chord_charts():
         if not api_key:
             return jsonify({'error': 'Anthropic API key not configured'}), 500
             
-        # Initialize Anthropic client
-        client = anthropic.Anthropic(api_key=api_key)
+        # Initialize Anthropic client with PostHog instrumentation
+        # Note: routes.py is legacy; user_id not available, using None
+        from app.utils.posthog_client import create_instrumented_anthropic_client
+        client = create_instrumented_anthropic_client(api_key, user_id=None)
         app.logger.info(f"[AUTOCREATE] Anthropic client initialized successfully")
         
         # Prepare the Claude analysis request

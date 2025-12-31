@@ -12,6 +12,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@ui/card';
 import { Button } from '@ui/button';
 import { Input } from '@ui/input';
 import { Search, Plus, GripVertical, X } from 'lucide-react';
+import { trackRoutineOperation } from '../utils/analytics';
 import {
   DndContext,
   closestCenter,
@@ -187,6 +188,13 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
         if (!success) {
           throw new Error('Failed to add item to routine');
         }
+
+        // Track item added to routine
+        trackRoutineOperation('item_added', routine.name, item['C'], {
+          routine_id: routine.id,
+          item_id: item['B']
+        });
+
         // Notify parent of change
         onRoutineChange?.();
       }
@@ -203,11 +211,25 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
         // For new routines, just update local state
         setSelectedItems(prev => prev.filter(item => item.routineEntry['A'] !== routineEntryId));
       } else {
+        // Find the item being removed for tracking
+        const itemBeingRemoved = selectedItems.find(
+          item => (item.routineEntry?.['A'] || item['A']) === routineEntryId
+        );
+
         // For existing routines, call API through the hook with routine entry ID
         const success = await removeFromRoutine(routine.id, routineEntryId);
         if (!success) {
           throw new Error('Failed to remove item from routine');
         }
+
+        // Track item removed from routine
+        if (itemBeingRemoved) {
+          trackRoutineOperation('item_removed', routine.name, itemBeingRemoved.itemDetails?.['C'], {
+            routine_id: routine.id,
+            item_id: itemBeingRemoved.itemDetails?.['B']
+          });
+        }
+
         // Notify parent of change
         onRoutineChange?.();
       }

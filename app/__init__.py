@@ -332,4 +332,9 @@ with app.app_context():
         # Don't fail the whole app if RLS initialization fails
         # (This allows gradual rollout during development)
 
+# Register PostHog shutdown handler to flush pending events
+import atexit
+from app.utils.posthog_client import shutdown as posthog_shutdown
+atexit.register(posthog_shutdown)
+
 from app import routes_v2 as routes

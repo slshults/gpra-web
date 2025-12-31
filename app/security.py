@@ -286,11 +286,19 @@ class CustomAuthOAuthView(AuthOAuthView):
 
         logger.info(f"OAuth callback from provider: {provider}")
 
+        # Track OAuth flow started (intent determined later)
+        from app.utils.posthog_client import track_event
+
         # Get OAuth token from provider
         try:
             resp = self.appbuilder.sm.oauth_remotes[provider].authorize_access_token()
         except Exception as e:
             logger.error(f"OAuth token error: {e}")
+            # Track OAuth failure
+            track_event(None, 'oauth_flow_failed', {
+                'oauth_provider': provider,
+                'error': str(e)
+            })
             flash(as_unicode(f"OAuth authentication failed: {e}"), "danger")
             return redirect('/login')
 
@@ -333,6 +341,14 @@ class CustomAuthOAuthView(AuthOAuthView):
             # LOGIN FLOW: Only authenticate existing users
             if not existing_user:
                 logger.info(f"OAuth login failed - no account found for: {userinfo.get('email')}")
+                # Track OAuth flow completion (failed - no account)
+                track_event(None, 'oauth_flow_completed', {
+                    'oauth_provider': provider,
+                    'intent': intent,
+                    'is_new_user': False,
+                    'success': False,
+                    'reason': 'no_account'
+                })
                 flash(as_unicode("No account found. Please sign up first."), "warning")
                 return redirect('/register')
 
@@ -345,6 +361,18 @@ class CustomAuthOAuthView(AuthOAuthView):
 
             login_user(user, remember=True)
             logger.info(f"User logged in via OAuth: {user.username}")
+
+            # Track successful OAuth login
+            track_event(user.id, 'user_logged_in', {
+                'login_method': 'oauth',
+                'oauth_provider': provider
+            })
+            track_event(user.id, 'oauth_flow_completed', {
+                'oauth_provider': provider,
+                'intent': intent,
+                'is_new_user': False
+            })
+
             return redirect('/')
 
         else:
@@ -360,6 +388,18 @@ class CustomAuthOAuthView(AuthOAuthView):
 
                 login_user(user, remember=True)
                 logger.info(f"Existing user logged in via OAuth signup: {user.username}")
+
+                # Track OAuth signup (existing user)
+                track_event(user.id, 'user_logged_in', {
+                    'login_method': 'oauth',
+                    'oauth_provider': provider
+                })
+                track_event(user.id, 'oauth_flow_completed', {
+                    'oauth_provider': provider,
+                    'intent': intent,
+                    'is_new_user': False
+                })
+
                 # Redirect with show_tour flag
                 return redirect('/?show_tour=true')
             else:
@@ -367,6 +407,11 @@ class CustomAuthOAuthView(AuthOAuthView):
                 user = self.appbuilder.sm.auth_user_oauth(userinfo)
 
                 if user is None:
+                    # Track OAuth signup failure
+                    track_event(None, 'oauth_flow_failed', {
+                        'oauth_provider': provider,
+                        'error': 'user_creation_failed'
+                    })
                     flash(as_unicode("OAuth signup failed"), "danger")
                     return redirect('/register')
 
@@ -377,6 +422,18 @@ class CustomAuthOAuthView(AuthOAuthView):
                 # Login user (remember=True keeps session persistent across browser restarts)
                 login_user(user, remember=True)
                 logger.info(f"New user created and logged in via OAuth: {user.username}")
+
+                # Track new user registration via OAuth
+                track_event(user.id, 'user_registered', {
+                    'registration_method': 'oauth',
+                    'oauth_provider': provider
+                })
+                track_event(user.id, 'oauth_flow_completed', {
+                    'oauth_provider': provider,
+                    'intent': intent,
+                    'is_new_user': True
+                })
+
                 # Redirect with show_tour flag
                 return redirect('/?show_tour=true')
 
@@ -461,8 +518,13 @@ class CustomAuthDBView(AuthDBView):
         Override logout to redirect to /login instead of /admin/.
         Clears Flask session, remember-me cookie, and logs out user.
         """
-        from flask_login import logout_user
+        from flask_login import logout_user, current_user
         from flask import session, current_app, make_response
+
+        # Track logout event before clearing session
+        if current_user.is_authenticated:
+            from app.utils.posthog_client import track_event
+            track_event(current_user.id, 'user_logged_out', {})
 
         # Log out the user (clears Flask-Login session)
         logout_user()

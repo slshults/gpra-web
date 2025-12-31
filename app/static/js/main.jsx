@@ -16,6 +16,7 @@ import UnpluggedAccessModal from '@components/UnpluggedAccessModal';
 import CookieConsent from '@components/CookieConsent';
 import DeletionBanner from '@components/DeletionBanner';
 import { useLightweightItems } from '@hooks/useLightweightItems';
+import { setUserContext } from './utils/analytics';
 
 const ItemsPage = () => {
   const { items, refreshItems } = useLightweightItems();
@@ -72,6 +73,22 @@ const App = () => {
       .then(res => res.json())
       .then(data => {
         setUserStatus(data);
+
+        // Identify user with PostHog if authenticated
+        if (data.authenticated && window.posthog) {
+          // Use posthog_distinct_id (email or tidalNNNNN) to coordinate with backend
+          window.posthog.identify(data.posthog_distinct_id, {
+            email: data.email,
+            username: data.user,
+            subscription_tier: data.tier,
+            billing_period: data.billing_period,
+            oauth_providers: data.oauth_providers || []
+          });
+
+          // Cache user context for analytics auto-inclusion
+          setUserContext(data);
+        }
+
         // Show modal for ALL lapsed users (on each fresh login)
         // BUT not if they already dismissed it this session via "Unplugged" button
         const dismissedThisSession = sessionStorage.getItem('lapsedModalDismissed') === 'true';

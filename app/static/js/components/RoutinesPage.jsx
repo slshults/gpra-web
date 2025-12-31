@@ -24,7 +24,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { trackItemOperation } from '../utils/analytics';
+import { trackItemOperation, trackRoutineOperation } from '../utils/analytics';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -255,6 +255,12 @@ const RoutinesPage = () => {
         // Fetch active routine items
         const activeRoutine = freshRoutines.find(r => r.active);
         if (activeRoutine) {
+          // Track routine activation
+          trackRoutineOperation('activated', activeRoutine.Name, null, {
+            routine_id: activeRoutine.ID,
+            item_count: activeRoutine.ItemCount || 0
+          });
+
           const routineResponse = await fetch(`/api/routines/${activeRoutine.ID}`);
           if (routineResponse.ok) {
             const routineData = await routineResponse.json();

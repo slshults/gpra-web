@@ -194,6 +194,25 @@ const RegisterPage = () => {
       const data = await response.json();
 
       if (response.ok) {
+        // Identify user with PostHog after successful registration
+        try {
+          const authResponse = await fetch('/api/auth/status');
+          const authData = await authResponse.json();
+
+          if (authData.authenticated && window.posthog) {
+            // Use posthog_distinct_id (email or tidalNNNNN) to coordinate with backend
+            window.posthog.identify(authData.posthog_distinct_id, {
+              email: authData.email,
+              username: authData.user,
+              subscription_tier: authData.tier,
+              billing_period: authData.billing_period,
+              oauth_providers: authData.oauth_providers || []
+            });
+          }
+        } catch (err) {
+          console.error('Failed to identify user with PostHog:', err);
+        }
+
         setSuccess(true);
         // Set flag to show tour after login
         sessionStorage.setItem('show_tour_after_login', 'true');

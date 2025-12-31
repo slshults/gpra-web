@@ -1,6 +1,10 @@
 """
 PostHog LLM Analytics utility for manual capture
 Implements PostHog LLM Analytics with comprehensive properties tracking
+
+NOTE: Auto-instrumentation via create_instrumented_anthropic_client() captures basic $ai_generation events.
+This module provides manual tracking for ADDITIONAL custom properties (item_name, section_count, etc.)
+that aren't captured by auto-instrumentation.
 """
 
 import os
@@ -8,18 +12,24 @@ import time
 import uuid
 import logging
 from typing import Dict, Any, List, Optional
-import requests
-import json
 
 logger = logging.getLogger(__name__)
+
+# Import PostHog SDK client and helper functions
+try:
+    from app.utils.posthog_client import posthog_client, get_posthog_distinct_id
+    POSTHOG_AVAILABLE = posthog_client is not None
+except ImportError:
+    logger.warning("PostHog client not available, manual LLM tracking disabled")
+    posthog_client = None
+    get_posthog_distinct_id = None
+    POSTHOG_AVAILABLE = False
 
 class LLMAnalytics:
     """Utility class for tracking LLM interactions with PostHog LLM Analytics"""
 
     def __init__(self):
-        self.posthog_api_key = os.getenv('POSTHOG_API_KEY')
-        self.posthog_host = 'https://us.i.posthog.com'
-        self.enabled = bool(self.posthog_api_key)
+        self.enabled = POSTHOG_AVAILABLE
         self.current_trace_id = None
 
         if not self.enabled:
@@ -46,7 +56,8 @@ class LLMAnalytics:
         tools: Optional[List[Dict[str, Any]]] = None,
         span_id: Optional[str] = None,
         privacy_mode: bool = False,
-        trace_id: Optional[str] = None
+        trace_id: Optional[str] = None,
+        user_id: Optional[int] = None
     ) -> str:
         """
         Track an LLM generation event with PostHog LLM Analytics
@@ -126,6 +137,10 @@ class LLMAnalytics:
         if custom_properties:
             properties.update(custom_properties)
 
+        # Add user_id for multi-tenant analytics
+        if user_id:
+            properties["user_id"] = user_id
+
         # Send to PostHog
         self._capture_event("$ai_generation", properties)
         logger.info(f"Tracked LLM generation: {generation_id} in trace: {trace_id}")
@@ -201,42 +216,37 @@ class LLMAnalytics:
         return span_id
 
     def _capture_event(self, event_name: str, properties: Dict[str, Any]):
-        """Send event to PostHog using batch API for manual capture"""
-        if not self.enabled:
+        """Send event to PostHog using Python SDK"""
+        if not self.enabled or not posthog_client:
+            return
+
+        # Get user_id from properties - CRITICAL for multi-tenant analytics
+        user_id = properties.get('user_id')
+
+        if not get_posthog_distinct_id:
+            logger.error(f"get_posthog_distinct_id function not available - cannot track LLM event")
             return
 
         try:
-            from datetime import datetime
+            if user_id:
+                # Use get_posthog_distinct_id() for consistent distinct_id
+                # This ensures LLM events use the same distinct_id as all other events
+                # (email for regular users, tidalNNNNN for Tidal OAuth users)
+                distinct_id = get_posthog_distinct_id(user_id)
+            else:
+                # Log warning for missing user_id - this shouldn't happen for authenticated endpoints
+                # but we still capture the event with a system-level distinct_id for debugging
+                logger.warning(f"LLM event '{event_name}' missing user_id - this may be a bug. Capturing with system distinct_id.")
+                distinct_id = "system_llm_event"
 
-            # Create individual event payload following PostHog manual capture format
-            event_payload = {
-                "event": event_name,
-                "properties": properties,
-                "distinct_id": "guitar_practice_app_user",  # Single user app
-                "timestamp": datetime.utcnow().isoformat() + "Z"  # ISO8601 format
-            }
-
-            # Wrap in batch format following PostHog API docs
-            batch_payload = {
-                "api_key": self.posthog_api_key,
-                "batch": [event_payload]
-            }
-
-            # Send to PostHog batch endpoint
-            response = requests.post(
-                f"{self.posthog_host}/batch/",
-                json=batch_payload,  # Use json= for proper encoding
-                headers={
-                    "Content-Type": "application/json",
-                    "User-Agent": "GuitarPracticeApp/1.0"
-                },
-                timeout=10
+            # Use PostHog SDK's capture method
+            posthog_client.capture(
+                distinct_id=distinct_id,
+                event=event_name,
+                properties=properties
             )
 
-            if 200 <= response.status_code <= 299:
-                logger.info(f"Successfully tracked {event_name} event to PostHog LLM Analytics")
-            else:
-                logger.warning(f"Failed to track {event_name} event: {response.status_code} - {response.text}")
+            logger.info(f"Successfully tracked {event_name} event to PostHog LLM Analytics (distinct_id: {distinct_id})")
 
         except Exception as e:
             logger.error(f"Error tracking {event_name} event: {str(e)}")
