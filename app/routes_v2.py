@@ -3856,115 +3856,8 @@ Thanks so much for being thorough with this, you rock Claude! 🤘🎸🚀"""
         app.logger.error(f"Failed to process chord charts: {str(e)}")
         return {'error': f'Failed to process chord charts: {str(e)}'}
 
-def create_chord_charts_from_data(chord_data, item_id):
-    """Create chord charts from parsed data using the data layer (adapted from sheets version)"""
-    try:
-        from app.data_layer import DataLayer
-        data_layer = DataLayer()
-
-        created_charts = []
-
-        # Extract tuning and capo from the analysis
-        tuning = chord_data.get('tuning', 'EADGBE')
-        capo = chord_data.get('capo', 0)
-
-        # Log Claude's visual analysis for debugging (if present)
-        try:
-            if 'analysis' in chord_data:
-                analysis = chord_data.get('analysis', {})
-                if 'referenceChordDescriptions' in analysis:
-                    app.logger.info("=== Claude's Visual Analysis of Reference Chord Diagrams ===")
-                    for ref_chord in analysis['referenceChordDescriptions']:
-                        app.logger.info(f"Chord: {ref_chord.get('name', 'Unknown')}")
-                        app.logger.info(f"Visual Description: {ref_chord.get('visualDescription', 'No description')}")
-                        app.logger.info(f"Extracted Pattern: {ref_chord.get('extractedPattern', 'No pattern')}")
-                    app.logger.info("=== End Visual Analysis ===")
-        except Exception as e:
-            app.logger.warning(f"Error logging Claude visual analysis: {str(e)}")
-
-        # REFERENCE-FIRST APPROACH: When reference files are present, use them directly
-        reference_chord_shapes = []
-
-        # Extract reference chord shapes in order of appearance
-        if 'analysis' in chord_data:
-            analysis = chord_data.get('analysis', {})
-            if 'referenceChordDescriptions' in analysis:
-                app.logger.info("=== REFERENCE-FIRST: Using Reference Chord Patterns Directly ===")
-                for ref_chord in analysis['referenceChordDescriptions']:
-                    chord_name = ref_chord.get('name', '').strip()
-                    extracted_pattern = ref_chord.get('extractedPattern', [])
-
-                    if chord_name and extracted_pattern:
-                        # Clean chord name (remove capo suffix)
-                        clean_name = chord_name.replace('(capoOn2)', '').replace('(capoon2)', '').strip()
-
-                        reference_chord_data = {
-                            'name': clean_name,
-                            'frets': extracted_pattern,
-                            'source': 'reference_diagram'
-                        }
-
-                        reference_chord_shapes.append(reference_chord_data)
-                        app.logger.info(f"Reference chord #{len(reference_chord_shapes)}: {clean_name} → {extracted_pattern}")
-
-                app.logger.info(f"✅ Loaded {len(reference_chord_shapes)} reference chords for direct use")
-
-        # Process sections and create chord charts
-        chart_order = 0
-        sections = chord_data.get('sections', [])
-
-        for section in sections:
-            section_label = section.get('label', 'Main')
-            section_chords = section.get('chords', [])
-
-            for chord in section_chords:
-                chord_name = chord.get('name', 'Unknown')
-                chord_frets = chord.get('frets', [])
-
-                # If no frets in chord data but we have reference shapes, try to match
-                if not chord_frets and reference_chord_shapes:
-                    for ref_chord in reference_chord_shapes:
-                        if ref_chord['name'].lower() == chord_name.lower():
-                            chord_frets = ref_chord['frets']
-                            break
-
-                # Convert frets array to CommonChords 2-element array format [string, fret]
-                # CRITICAL: Frets array is left-to-right (string 6 to string 1)
-                # but CommonChords uses actual string numbers (1=high E, 6=low E)
-                fingers = []
-                if chord_frets:
-                    for string_idx, fret in enumerate(chord_frets):
-                        if fret is not None and fret > 0:  # Skip muted (-1), open (0), and null strings
-                            # Convert: frets[0] = string 6, frets[1] = string 5, ..., frets[5] = string 1
-                            actual_string_number = 6 - string_idx  # Reverse the order
-                            fingers.append([actual_string_number, fret])  # [string, fret] format like CommonChords
-
-                # Create chord chart data
-                chord_chart_data = {
-                    'title': chord_name,
-                    'fingers': fingers,
-                    'barres': [],  # TODO: Handle barres from sheets version if needed
-                    'tuning': list(tuning) if isinstance(tuning, str) else ['E', 'A', 'D', 'G', 'B', 'E'],
-                    'capo': capo,
-                    'section': section_label,
-                    'sectionLabel': section_label,
-                    'sectionRepeatCount': '1',
-                    'order': chart_order
-                }
-
-                # Create the chord chart
-                created_chart = data_layer.add_chord_chart(item_id, chord_chart_data)
-                if created_chart:
-                    created_charts.append(created_chart)
-                    chart_order += 1
-
-        app.logger.info(f"Created {len(created_charts)} chord charts from visual analysis")
-        return created_charts
-
-    except Exception as e:
-        app.logger.error(f"Error creating chord charts from data: {str(e)}")
-        return []
-
+# NOTE: create_chord_charts_from_data is defined later in this file (around line 4574)
+# It handles all autocreate paths including chord_chart_direct, reference patterns, and chord_names
 
 # Chord chart copy functionality  
 @app.route('/api/chord-charts/copy', methods=['POST'])
@@ -4721,7 +4614,8 @@ def create_chord_charts_from_data(chord_data, item_id):
                         app.logger.debug(f"No reference match found for chord name '{chord_name}'")
 
                 # Simplified processing: reference patterns or direct chord data
-                use_reference_pattern = (source_type in ['reference', 'reference_direct', 'reference_only'] and chord_frets)
+                # NOTE: 'chord_chart_direct' added to handle visual analysis from process_chord_charts_directly
+                use_reference_pattern = (source_type in ['reference', 'reference_direct', 'reference_only', 'chord_chart_direct'] and chord_frets)
                 use_direct_pattern = (source_type == 'chord_names' and chord_frets and tuning != 'EADGBE')
 
                 if use_reference_pattern:
@@ -4733,20 +4627,22 @@ def create_chord_charts_from_data(chord_data, item_id):
                 common_chord = None
                 chord_name_lower = chord_name.lower()
 
-                # Only lookup in CommonChords for standard tuning when not using direct patterns
+                # Lookup in CommonChords for any tuning when not using direct patterns
+                # NOTE: CommonChords contains EADGBE fingering patterns, but these patterns work for
+                # any tuning - the finger positions are the same, only the resulting notes change.
+                # So Em shape = Em shape whether tuned to EADGBE, DGCFAD, or Drop D.
                 is_standard_tuning = tuning.upper() in ['EADGBE', 'STANDARD']
                 if not (use_reference_pattern or use_direct_pattern):
-                    if not is_standard_tuning:
-                        app.logger.warning(f"⚠️  FALLBACK: Skipping CommonChords lookup for alternate tuning: {tuning}. CommonChords only contains EADGBE patterns.")
-                    elif chord_name_lower != 'unknown':
+                    if chord_name_lower != 'unknown':
                         for common in all_common_chords:
                             if common.get('title', '').lower() == chord_name_lower:
                                 common_chord = common
-                                app.logger.info(f"📚 FALLBACK: Found {chord_name} in pre-loaded CommonChords by name")
+                                tuning_note = f" (using standard fingering for {tuning} tuning)" if not is_standard_tuning else ""
+                                app.logger.info(f"📚 Found {chord_name} in CommonChords{tuning_note}")
                                 break
 
-                    # If not found by name and we have fret data, try to find by fret pattern (standard tuning only)
-                    if not common_chord and chord_frets and is_standard_tuning:
+                    # If not found by name and we have fret data, try to find by fret pattern
+                    if not common_chord and chord_frets:
                         # Try to match fret pattern in CommonChords (for transposed patterns)
                         for common in all_common_chords:
                             common_frets = common.get('frets', [])
@@ -4808,7 +4704,9 @@ def create_chord_charts_from_data(chord_data, item_id):
                     app.logger.info(f"✅ Created chord chart from {source_desc}: {chord_name} = {frets} in {tuning}")
 
                 elif common_chord:
-                    # Use the chord from CommonChords (standard tuning path)
+                    # Use the chord fingering from CommonChords
+                    # NOTE: Always use the tuning from Claude's analysis (not from CommonChords)
+                    # because CommonChords only has EADGBE patterns but we're applying them to any tuning
                     # Filter fingers to only include fretted positions (fret > 0) to prevent blank chord displays
                     raw_fingers = common_chord.get('fingers', [])
                     filtered_fingers = []
@@ -4820,7 +4718,7 @@ def create_chord_charts_from_data(chord_data, item_id):
                     chord_chart_data = {
                         'title': chord_name,
                         'chord_data': {
-                            'tuning': common_chord.get('tuning', tuning),
+                            'tuning': tuning,  # Use tuning from analysis, not CommonChords
                             'capo': common_chord.get('capo', capo),
                             'startingFret': common_chord.get('startingFret', 1),
                             'numFrets': common_chord.get('numFrets', 5),
@@ -4870,6 +4768,9 @@ def create_chord_charts_from_data(chord_data, item_id):
                                 svguitar_fingers.append([string_num, fret_val])  # No finger numbers - leave to user
 
                     # 🔧 SVGuitar Debug Logging (Fallback Pattern Path)
+                    if not svguitar_fingers and not open_strings:
+                        app.logger.warning(f"⚠️ EMPTY CHORD: {chord_name} has no finger positions or open strings - chart will be blank!")
+                        app.logger.warning(f"   This usually means: chord name not in CommonChords DB and no fret data from analysis")
                     app.logger.info(f"🔧 SVGuitar Conversion Debug for {chord_name} (Fallback Pattern):")
                     app.logger.info(f"   Input frets: {frets}")
                     app.logger.info(f"   SVGuitar fingers: {svguitar_fingers}")
