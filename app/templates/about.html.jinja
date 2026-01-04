@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About - Guitar Practice Routine App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+    <script>
+        // Apply theme immediately to prevent flash (light-mode system)
+        (function() {
+            if (localStorage.getItem('lightMode') === 'true') {
+                document.body.classList.add('light-mode');
+            }
+        })();
+    </script>
+    <style>
+        /* Theme toggle positioning */
+        .theme-toggle {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        .theme-toggle:hover {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-900">
+    <!-- App Title Banner -->
+    <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <a href="/" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                <span class="text-3xl">🎸</span>
+                <span class="text-xl font-semibold text-white">Guitar Practice Routine App</span>
+            </a>
+            <nav class="flex gap-4 text-sm">
+                <a href="/about" class="text-orange-400 font-medium">About</a>
+                <a href="/faq" class="text-gray-400 hover:text-white transition-colors">FAQ</a>
+                <a href="/terms" class="text-gray-400 hover:text-white transition-colors">Terms</a>
+                <a href="/privacy" class="text-gray-400 hover:text-white transition-colors">Privacy</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Page Header -->
+        <div class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">About GPRA</h1>
+        </div>
+
+        <!-- Main Content -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 space-y-6">
+            <section>
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">What is this?</h2>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    The Guitar Practice Routine App (GPRA) is a web app for organizing and tracking guitar practice routines. It's intended for beginners and intermediate players (but if you're an advanced player or a pro, you're welcome here too if you find it useful.)
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    You can create practice items, organize them into routines, use timers to stay focused, create chord charts, and have chord charts autocreated for you, among other things.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">Who made this?</h2>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    Just some guy. I'm Steven Shults. I'm an amateur/hobbyist guitar player, a tech support professional, and I was a theatre artist for 25 years (before I had kids. Hoping to get back to it after I retire someday.)
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    This app is not my livelihood, it's just a hobby. I have a "day job."
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">What inspired this?</h2>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    GPRA was initially inspired by the <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">My Practice Assistant</code> on <a href="https://www.justinguitar.com/users/stevens/practice#practice" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">JustinGuitar.com</a>. I'd tried several tools for tracking practice stuff, and Justin's was the best I'd found (Btw: Justin's free and paid courses are fantastic. If you're looking for an online course, I highly recommend <a href="https://JustinGuitar.com" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">JustinGuitar.com</a>!)
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    But the practice assistant on Justin's site was just too much of a pain and a timesink to use (e.g., you can't drag and drop to change the order of items in a routine. Oof. I'm not sure he remembers it's there, it's no longer on the <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">Tools</code> menu of his site, or listed in his FAQ index. So I'm very much hoping he won't be bothered that I used it as an inspiration for GPRA!)
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    So, I built* my own tool based on Justin's, and ran a tiny local server on my own computer during my practice time. Over the course of a year or so, I gradually improved it further, and added additional features for myself.
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    A few months ago I took a step back, looked at it with fresh eyes, then thought: "Hey, this doesn't suck. Maybe other people would want to use it, too."
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    But due to the costs of putting it online, I can't afford to give it away, I need to at least cover the costs of the hosting and the AI stuff. So in my spare time, over a few months, I built an account system for multiple users, added Stripe for subscription handling, and all the other stuff that makes a web app a web app.
+                </p>
+                <p class="text-gray-500 dark:text-gray-500 text-sm leading-relaxed mt-4">
+                    *By "built", I really mean I vibe-coded it with Claude. I can write code, just not fast, or well. But, I know what good UI/UX is, and I understand apps and code well enough to use AI to build something that can actually be used. So, with Claude's help, I made it happen in about 1/8th of the time it would have taken me to code it all keystroke-by-keystroke myself.<br>
+                    Note: I have lots of concerns about AI, especially when it comes to art of any kind, but I think there are good uses for AI, and code is one of them. Claude has become pretty damn good at it.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">Why a subscription?</h2>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    Running a web app costs money; hosting, databases, AI API calls, and time (even vibe-coding takes some time, then there's testing, maintenance to keep various libraries up to date and secure, improving things based on feedback, etc.) The subscription model lets me pay those bills to keep the app running (the free tier is ad-supported, but the trickle of ad revenue is unlikely to pay for the costs incurred by free users.) I doubt I'll ever make an actual profit, but it'll be a nice surprise if I do.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">Contact</h2>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    Found a bug? Have a feature request? Want to submit a PR? Just want to say hi?
+                </p>
+                <a href="#"
+                   class="inline-block mt-3 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
+                    Reach out
+                </a>
+            </section>
+        </div>
+
+        <!-- Footer Links -->
+        <div class="text-center text-sm text-gray-600 dark:text-gray-400 py-4 border-t border-gray-200 dark:border-gray-700">
+            <a href="/" class="hover:underline">Back to GPRA</a>
+            ·
+            <a href="/faq" class="hover:underline">FAQ</a>
+            ·
+            <a href="/terms" class="hover:underline">Terms</a>
+            ·
+            <a href="/privacy" class="hover:underline">Privacy</a>
+        </div>
+    </div>
+
+    <!-- Theme Toggle -->
+    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+        <img id="light-mode-toggle"
+             src="{{ url_for('static', filename='images/lightmodetoggle.png') }}"
+             alt="Switch to Light Mode"
+             style="height: 20px; width: 40px; display: block;">
+        <img id="dark-mode-toggle"
+             src="{{ url_for('static', filename='images/darkmodetoggle.png') }}"
+             alt="Switch to Dark Mode"
+             style="height: 20px; width: 40px; display: none;">
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+</body>
+</html>
