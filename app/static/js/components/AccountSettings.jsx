@@ -308,8 +308,8 @@ const AccountSettings = () => {
   };
 
   const validatePasswordStrength = (password) => {
-    if (password.length < 12) {
-      return 'Password must be at least 12 characters long';
+    if (password.length < 14) {
+      return 'Password must be at least 14 characters long';
     }
     if (!/[A-Z]/.test(password)) {
       return 'Password must contain at least one uppercase letter';
@@ -930,7 +930,7 @@ const AccountSettings = () => {
                   <div className="bg-blue-900/30 border border-blue-700 rounded-md p-3">
                     <h4 className="text-sm font-semibold text-blue-300 mb-1">Password requirements:</h4>
                     <ul className="text-xs text-gray-300 space-y-0.5 list-disc list-inside">
-                      <li>At least 12 characters long</li>
+                      <li>At least 14 characters long</li>
                       <li>At least one uppercase letter</li>
                       <li>At least one lowercase letter</li>
                       <li>At least one number</li>

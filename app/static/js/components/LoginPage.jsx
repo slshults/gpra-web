@@ -211,7 +211,7 @@ const LoginPage = () => {
                   <div className="w-full border-t border-gray-600"></div>
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-gray-800 text-gray-400">Or continue with</span>
+                  <span className="px-2 bg-gray-800 text-gray-400">Or</span>
                 </div>
               </div>
 
@@ -272,19 +272,6 @@ const LoginPage = () => {
                 )}
               </Button>
 
-              {/* reCAPTCHA Privacy Notice */}
-              <p className="text-xs text-gray-500 mt-2">
-                This site is protected by reCAPTCHA and the Google{' '}
-                <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">
-                  Privacy Policy
-                </a>{' '}
-                and{' '}
-                <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" className="underline">
-                  Terms of Service
-                </a>{' '}
-                apply.
-              </p>
-
               {/* Forgot Password Link */}
               <div className="text-center">
                 <a
@@ -305,6 +292,19 @@ const LoginPage = () => {
                   (No card needed for 1 free routine)
                 </div>
               </div>
+
+              {/* reCAPTCHA Privacy Notice */}
+              <p className="text-xs text-gray-500 mt-4 text-center">
+                Site protected by reCAPTCHA, to which the Google{' '}
+                <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">
+                  Privacy Policy
+                </a>{' '}
+                and{' '}
+                <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" className="underline">
+                  Terms of Service
+                </a>{' '}
+                apply.
+              </p>
             </form>
           </CardContent>
         </Card>

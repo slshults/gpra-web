@@ -23,9 +23,14 @@ const RegisterPage = () => {
   const [recaptchaReady, setRecaptchaReady] = useState(false);
   const recaptchaRef = useRef(null);
 
+  // Track if user has clicked Terms and Privacy links
+  const [clickedTerms, setClickedTerms] = useState(false);
+  const [clickedPrivacy, setClickedPrivacy] = useState(false);
+  const [showReadFirstModal, setShowReadFirstModal] = useState(false);
+
   // Password requirements validation
   const passwordRequirements = {
-    length: password.length >= 12,
+    length: password.length >= 14,
     uppercase: /[A-Z]/.test(password),
     lowercase: /[a-z]/.test(password),
     number: /[0-9]/.test(password),
@@ -110,8 +115,8 @@ const RegisterPage = () => {
   };
 
   const validatePassword = () => {
-    if (password.length < 12) {
-      return 'Password must be at least 12 characters long';
+    if (password.length < 14) {
+      return 'Password must be at least 14 characters long';
     }
     if (!/[A-Z]/.test(password)) {
       return 'Password must contain at least one uppercase letter';
@@ -270,9 +275,6 @@ const RegisterPage = () => {
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
             <CardTitle className="text-gray-100">Sign Up</CardTitle>
-            <CardDescription className="text-gray-400">
-              Enter your details to create a new account
-            </CardDescription>
             <div className="text-xs text-gray-500 mt-2">
               (We won't spam you or sell your info to spammers.)
             </div>
@@ -340,7 +342,7 @@ const RegisterPage = () => {
                   <div className="w-full border-t border-gray-600"></div>
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-gray-800 text-gray-400">Or sign up with</span>
+                  <span className="px-2 bg-gray-800 text-gray-400">Or</span>
                 </div>
               </div>
 
@@ -352,7 +354,7 @@ const RegisterPage = () => {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="johndoe"
+                  placeholder="e.g.: some_name"
                   className="bg-gray-900 border-gray-600 text-gray-100"
                   disabled={loading}
                   required
@@ -367,7 +369,7 @@ const RegisterPage = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder="e.g.: someone@somewhere.com"
                   className="bg-gray-900 border-gray-600 text-gray-100"
                   disabled={loading}
                   required
@@ -399,7 +401,7 @@ const RegisterPage = () => {
                   </button>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Must be 12+ characters with uppercase, lowercase, number, and symbol
+                  Must be 14+ characters with uppercase, lowercase, number, and symbol
                 </p>
               </div>
 
@@ -409,7 +411,7 @@ const RegisterPage = () => {
                   <p className="text-gray-400 mb-1">Password requirements:</p>
                   <div className="space-y-0.5">
                     <div className={`flex items-center ${passwordRequirements.length ? 'text-green-400' : 'text-gray-500'}`}>
-                      {passwordRequirements.length ? '✓' : '○'} At least 12 characters
+                      {passwordRequirements.length ? '✓' : '○'} At least 14 characters
                     </div>
                     <div className={`flex items-center ${passwordRequirements.uppercase ? 'text-green-400' : 'text-gray-500'}`}>
                       {passwordRequirements.uppercase ? '✓' : '○'} One uppercase letter
@@ -466,7 +468,15 @@ const RegisterPage = () => {
                   type="checkbox"
                   id="terms"
                   checked={agreedToTerms}
-                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  onChange={(e) => {
+                    // If trying to check the box without clicking both links, show modal
+                    if (e.target.checked && (!clickedTerms || !clickedPrivacy)) {
+                      setShowReadFirstModal(true);
+                      e.target.checked = false;
+                      return;
+                    }
+                    setAgreedToTerms(e.target.checked);
+                  }}
                   className="mt-1 h-4 w-4 rounded border-gray-600 bg-gray-900 text-orange-600 focus:ring-orange-500 focus:ring-offset-gray-800"
                   disabled={loading}
                   required
@@ -478,6 +488,7 @@ const RegisterPage = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-orange-500 hover:text-orange-400 underline"
+                    onClick={() => setClickedTerms(true)}
                   >
                     Terms of Service
                   </a>
@@ -487,11 +498,29 @@ const RegisterPage = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-orange-500 hover:text-orange-400 underline"
+                    onClick={() => setClickedPrivacy(true)}
                   >
                     Privacy Policy
                   </a>
                 </label>
               </div>
+
+              {/* Read First Modal */}
+              {showReadFirstModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="bg-gray-800 border border-gray-600 rounded-lg p-6 max-w-md mx-4 shadow-xl">
+                    <p className="text-gray-200 mb-4">
+                      Seriously though, please read the terms and privacy policy first. They're written in plain language, not legalese.
+                    </p>
+                    <Button
+                      onClick={() => setShowReadFirstModal(false)}
+                      className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                    >
+                      OK
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {/* reCAPTCHA Enterprise Checkbox */}
               <div className="flex justify-center">

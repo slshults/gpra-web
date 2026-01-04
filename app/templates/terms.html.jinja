@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terms of Service - Guitar Practice Routine App</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🎸</text></svg>">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
     <script>
@@ -11,6 +12,7 @@
         (function() {
             if (localStorage.getItem('lightMode') === 'true') {
                 document.body.classList.add('light-mode');
+                document.documentElement.classList.remove('dark');
             }
         })();
     </script>
@@ -43,6 +45,8 @@
                 <a href="/faq" class="text-gray-400 hover:text-white transition-colors">FAQ</a>
                 <a href="/terms" class="text-orange-400 font-medium">Terms</a>
                 <a href="/privacy" class="text-gray-400 hover:text-white transition-colors">Privacy</a>
+                <a href="/#Account" class="text-gray-400 hover:text-white transition-colors" title="Account settings">⚙️</a>
+                <a href="/logout" class="text-gray-400 hover:text-white transition-colors">Logout</a>
             </nav>
         </div>
     </header>
@@ -58,7 +62,7 @@
         <div class="prose dark:prose-invert max-w-none mb-8">
             <p class="text-lg text-gray-700 dark:text-gray-300">
                 Welcome to the boring details about the terms of service for using GPRA (Guitar Practice Routine App.) I'm pleasantly surprised you're reading this... <br><br>
-                <p class="text-sm text-gray-600 dark:text-gray-400">
+                <p class="text-sm text-gray-600 dark:text-gray-300">
                 (Caution: Below you will encounter snarkiness with humorous intent. Don't take it personally. Well, unless you're one of those Karenesque asshats who thinks it's fun to roam the internet looking for people to hassle, in which case: Do take it personally 😆 and seek therapy too.)
                 </p>       
                  <br>

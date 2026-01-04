@@ -3459,14 +3459,17 @@ export const PracticePage = () => {
         <h1 className="text-3xl font-bold">{routine?.name}</h1>
         <div className="flex flex-col items-end gap-2">
           <div className="text-xl font-mono">
-            {formatHoursAndMinutes(completedMinutes)} / {formatHoursAndMinutes(totalMinutes - completedMinutes)}
+            <span title="Time practiced so far">{formatHoursAndMinutes(completedMinutes)}</span>
+            {' / '}
+            <span title="Total time of remaining items">{formatHoursAndMinutes(totalMinutes - completedMinutes)}</span>
           </div>
           <Button
             variant="outline"
             onClick={resetProgress}
             className="text-gray-300 hover:text-white"
+            title="Reset progress and all timers"
           >
-            Reset Progress
+            Reset progress
           </Button>
         </div>
       </div>
@@ -3579,14 +3582,14 @@ export const PracticePage = () => {
                       )}
                     </div>
 
-                    {/* Mark as done button - centered below timer */}
+                    {/* Mark done button - centered below timer */}
                     <div className="flex justify-center mt-6">
                       <Button
                         variant="outline"
                         className="max-w-md text-gray-300 hover:text-white"
                         onClick={(e) => toggleComplete(routineItem['A'], e)}
                       >
-                        Mark as done
+                        Mark done
                       </Button>
                     </div>
                   </div>
@@ -3821,7 +3824,8 @@ export const PracticePage = () => {
                                         <div className="border border-gray-600/30 rounded-lg p-4 bg-gray-800/10">
                                           <div className="text-sm text-gray-400 mb-6">
                                             <p>• Upload lyrics with chord names to create charts</p>
-                                            <p>• Upload chord diagrams to import existing charts</p>
+                                            <p>• Upload image or PDF of chord charts to "import"</p>
+                                            <p>• One method at a time</p>
                                           </div>
                                           
                                           {!progress && (
@@ -3882,16 +3886,12 @@ export const PracticePage = () => {
                                                       <p className="text-gray-400 text-xs mb-2">
                                                         PDFs, images • 5mb max
                                                       </p>
-                                                      {uploadedFiles[itemReferenceId] && uploadedFiles[itemReferenceId].length > 0 ? (
+                                                      {uploadedFiles[itemReferenceId] && uploadedFiles[itemReferenceId].length > 0 && (
                                                         <div>
                                                           <p className="text-gray-300 text-xs font-medium mb-1">
                                                             {uploadedFiles[itemReferenceId].length} file(s)
                                                           </p>
                                                         </div>
-                                                      ) : (
-                                                        <p className="text-gray-400 text-xs">
-                                                          Lyrics or chord charts
-                                                        </p>
                                                       )}
                                                     </div>
                                                   </div>
@@ -3901,6 +3901,7 @@ export const PracticePage = () => {
                                                 <div className="flex flex-col">
                                                   <div className="text-center mb-2">
                                                     <p className="text-gray-400 text-sm font-medium">YouTube guitar lesson</p>
+                                                    <p className="text-gray-500 text-xs">(video must have a transcript)</p>
                                                   </div>
                                                   <form
                                                     className="flex-1 flex flex-col justify-center"
@@ -3913,7 +3914,7 @@ export const PracticePage = () => {
                                                   >
                                                     <input
                                                       type="url"
-                                                      placeholder="YouTube guitar lesson URL (transcript required)"
+                                                      placeholder="Paste YouTube URL"
                                                       value={youtubeUrls[itemReferenceId] || ''}
                                                       onChange={(e) => {
                                                         const sanitizedValue = e.target.value.replace(/[<>"']/g, '');
@@ -4127,8 +4128,8 @@ export const PracticePage = () => {
                                                           return (
                                                             <>
                                                               <Sparkles className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                                                              <p className="text-gray-300 font-medium mb-1">Add a file above, then click 'Create Chord Charts'</p>
-                                                              <p className="text-gray-400 text-xs">(The results will probably contain errors, use the ✏️edit icon to make any corrections needed.)</p>
+                                                              <p className="text-gray-300 font-medium mb-1">Add a file, paste a YouTube URL, or type in the 'Manual entry' box, then click 'Create Chord Charts'</p>
+                                                              <p className="text-gray-400 text-xs">(The results will probably contain errors. Use the ✏️edit icon on a chart to correct it.)</p>
                                                             </>
                                                           );
                                                         }
