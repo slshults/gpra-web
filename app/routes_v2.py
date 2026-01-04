@@ -112,6 +112,11 @@ def faq_page():
     """FAQ page - accessible to everyone"""
     return render_template('faq.html.jinja')
 
+@app.route('/about')
+def about_page():
+    """About page - accessible to everyone"""
+    return render_template('about.html.jinja')
+
 # Items API - Updated to use data layer
 @app.route('/api/items', methods=['GET', 'POST'])
 def items():
