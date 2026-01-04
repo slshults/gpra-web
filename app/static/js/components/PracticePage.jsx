@@ -20,7 +20,7 @@ import { useItemDetails } from '@hooks/useItemDetails';
 import { usePracticeItems } from '@hooks/usePracticeItems';
 import { useNavigation } from '@contexts/NavigationContext';
 import { ChevronDown, ChevronRight, Check, Plus, FileText, Book, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer } from 'lucide-react';
-import { NoteEditor } from './NoteEditor';
+import { NoteEditor, renderMarkdown } from './NoteEditor';
 import { ChordChartEditor } from './ChordChartEditor';
 import ApiErrorModal from './ApiErrorModal';
 import AutocreateSuccessModal from './AutocreateSuccessModal';
@@ -3560,6 +3560,7 @@ export const PracticePage = () => {
                     <button
                       onClick={(e) => toggleTimer(routineItem['A'], e)}  // Column A is ID
                       className="w-48 h-48 rounded-full border-4 border-gray-600 flex items-center justify-center hover:border-gray-500 transition-colors"
+                      title={isTimerActive ? "Pause timer" : "Start timer"}
                     >
                       {isTimerActive ? (
                         <PauseIcon className="h-24 w-24 text-red-500" />
@@ -4289,7 +4290,10 @@ export const PracticePage = () => {
                         aria-labelledby={`notes-title-${routineItem['A']}`}
                       >
                         <div className="bg-gray-700 p-3 rounded">
-                          <p className="text-gray-300 whitespace-pre-wrap">{itemNotes}</p>
+                          <div
+                            className="text-gray-300"
+                            dangerouslySetInnerHTML={{ __html: renderMarkdown(itemNotes) }}
+                          />
                         </div>
                       </div>
                     )}

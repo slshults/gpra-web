@@ -77,6 +77,7 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts }) 
           size="lg"
           onClick={() => onEdit(item)}
           className="hover:bg-gray-700"
+          title="Edit item"
         >
           <Pencil className="h-5 w-5" aria-hidden="true" />
           <span className="sr-only">Edit item</span>
@@ -86,6 +87,7 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts }) 
           size="lg"
           onClick={() => onOpenChordCharts(item['B'], item['C'])}
           className="text-blue-400 hover:text-blue-300 hover:bg-gray-700"
+          title="Add or edit chord charts"
         >
           <ChordIcon className="h-5 w-5" aria-hidden="true" />
           <span className="sr-only">Chord charts</span>
@@ -95,6 +97,7 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts }) 
           size="lg"
           onClick={handleDelete}
           className="text-red-500 hover:text-red-400 hover:bg-gray-700"
+          title="Delete this item and remove it from all routines"
         >
           <Trash2 className="h-5 w-5" aria-hidden="true" />
           <span className="sr-only">Delete item</span>

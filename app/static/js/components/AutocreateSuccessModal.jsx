@@ -34,7 +34,7 @@ const AutocreateSuccessModal = ({ isOpen, onClose, autocreateData }) => {
     if (isComplexVisionAnalysis) {
       return "🎸 Vision Analysis Complete!";
     }
-    return "Chord Charts Created!";
+    return "Chord charts created";
   };
 
   const getDescription = () => {
@@ -51,25 +51,39 @@ const AutocreateSuccessModal = ({ isOpen, onClose, autocreateData }) => {
   const getDetails = () => {
     const details = [];
 
-    if (contentType) {
-      const typeLabels = {
-        'chord_charts': 'Chord charts',
-        'chord_names': 'Lyrics with chord names',
-        'tablature': 'Guitar tablature',
-        'mixed': 'Mixed content types',
-        'auto-detected': isComplexVisionAnalysis ? 'Chord charts' : 'Mixed content'
-      };
-      details.push(typeLabels[contentType] || contentType);
-    }
+    // Map content types to human-readable labels
+    const typeLabels = {
+      'chord_charts': 'Chord charts',
+      'chord_names': 'Lyrics with chord names',
+      'tablature': 'Guitar tablature',
+      'mixed': 'Mixed content types',
+      'auto-detected': isComplexVisionAnalysis ? 'Chord charts' : 'Mixed content',
+      'youtube_transcript': 'YouTube transcript'
+    };
 
-    if (uploadedFileNames) {
-      const fileList = uploadedFileNames.split(', ').slice(0, 3); // Show max 3 files
-      const remainingCount = uploadedFileNames.split(', ').length - fileList.length;
-      let fileText = fileList.join(', ');
-      if (remainingCount > 0) {
-        fileText += ` and ${remainingCount} more`;
+    // Check if uploadedFileNames is a source method (not actual file names)
+    const sourceMethodLabels = ['YouTube transcript', 'Manual entry'];
+    const isSourceMethod = sourceMethodLabels.includes(uploadedFileNames);
+
+    // For source methods (YouTube/Manual), show only the source, not the content type
+    // since the content type is redundant (e.g., youtube_transcript + "YouTube transcript")
+    if (isSourceMethod) {
+      details.push(uploadedFileNames);
+    } else {
+      // For file uploads, show content type and file names
+      if (contentType && typeLabels[contentType]) {
+        details.push(typeLabels[contentType]);
       }
-      details.push(fileText);
+
+      if (uploadedFileNames) {
+        const fileList = uploadedFileNames.split(', ').slice(0, 3); // Show max 3 files
+        const remainingCount = uploadedFileNames.split(', ').length - fileList.length;
+        let fileText = fileList.join(', ');
+        if (remainingCount > 0) {
+          fileText += ` and ${remainingCount} more`;
+        }
+        details.push(fileText);
+      }
     }
 
     return details;
@@ -89,7 +103,7 @@ const AutocreateSuccessModal = ({ isOpen, onClose, autocreateData }) => {
             <div className="bg-gray-800 px-2 py-1 rounded-lg">
               <div className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-1">
                 <FileText className="h-4 w-4" />
-                <span>Processing Details</span>
+                <span>Details</span>
               </div>
               <ul className="text-sm text-gray-400">
                 {getDetails().map((detail, index) => (

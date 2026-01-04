@@ -14,6 +14,7 @@ import { Textarea } from '@ui/textarea';
 import { Label } from '@ui/label';
 import { Loader2 } from 'lucide-react';
 import TierLimitModal from './TierLimitModal';
+import { renderMarkdown } from './NoteEditor';
 
 export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) => {
   const [formData, setFormData] = useState({
@@ -26,6 +27,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
   });
   const [error, setError] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [showNotesPreview, setShowNotesPreview] = useState(false);
   const [tierLimitModalOpen, setTierLimitModalOpen] = useState(false);
   const [tierLimitData, setTierLimitData] = useState({
     limitType: 'items',
@@ -51,6 +53,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
           });
           setError(null);
           setIsDirty(false);
+          setShowNotesPreview(false);
         } else {
           // We have a lightweight item (only ID and Title), need to fetch full data
           fetchFullItemData(item['A']);
@@ -67,6 +70,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
         });
         setError(null);
         setIsDirty(false);
+        setShowNotesPreview(false);
       }
     }
   }, [open, item]);
@@ -180,9 +184,6 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
           <DialogTitle>
             {item ? `Edit item: ${item['C']}` : 'Create new item'}
           </DialogTitle>
-          <DialogDescription>
-            Edit the details of your practice item
-          </DialogDescription>
           {error && (
             <div className="mt-2 text-sm text-red-500" role="alert">
               {error}
@@ -292,7 +293,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
                 id="songbook"
                 value={formData['F']}
                 onChange={(e) => handleFormChange('F', e.target.value)}
-                placeholder="D:\Users\Steven\Documents\Guitar\Songbook\SongName"
+                placeholder='e.g.: "C:\Users\Steven\Documents\Guitar\Songbook\SongName"'
                 className="bg-gray-900 font-mono"
               />
             </div>
@@ -311,15 +312,42 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              value={formData['D']}
-              onChange={(e) => handleFormChange('D', e.target.value)}
-              placeholder="Enter any notes"
-              className="h-24 bg-gray-900 text-white"
-              autoComplete="off"
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="notes">Notes <span className="text-gray-500 font-normal">(markdown supported)</span></Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={!showNotesPreview ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setShowNotesPreview(false)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  type="button"
+                  variant={showNotesPreview ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setShowNotesPreview(true)}
+                >
+                  Preview
+                </Button>
+              </div>
+            </div>
+            {showNotesPreview ? (
+              <div
+                className="h-24 bg-gray-900 text-white p-3 rounded-md overflow-auto"
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(formData['D']) }}
+              />
+            ) : (
+              <Textarea
+                id="notes"
+                value={formData['D']}
+                onChange={(e) => handleFormChange('D', e.target.value)}
+                placeholder="Enter any notes... (markdown supported)"
+                className="h-24 bg-gray-900 text-white"
+                autoComplete="off"
+              />
+            )}
           </div>
 
           <div className="flex justify-end space-x-4">
