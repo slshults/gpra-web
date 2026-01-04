@@ -8,6 +8,9 @@ function initThemeToggle() {
   // Apply saved theme
   if (isLightMode) {
     document.body.classList.add('light-mode');
+    document.documentElement.classList.remove('dark');
+  } else {
+    document.documentElement.classList.add('dark');
   }
 
   // Update toggle button visibility based on current mode
@@ -20,10 +23,12 @@ function toggleTheme() {
   if (isCurrentlyLight) {
     // Switch to dark mode (default)
     document.body.classList.remove('light-mode');
+    document.documentElement.classList.add('dark');
     localStorage.setItem('lightMode', 'false');
   } else {
     // Switch to light mode
     document.body.classList.add('light-mode');
+    document.documentElement.classList.remove('dark');
     localStorage.setItem('lightMode', 'true');
   }
 

@@ -821,7 +821,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
             {/* Basic advanced settings */}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <div className="text-sm text-green-400 mb-1">Tuning</div>
+                <div className="text-sm text-white mb-1">Tuning</div>
                 <Input
                   value={tuning}
                   onChange={(e) => setTuning(e.target.value)}
@@ -830,7 +830,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
                 />
               </div>
               <div>
-                <div className="text-sm text-yellow-400 mb-1">Capo</div>
+                <div className="text-sm text-white mb-1">Capo</div>
                 <Input
                   type="number"
                   min="0"
@@ -841,7 +841,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
                 />
               </div>
               <div>
-                <div className="text-sm text-red-400 mb-1">Starting fret</div>
+                <div className="text-sm text-white mb-1">Starting fret</div>
                 <Input
                   type="number"
                   min="1"
@@ -856,7 +856,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
             {/* Second row of advanced settings */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-sm text-blue-400 mb-1">Number of frets</div>
+                <div className="text-sm text-white mb-1">Number of frets</div>
                 <Input
                   type="number"
                   min="1"
@@ -867,7 +867,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
                 />
               </div>
               <div>
-                <div className="text-sm text-red-400 mb-1">Number of strings</div>
+                <div className="text-sm text-white mb-1">Number of strings</div>
                 <Input
                   type="number"
                   min="4"
@@ -885,7 +885,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
         {/* Editor and Result sections */}
         <div className="flex gap-8 justify-center">
           <div>
-            <div className="text-lg font-serif mb-2">Editor</div>
+            <div className="text-lg text-white mb-2">Editor</div>
             <div className="border border-gray-700 rounded-lg px-1 pt-1 pb-0">
               <div className="relative w-40 mx-auto flex items-center justify-center overflow-hidden select-none" style={{height: '230px'}}>
                 <div id="editor-chart" ref={editorContainerRef} className="cursor-pointer select-none" />
@@ -894,7 +894,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
           </div>
 
           <div>
-            <div className="text-lg font-serif mb-2">Result</div>
+            <div className="text-lg text-white mb-2">Result</div>
             <div className="border border-gray-700 rounded-lg px-1 pt-1 pb-0">
               <div className="relative w-40 mx-auto flex items-center justify-center overflow-hidden select-none" style={{height: '230px'}}>
                 <div id="result-chart" className="select-none" />
@@ -944,17 +944,21 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
         </div>
 
         {/* Mode-specific instructions */}
-        {editMode === 'barres' && (
-          <div className="bg-green-900 bg-opacity-50 border border-green-600 rounded-lg p-3 text-sm text-green-200">
-            <div className="font-semibold mb-1">Barre mode instructions:</div>
-            <div>Click on any fret to add/remove a full barre across all strings at that fret. Perfect for chords like F, B, F#m, etc.</div>
+        {editMode === 'dots' && (
+          <div className="bg-gray-700 bg-opacity-50 border border-gray-600 rounded-lg p-3 text-sm text-gray-200">
+            Click on a string above the fret where you want to add a dot
           </div>
         )}
-        
+
+        {editMode === 'barres' && (
+          <div className="bg-green-900 bg-opacity-50 border border-green-600 rounded-lg p-3 text-sm text-green-200">
+            Click on any fret to add/remove a full barre across all strings at that fret. Perfect for chords like F, B, F#m, etc.
+          </div>
+        )}
+
         {editMode === 'fingers' && (
           <div className="bg-blue-900 bg-opacity-50 border border-blue-600 rounded-lg p-3 text-sm text-blue-200">
-            <div className="font-semibold mb-1">Finger numbers mode instructions:</div>
-            <div>Click on a finger position, then press 1-5 keys to assign finger numbers (5 = thumb). Press Escape to cancel selection.</div>
+            Click on a finger position, then press 1-5 keys to assign finger numbers (5 = thumb). Press Escape to cancel selection.
             {selectedFinger && (
               <div className="mt-2 text-yellow-300">
                 Selected position: String {selectedFinger[0]}, Fret {selectedFinger[1]} - Press 1, 2, 3, 4, or 5

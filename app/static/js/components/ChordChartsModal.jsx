@@ -1953,7 +1953,8 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                           <div className="border border-gray-600/30 rounded-lg p-4 bg-gray-800/10">
                             <div className="text-sm text-gray-400 mb-6">
                               <p>• Upload lyrics with chord names to create charts</p>
-                              <p>• Upload chord diagrams to import existing charts</p>
+                              <p>• Upload image or PDF of chord charts to "import"</p>
+                              <p>• One method at a time</p>
                             </div>
 
                             {!progress && (
@@ -2014,16 +2015,12 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                                         <p className="text-gray-400 text-xs mb-2">
                                           PDFs, images • 5mb max
                                         </p>
-                                        {uploadedFiles[itemReferenceId] && uploadedFiles[itemReferenceId].length > 0 ? (
+                                        {uploadedFiles[itemReferenceId] && uploadedFiles[itemReferenceId].length > 0 && (
                                           <div>
                                             <p className="text-gray-300 text-xs font-medium mb-1">
                                               {uploadedFiles[itemReferenceId].length} file(s)
                                             </p>
                                           </div>
-                                        ) : (
-                                          <p className="text-gray-400 text-xs">
-                                            Lyrics or chord charts
-                                          </p>
                                         )}
                                       </div>
                                     </div>
@@ -2033,6 +2030,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                                   <div className="flex flex-col">
                                     <div className="text-center mb-2">
                                       <p className="text-gray-400 text-sm font-medium">YouTube guitar lesson</p>
+                                      <p className="text-gray-500 text-xs">(video must have a transcript)</p>
                                     </div>
                                     <form
                                       className="flex-1 flex flex-col justify-center"
@@ -2045,7 +2043,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                                     >
                                       <input
                                         type="url"
-                                        placeholder="YouTube guitar lesson URL (transcript required)"
+                                        placeholder="Paste YouTube URL"
                                         value={youtubeUrls[itemReferenceId] || ''}
                                         onChange={(e) => {
                                           const sanitizedValue = e.target.value.replace(/[<>"']/g, '');
@@ -2257,8 +2255,8 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                                             return (
                                               <>
                                                 <Sparkles className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                                                <p className="text-gray-300 font-medium mb-1">Add a file above, then click 'Create Chord Charts'</p>
-                                                <p className="text-gray-400 text-xs">(The results will probably contain errors, use the ✏️edit icon to make any corrections needed.)</p>
+                                                <p className="text-gray-300 font-medium mb-1">Add a file, paste a YouTube URL, or type in the 'Manual entry' box, then click 'Create Chord Charts'</p>
+                                                <p className="text-gray-400 text-xs">(The results will probably contain errors. Use the ✏️edit icon on a chart to correct it.)</p>
                                               </>
                                             );
                                           }
