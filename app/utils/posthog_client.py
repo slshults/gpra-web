@@ -48,8 +48,8 @@ def get_posthog_distinct_id(user_id: int, email: Optional[str] = None) -> str:
     if email is None:
         email = _get_user_email(user_id)
 
-    # Tidal OAuth users have placeholder emails like tidal_123@gpra.app
-    if email and email.startswith('tidal_') and email.endswith('@gpra.app'):
+    # Tidal OAuth users have placeholder emails like tidal_123@no_email_provided_by_tidal.com
+    if email and email.startswith('tidal_') and '@no_email_provided_by_tidal.com' in email:
         # Extract user_id from email and format as tidalNNNNN
         return f"tidal{user_id:05d}"
 

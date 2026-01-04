@@ -834,6 +834,20 @@ class CustomSecurityManager(SecurityManager):
         # Try to find existing user by email
         user = self.find_user(email=email)
 
+        # Fallback for Tidal users: also check by username
+        # This handles the case where email format changed (e.g., @gpra.local -> @no_email_provided_by_tidal.com)
+        # Tidal users have predictable usernames: tidal_{user_id}
+        if not user and username and username.startswith('tidal_'):
+            logger.info(f"Trying fallback lookup by username for Tidal user: {username}")
+            user = self.find_user(username=username)
+            if user:
+                logger.info(f"Found Tidal user by username: {user.username} (email was: {user.email})")
+                # Update email to current format
+                if user.email != email:
+                    logger.info(f"Updating Tidal user email from {user.email} to {email}")
+                    user.email = email
+                    self.appbuilder.session.commit()
+
         if user:
             logger.info(f"Found existing OAuth user: {user.username}")
             # Update last login time
@@ -1085,7 +1099,7 @@ class CustomSecurityManager(SecurityManager):
             username = f"tidal_{user_id}"
 
             # Generate placeholder email (users can update via Stripe Customer Portal)
-            email = f"tidal_{user_id}@gpra.app"
+            email = f"tidal_{user_id}@no_email_provided_by_tidal.com"
 
             return {
                 'email': email,

@@ -76,6 +76,7 @@ const SortableItem = React.memo(({ item, itemDetails, handleOpenChordCharts }) =
             itemDetails?.['C'] || `Item ${item.routineEntry?.['B'] || item['B']}`
           )}
           className="text-blue-400 hover:text-blue-300 hover:bg-gray-700 h-8 w-8"
+          title="Click to add or edit chord charts"
         >
           <ChordIcon className="h-5 w-5" />
           <span className="sr-only">Chord charts</span>
@@ -125,6 +126,7 @@ const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, ha
           size="sm"
           onClick={() => handleActivateRoutine(routine.ID)}
           className="text-green-500 hover:text-green-400"
+          title="Make this the active routine"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           <span className="sr-only">Activate routine</span>
@@ -134,6 +136,7 @@ const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, ha
           size="sm"
           onClick={() => handleEditClick(routine)}
           className="text-blue-500 hover:text-blue-400"
+          title="Edit routine"
         >
           <Pencil className="h-4 w-4" aria-hidden="true" />
           <span className="sr-only">Edit routine</span>
@@ -143,6 +146,7 @@ const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, ha
           size="sm"
           className="text-red-500 hover:text-red-400"
           onClick={() => handleDeleteClick(routine.ID)}
+          title="Delete this routine"
         >
           <X className="h-4 w-4" aria-hidden="true" />
           <span className="sr-only">Delete routine</span>
@@ -736,6 +740,7 @@ const RoutinesPage = () => {
                         size="sm"
                         onClick={() => handleEditClick(activeRoutine)}
                         className="text-blue-500 hover:text-blue-400"
+                        title="Edit routine"
                       >
                         <Pencil className="h-4 w-4" aria-hidden="true" />
                         <span className="sr-only">Edit routine</span>
@@ -745,13 +750,16 @@ const RoutinesPage = () => {
                         size="sm"
                         onClick={() => handleDeactivateRoutine(activeRoutine.ID)}
                         className="text-gray-400 hover:text-gray-200"
+                        title="Deactivate this routine"
                       >
                         <X className="h-4 w-4" aria-hidden="true" />
                         <span className="sr-only">Deactivate routine</span>
                       </Button>
                     </div>
                   </div>
-                  
+
+                  <p className="text-sm text-gray-500 mt-2">(use drag and drop handles on the left to change order of items)</p>
+
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -809,7 +817,7 @@ const RoutinesPage = () => {
                     </label>
                     <Input
                       id="new-routine-name-input"
-                      placeholder="New routine name"
+                      placeholder="Enter name for new routine, then click '+ Add'"
                       value={newRoutineName}
                       onChange={(e) => setNewRoutineName(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handleCreateRoutine()}
@@ -866,7 +874,7 @@ const RoutinesPage = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete routine</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete "{routineToDelete?.name}"? This action cannot be undone.
+                Are you sure you want to delete the "{routineToDelete?.name}" routine? You can't undo this deletion. (Items will remain, but the routine will be gone.)
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

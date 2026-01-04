@@ -10,14 +10,84 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 
 // Simple markdown renderer for basic formatting
-const renderMarkdown = (text) => {
+export const renderMarkdown = (text) => {
   if (!text) return '';
 
-  // Escape HTML first
-  let html = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  // Process line by line to handle block elements
+  const lines = text.split('\n');
+  const processedLines = [];
+  let inList = false;
+
+  for (let line of lines) {
+    // Escape HTML first
+    let escaped = line
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // Headers: # ## ### etc.
+    const headerMatch = escaped.match(/^(#{1,6})\s+(.+)$/);
+    if (headerMatch) {
+      const level = headerMatch[1].length;
+      const headerText = headerMatch[2];
+      const sizes = { 1: 'text-2xl font-bold', 2: 'text-xl font-bold', 3: 'text-lg font-semibold', 4: 'text-base font-semibold', 5: 'text-sm font-semibold', 6: 'text-sm font-medium' };
+      if (inList) {
+        processedLines.push('</ul>');
+        inList = false;
+      }
+      processedLines.push(`<h${level} class="${sizes[level]} mt-2 mb-1">${applyInlineFormatting(headerText)}</h${level}>`);
+      continue;
+    }
+
+    // Bullet lists: - or *
+    const bulletMatch = escaped.match(/^[-*]\s+(.+)$/);
+    if (bulletMatch) {
+      if (!inList) {
+        processedLines.push('<ul class="list-disc list-inside ml-2">');
+        inList = true;
+      }
+      processedLines.push(`<li>${applyInlineFormatting(bulletMatch[1])}</li>`);
+      continue;
+    }
+
+    // Numbered lists: 1. 2. etc.
+    const numberedMatch = escaped.match(/^\d+\.\s+(.+)$/);
+    if (numberedMatch) {
+      if (!inList) {
+        processedLines.push('<ol class="list-decimal list-inside ml-2">');
+        inList = true;
+      }
+      processedLines.push(`<li>${applyInlineFormatting(numberedMatch[1])}</li>`);
+      continue;
+    }
+
+    // End list if we hit a non-list line
+    if (inList) {
+      processedLines.push(inList === 'ol' ? '</ol>' : '</ul>');
+      inList = false;
+    }
+
+    // Empty line
+    if (escaped.trim() === '') {
+      processedLines.push('<br />');
+      continue;
+    }
+
+    // Regular paragraph
+    processedLines.push(`<p>${applyInlineFormatting(escaped)}</p>`);
+  }
+
+  // Close any open list
+  if (inList) {
+    processedLines.push('</ul>');
+  }
+
+  return processedLines.join('');
+};
+
+// Helper for inline formatting (bold, italic, code, links)
+const applyInlineFormatting = (text) => {
+  let html = text;
 
   // Bold: **text** or __text__
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -32,9 +102,6 @@ const renderMarkdown = (text) => {
 
   // Links: [text](url)
   html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" class="text-blue-400 underline" target="_blank" rel="noopener noreferrer">$1</a>');
-
-  // Line breaks
-  html = html.replace(/\n/g, '<br />');
 
   return html;
 };
