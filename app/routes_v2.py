@@ -923,14 +923,34 @@ def auth_status():
             app.logger.error(f"Failed to fetch subscription tier: {e}")
 
         # Check if user has OAuth providers connected
+        # Detection based on known patterns from security.py oauth_user_info()
         oauth_providers = []
-        if hasattr(current_user, 'oauth_user_id'):
-            # Google OAuth: check if user was created via Google
-            if '@' in current_user.username or 'google' in (current_user.username or '').lower():
-                oauth_providers.append('google')
-        # Tidal OAuth: username pattern is numeric user_id
-        if current_user.username and current_user.username.isdigit():
+        username = current_user.username or ''
+        email = current_user.email or ''
+
+        # Tidal OAuth: username pattern is 'tidal_{user_id}'
+        if username.startswith('tidal_'):
             oauth_providers.append('tidal')
+
+        # Google OAuth: user has password field as None or empty (OAuth-only account)
+        # Since we can't easily check password hash, use heuristics:
+        # - Email from real domain (not placeholder)
+        # - Username doesn't match Tidal pattern
+        # For better detection, check if user created_by matches OAuth pattern
+        # Actually, for Google OAuth users we don't have a clear marker in the current schema
+        # So we'll use a different approach: users who have a real email but no password set
+        # are likely OAuth users. We can check this by looking at the password field.
+        if not username.startswith('tidal_'):
+            # Check if this user was created via Google OAuth
+            # Google OAuth users don't have a local password set
+            from app import appbuilder
+            user_record = appbuilder.sm.find_user(username=current_user.username)
+            if user_record:
+                # If password is None or an empty hash, user is likely OAuth-only
+                has_password = user_record.password and len(user_record.password) > 10
+                # Also check email domain - Google users have Gmail or Google Workspace emails
+                if not has_password:
+                    oauth_providers.append('google')
 
         # Compute PostHog distinct_id (email or tidalNNNNN for Tidal users)
         from app.utils.posthog_client import get_posthog_distinct_id
@@ -2257,6 +2277,185 @@ def change_password():
         app.logger.error(traceback.format_exc())
         appbuilder.session.rollback()
         return jsonify({"error": "Failed to change password"}), 500
+
+
+@app.route('/api/user/username', methods=['PUT'])
+def update_username():
+    """
+    Update user's username.
+
+    Request body:
+        {
+            "username": "newusername"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "message": "Username updated successfully",
+            "username": "newusername"
+        }
+
+    Note: Tidal OAuth users cannot change their username (it's derived from their Tidal user ID).
+    """
+    from app import appbuilder
+
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.json
+    new_username = data.get('username', '').strip()
+
+    # Validation
+    if not new_username:
+        return jsonify({"error": "Username is required"}), 400
+
+    if len(new_username) < 3:
+        return jsonify({"error": "Username must be at least 3 characters"}), 400
+
+    if len(new_username) > 50:
+        return jsonify({"error": "Username must be at most 50 characters"}), 400
+
+    # Check if user is a Tidal OAuth user (cannot change username)
+    if current_user.username and current_user.username.startswith('tidal_'):
+        return jsonify({"error": "Tidal OAuth users cannot change their username"}), 403
+
+    # Check if username is already taken
+    existing_user = appbuilder.sm.find_user(username=new_username)
+    if existing_user and existing_user.id != current_user.id:
+        return jsonify({"error": "Username is already taken"}), 409
+
+    # Get current user from database (FAB session)
+    user = appbuilder.sm.find_user(username=current_user.username)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    try:
+        old_username = user.username
+        user.username = new_username
+        appbuilder.session.commit()
+        app.logger.info(f"Username changed from '{old_username}' to '{new_username}' for user id: {current_user.id}")
+
+        # Track username change event
+        from app.utils.posthog_client import track_event
+        track_event(current_user.id, 'username_changed', {'old_username': old_username, 'new_username': new_username})
+
+        return jsonify({
+            "success": True,
+            "message": "Username updated successfully",
+            "username": new_username
+        })
+    except Exception as e:
+        app.logger.error(f"Error updating username: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        appbuilder.session.rollback()
+        return jsonify({"error": "Failed to update username"}), 500
+
+
+@app.route('/api/user/email', methods=['PUT'])
+def update_email():
+    """
+    Update user's email address.
+
+    Request body:
+        {
+            "email": "newemail@example.com"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "message": "Email updated successfully",
+            "email": "newemail@example.com"
+        }
+
+    Note: Google OAuth users cannot change their email (it's tied to their Google account).
+    """
+    import re
+    import stripe
+    from app import appbuilder
+
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.json
+    new_email = data.get('email', '').strip().lower()
+
+    # Validation
+    if not new_email:
+        return jsonify({"error": "Email is required"}), 400
+
+    # Basic email format validation
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_pattern, new_email):
+        return jsonify({"error": "Invalid email format"}), 400
+
+    # Check if user is a Google OAuth user (cannot change email)
+    user_record = appbuilder.sm.find_user(username=current_user.username)
+    if user_record:
+        has_password = user_record.password and len(user_record.password) > 10
+        is_tidal_user = current_user.username and current_user.username.startswith('tidal_')
+        if not has_password and not is_tidal_user:
+            # This is a Google OAuth user
+            return jsonify({"error": "Google OAuth users cannot change their email address"}), 403
+
+    # Check if email is already taken
+    existing_user = appbuilder.sm.find_user(email=new_email)
+    if existing_user and existing_user.id != current_user.id:
+        return jsonify({"error": "Email is already in use by another account"}), 409
+
+    # Get current user from database (FAB session)
+    user = appbuilder.sm.find_user(username=current_user.username)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    try:
+        old_email = user.email
+        user.email = new_email
+        appbuilder.session.commit()
+        app.logger.info(f"Email changed from '{old_email}' to '{new_email}' for user id: {current_user.id}")
+
+        # Update Stripe customer email if user has a subscription
+        try:
+            with DatabaseTransaction() as tx:
+                db = tx.session
+                subscription = db.query(Subscription).filter_by(user_id=current_user.id).first()
+                if subscription and subscription.stripe_customer_id:
+                    stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+                    stripe.Customer.modify(
+                        subscription.stripe_customer_id,
+                        email=new_email
+                    )
+                    app.logger.info(f"Updated Stripe customer email for customer {subscription.stripe_customer_id}")
+        except Exception as stripe_error:
+            # Log but don't fail - Stripe email update is best-effort
+            app.logger.warning(f"Failed to update Stripe customer email: {stripe_error}")
+
+        # Track email change event
+        from app.utils.posthog_client import track_event
+        track_event(current_user.id, 'email_changed', {'old_email': old_email, 'new_email': new_email})
+
+        return jsonify({
+            "success": True,
+            "message": "Email updated successfully",
+            "email": new_email
+        })
+    except Exception as e:
+        app.logger.error(f"Error updating email: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        appbuilder.session.rollback()
+        return jsonify({"error": "Failed to update email"}), 500
+
 
 @app.route('/authorize')
 def authorize():

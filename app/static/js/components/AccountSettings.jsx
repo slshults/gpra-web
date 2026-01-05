@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
-import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink, Play, ChevronDown, ChevronRight } from 'lucide-react';
+import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink, Play, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
 import PricingSection from './PricingSection';
 import AccountDeletion from './AccountDeletion';
 
@@ -42,6 +42,16 @@ const AccountSettings = () => {
 
   // PostHog analytics state
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
+
+  // Username/email editing state
+  const [isEditingUsername, setIsEditingUsername] = useState(false);
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [editUsername, setEditUsername] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [usernameMessage, setUsernameMessage] = useState(null);
+  const [emailMessage, setEmailMessage] = useState(null);
 
   // Mobile view toggle state
   const [mobileView, setMobileView] = useState('settings'); // 'settings' or 'subscription'
@@ -481,6 +491,126 @@ const AccountSettings = () => {
     window.location.reload();
   };
 
+  // Username editing handlers
+  const startEditingUsername = () => {
+    setEditUsername(userProfile.username);
+    setIsEditingUsername(true);
+    setUsernameMessage(null);
+  };
+
+  const cancelEditingUsername = () => {
+    setIsEditingUsername(false);
+    setEditUsername('');
+    setUsernameMessage(null);
+  };
+
+  const saveUsername = async () => {
+    const trimmedUsername = editUsername.trim();
+    if (!trimmedUsername) {
+      setUsernameMessage({ type: 'error', text: 'Username is required' });
+      return;
+    }
+    if (trimmedUsername.length < 3) {
+      setUsernameMessage({ type: 'error', text: 'Username must be at least 3 characters' });
+      return;
+    }
+    if (trimmedUsername === userProfile.username) {
+      setIsEditingUsername(false);
+      return;
+    }
+
+    setUsernameLoading(true);
+    setUsernameMessage(null);
+
+    try {
+      const response = await fetch('/api/user/username', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: trimmedUsername }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setUserProfile(prev => ({ ...prev, username: data.username }));
+        setIsEditingUsername(false);
+        setUsernameMessage({ type: 'success', text: 'Username updated!' });
+        // Clear success message after 3 seconds
+        setTimeout(() => setUsernameMessage(null), 3000);
+      } else {
+        setUsernameMessage({ type: 'error', text: data.error || 'Failed to update username' });
+      }
+    } catch {
+      setUsernameMessage({ type: 'error', text: 'Error updating username' });
+    } finally {
+      setUsernameLoading(false);
+    }
+  };
+
+  // Email editing handlers
+  const startEditingEmail = () => {
+    setEditEmail(userProfile.email);
+    setIsEditingEmail(true);
+    setEmailMessage(null);
+  };
+
+  const cancelEditingEmail = () => {
+    setIsEditingEmail(false);
+    setEditEmail('');
+    setEmailMessage(null);
+  };
+
+  const saveEmail = async () => {
+    const trimmedEmail = editEmail.trim().toLowerCase();
+    if (!trimmedEmail) {
+      setEmailMessage({ type: 'error', text: 'Email is required' });
+      return;
+    }
+    // Basic email validation
+    const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailPattern.test(trimmedEmail)) {
+      setEmailMessage({ type: 'error', text: 'Please enter a valid email address' });
+      return;
+    }
+    if (trimmedEmail === userProfile.email) {
+      setIsEditingEmail(false);
+      return;
+    }
+
+    setEmailLoading(true);
+    setEmailMessage(null);
+
+    try {
+      const response = await fetch('/api/user/email', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setUserProfile(prev => ({ ...prev, email: data.email }));
+        setIsEditingEmail(false);
+        setEmailMessage({ type: 'success', text: 'Email updated!' });
+        // Clear success message after 3 seconds
+        setTimeout(() => setEmailMessage(null), 3000);
+      } else {
+        setEmailMessage({ type: 'error', text: data.error || 'Failed to update email' });
+      }
+    } catch {
+      setEmailMessage({ type: 'error', text: 'Error updating email' });
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  // Check if user can edit username/email based on OAuth providers
+  const isTidalUser = userProfile.oauth_providers?.includes('tidal');
+  const isGoogleUser = userProfile.oauth_providers?.includes('google');
+  const canEditUsername = !isTidalUser;  // Tidal users can't edit username
+  const canEditEmail = !isGoogleUser;     // Google users can't edit email
+
   return (
     <div className="max-w-7xl mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold mb-6 text-gray-100">Account Settings</h1>
@@ -510,31 +640,144 @@ const AccountSettings = () => {
           {/* Overview Card - NOT collapsible, always at top */}
           <Card className="bg-gray-800 border-gray-700">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-6 flex-wrap">
-                {/* Account Info */}
-                <div className="flex-1 min-w-[200px]">
-                  <h2 className="text-xl font-bold text-gray-100">{userProfile.username || 'Loading...'}</h2>
-                  <p className="text-sm text-gray-400">{userProfile.email || 'Loading...'}</p>
+              <div className="flex items-start gap-6 flex-wrap">
+                {/* Account Info - Username and Email */}
+                <div className="flex-1 min-w-[200px] space-y-3">
+                  {/* Username field */}
+                  <div>
+                    {isEditingUsername ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editUsername}
+                          onChange={(e) => setEditUsername(e.target.value)}
+                          className="bg-gray-900 border-gray-600 text-gray-100 text-lg font-bold h-9 max-w-[200px]"
+                          placeholder="Username"
+                          disabled={usernameLoading}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveUsername();
+                            if (e.key === 'Escape') cancelEditingUsername();
+                          }}
+                          autoFocus
+                        />
+                        <Button
+                          size="sm"
+                          onClick={saveUsername}
+                          disabled={usernameLoading}
+                          className="bg-green-600 hover:bg-green-700 h-8 px-2"
+                        >
+                          {usernameLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={cancelEditingUsername}
+                          disabled={usernameLoading}
+                          className="bg-gray-700 border-gray-600 h-8 px-2"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-xl font-bold text-gray-100">{userProfile.username || 'Loading...'}</h2>
+                        {canEditUsername && (
+                          <button
+                            onClick={startEditingUsername}
+                            className="text-gray-400 hover:text-gray-200 p-1"
+                            title="Edit username"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {!canEditUsername && !isEditingUsername && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        You log in with your Tidal account, so you can't change your username here.
+                      </p>
+                    )}
+                    {usernameMessage && (
+                      <p className={`text-xs mt-1 ${usernameMessage.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                        {usernameMessage.text}
+                      </p>
+                    )}
+                  </div>
 
-                  {/* OAuth badges */}
-                  {userProfile.oauth_providers && userProfile.oauth_providers.length > 0 && (
-                    <div className="flex gap-2 mt-2 flex-wrap">
-                      {userProfile.oauth_providers.includes('google') && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded border border-gray-600">
-                          <div className="w-3 h-3 bg-white rounded-full flex items-center justify-center">
-                            <span className="text-[8px] font-bold text-gray-800">G</span>
-                          </div>
-                          Google
-                        </span>
-                      )}
-                      {userProfile.oauth_providers.includes('tidal') && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded border border-gray-600">
-                          <div className="w-3 h-3 bg-blue-600 rounded-full flex items-center justify-center">
-                            <span className="text-[8px] font-bold text-white">T</span>
-                          </div>
-                          Tidal
-                        </span>
-                      )}
+                  {/* Email field */}
+                  <div>
+                    {isEditingEmail ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="email"
+                          value={editEmail}
+                          onChange={(e) => setEditEmail(e.target.value)}
+                          className="bg-gray-900 border-gray-600 text-gray-100 text-sm h-8 max-w-[250px]"
+                          placeholder="Email"
+                          disabled={emailLoading}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveEmail();
+                            if (e.key === 'Escape') cancelEditingEmail();
+                          }}
+                          autoFocus
+                        />
+                        <Button
+                          size="sm"
+                          onClick={saveEmail}
+                          disabled={emailLoading}
+                          className="bg-green-600 hover:bg-green-700 h-8 px-2"
+                        >
+                          {emailLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={cancelEditingEmail}
+                          disabled={emailLoading}
+                          className="bg-gray-700 border-gray-600 h-8 px-2"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-gray-400">{userProfile.email || 'Loading...'}</p>
+                        {canEditEmail && (
+                          <button
+                            onClick={startEditingEmail}
+                            className="text-gray-400 hover:text-gray-200 p-1"
+                            title="Edit email"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {!canEditEmail && !isEditingEmail && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        You log in with your Google account, so you can't change your email address here.
+                      </p>
+                    )}
+                    {isTidalUser && canEditEmail && !isEditingEmail && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Add your real email address to get reminders if you haven't used the account for 90 days.
+                      </p>
+                    )}
+                    {emailMessage && (
+                      <p className={`text-xs mt-1 ${emailMessage.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                        {emailMessage.text}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* OAuth badges - only show Tidal badge (Google badge removed per Issue 1 to avoid confusion) */}
+                  {userProfile.oauth_providers && userProfile.oauth_providers.includes('tidal') && (
+                    <div className="flex gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded border border-gray-600">
+                        <div className="w-3 h-3 bg-blue-600 rounded-full flex items-center justify-center">
+                          <span className="text-[8px] font-bold text-white">T</span>
+                        </div>
+                        Tidal
+                      </span>
                     </div>
                   )}
                 </div>
@@ -850,125 +1093,134 @@ const AccountSettings = () => {
             </CardHeader>
             {!collapsedCards.changePassword && (
               <CardContent>
-                <form onSubmit={handlePasswordChange} className="space-y-4">
-                  {/* Current Password */}
-                  <div className="space-y-2">
-                    <Label htmlFor="current-password" className="text-gray-200">
-                      Current password
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="current-password"
-                        type={showPasswords.current ? 'text' : 'password'}
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
-                        disabled={passwordLoading}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                        disabled={passwordLoading}
-                      >
-                        {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                {/* Show note for OAuth users instead of password form */}
+                {isGoogleUser || isTidalUser ? (
+                  <p className="text-sm text-gray-400">
+                    {isGoogleUser
+                      ? 'You log in with Google, so you have no password here to change.'
+                      : 'You log in with Tidal, so you have no password here to change.'}
+                  </p>
+                ) : (
+                  <form onSubmit={handlePasswordChange} className="space-y-4">
+                    {/* Current Password */}
+                    <div className="space-y-2">
+                      <Label htmlFor="current-password" className="text-gray-200">
+                        Current password
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="current-password"
+                          type={showPasswords.current ? 'text' : 'password'}
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
+                          disabled={passwordLoading}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                          disabled={passwordLoading}
+                        >
+                          {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* New Password */}
-                  <div className="space-y-2">
-                    <Label htmlFor="new-password" className="text-gray-200">
-                      New password
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="new-password"
-                        type={showPasswords.new ? 'text' : 'password'}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
-                        disabled={passwordLoading}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                        disabled={passwordLoading}
-                      >
-                        {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                    {/* New Password */}
+                    <div className="space-y-2">
+                      <Label htmlFor="new-password" className="text-gray-200">
+                        New password
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="new-password"
+                          type={showPasswords.new ? 'text' : 'password'}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
+                          disabled={passwordLoading}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                          disabled={passwordLoading}
+                        >
+                          {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Confirm Password */}
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm-password" className="text-gray-200">
-                      Confirm new password
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="confirm-password"
-                        type={showPasswords.confirm ? 'text' : 'password'}
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
-                        disabled={passwordLoading}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                        disabled={passwordLoading}
-                      >
-                        {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                    {/* Confirm Password */}
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm-password" className="text-gray-200">
+                        Confirm new password
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="confirm-password"
+                          type={showPasswords.confirm ? 'text' : 'password'}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="bg-gray-900 border-gray-600 text-gray-100 pr-10"
+                          disabled={passwordLoading}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                          disabled={passwordLoading}
+                        >
+                          {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Password Requirements */}
-                  <div className="bg-blue-900/30 border border-blue-700 rounded-md p-3">
-                    <h4 className="text-sm font-semibold text-blue-300 mb-1">Password requirements:</h4>
-                    <ul className="text-xs text-gray-300 space-y-0.5 list-disc list-inside">
-                      <li>At least 14 characters long</li>
-                      <li>At least one uppercase letter</li>
-                      <li>At least one lowercase letter</li>
-                      <li>At least one number</li>
-                      <li>At least one symbol or punctuation character</li>
-                    </ul>
-                  </div>
+                    {/* Password Requirements */}
+                    <div className="bg-blue-900/30 border border-blue-700 rounded-md p-3">
+                      <h4 className="text-sm font-semibold text-blue-300 mb-1">Password requirements:</h4>
+                      <ul className="text-xs text-gray-300 space-y-0.5 list-disc list-inside">
+                        <li>At least 14 characters long</li>
+                        <li>At least one uppercase letter</li>
+                        <li>At least one lowercase letter</li>
+                        <li>At least one number</li>
+                        <li>At least one symbol or punctuation character</li>
+                      </ul>
+                    </div>
 
-                  {/* Messages */}
-                  {passwordMessage && (
-                    <Alert className={passwordMessage.type === 'success' ? 'bg-green-900/30 border-green-700' : 'bg-red-900/30 border-red-700'}>
-                      {passwordMessage.type === 'success' ? (
-                        <Check className="h-4 w-4 text-green-400" />
-                      ) : (
-                        <X className="h-4 w-4 text-red-400" />
-                      )}
-                      <AlertDescription className="text-gray-300">{passwordMessage.text}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  {/* Submit Button */}
-                  <Button
-                    type="submit"
-                    disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword}
-                    className="bg-orange-600 hover:bg-orange-700 w-full"
-                  >
-                    {passwordLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Changing password...
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-4 h-4 mr-2" />
-                        Change password
-                      </>
+                    {/* Messages */}
+                    {passwordMessage && (
+                      <Alert className={passwordMessage.type === 'success' ? 'bg-green-900/30 border-green-700' : 'bg-red-900/30 border-red-700'}>
+                        {passwordMessage.type === 'success' ? (
+                          <Check className="h-4 w-4 text-green-400" />
+                        ) : (
+                          <X className="h-4 w-4 text-red-400" />
+                        )}
+                        <AlertDescription className="text-gray-300">{passwordMessage.text}</AlertDescription>
+                      </Alert>
                     )}
-                  </Button>
-                </form>
+
+                    {/* Submit Button */}
+                    <Button
+                      type="submit"
+                      disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword}
+                      className="bg-orange-600 hover:bg-orange-700 w-full"
+                    >
+                      {passwordLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Changing password...
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4 mr-2" />
+                          Change password
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                )}
               </CardContent>
             )}
           </Card>
