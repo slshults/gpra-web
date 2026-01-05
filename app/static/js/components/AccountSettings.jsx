@@ -773,9 +773,11 @@ const AccountSettings = () => {
                   {userProfile.oauth_providers && userProfile.oauth_providers.includes('tidal') && (
                     <div className="flex gap-2 flex-wrap">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded border border-gray-600">
-                        <div className="w-3 h-3 bg-blue-600 rounded-full flex items-center justify-center">
-                          <span className="text-[8px] font-bold text-white">T</span>
-                        </div>
+                        <img
+                          src="https://tidal.com/img/tidal_square_logo.png"
+                          alt="Tidal"
+                          className="w-4 h-4 rounded"
+                        />
                         Tidal
                       </span>
                     </div>
