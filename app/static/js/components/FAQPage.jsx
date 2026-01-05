@@ -285,7 +285,7 @@ const FAQPage = () => {
                 <li><strong>More Goods:</strong> 600 items, 25 routines, autocreate included</li>
                 <li><strong>The Most:</strong> 1500 items, 50 routines, autocreate included</li>
               </ul>
-              All paid tiers can be billed monthly or yearly (yearly saves ~25%).
+              All paid tiers are billed monthly.
             </>
           }
         />
@@ -396,6 +396,14 @@ const FAQPage = () => {
         </p>
         <a
           href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            if (typeof window.triggerFeedbackSurvey === 'function') {
+              window.triggerFeedbackSurvey(e);
+            } else {
+              console.warn('[FAQPage] triggerFeedbackSurvey not available');
+            }
+          }}
           className="inline-block px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors"
         >
           Share feedback

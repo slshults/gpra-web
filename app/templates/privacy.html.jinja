@@ -16,6 +16,31 @@
             }
         })();
     </script>
+    <!-- PostHog Analytics -->
+    {% if posthog_key %}
+    <script>
+        // GDPR-Compliant PostHog Loading
+        (function() {
+            var cookieConsent = localStorage.getItem('cookieConsent');
+            if (cookieConsent === 'all') {
+                !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture identify".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+                posthog.init('{{ posthog_key }}', {
+                    api_host: 'https://tacet.guitarpracticeroutine.com',
+                    person_profiles: 'identified_only',
+                    capture_pageview: true
+                });
+            } else {
+                window.posthog = {
+                    capture: function() {},
+                    identify: function() {},
+                    displaySurvey: null,
+                    getSurveys: function(cb) { cb([]); },
+                    onSurveysLoaded: function(cb) { cb(); }
+                };
+            }
+        })();
+    </script>
+    {% endif %}
     <style>
         /* Theme toggle positioning */
         .theme-toggle {
@@ -131,7 +156,7 @@
                     <li><strong>Opt out of analytics:</strong> Deletes PostHog cookies, prevents them from being reloaded</li>
                     <li><strong>Delete your account:</strong> Remove all your data permanently. You can schedule deletion for your next renewal date, or delete immediately (no refunds though.) See <a href="/#Account" class="text-orange-600 dark:text-orange-400 hover:underline">Account Settings</a>.</li>
                     <li><strong>Update your information:</strong> Change your email*, username, or API key anytime<br>
-                        <span class="text-sm text-gray-600 dark:text-gray-400">*Unless you signed up with Google, their OAuth system doesn't work that way. <a href="#" class="text-orange-600 dark:text-orange-400 hover:underline">Reach out</a> if you need your data moved from one login to another.</span>
+                        <span class="text-sm text-gray-600 dark:text-gray-400">*Unless you signed up with Google, their OAuth system doesn't work that way. <a href="#" onclick="triggerFeedbackSurvey(event)" class="text-orange-600 dark:text-orange-400 hover:underline">Reach out</a> if you need your data moved from one login to another.</span>
                     </li>
                 </ul>
             </div>
@@ -234,8 +259,9 @@
         <!-- Contact -->
         <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6 mb-8">
             <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Questions or Concerns?</h2>
-            <p class="mt-2">The code is open source, <a href="https://github.com/slshults/gpra-web" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">the repo is here</a> or... <br><br> 
+            <p class="mt-2">The code is open source, <a href="https://github.com/slshults/gpra-web" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">the repo is here</a> or... <br><br>
                 <a href="#"
+                   onclick="triggerFeedbackSurvey(event)"
                    class="inline-block px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
                     Reach out
                 </a>
@@ -267,5 +293,6 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/feedback-survey.js') }}"></script>
 </body>
 </html>

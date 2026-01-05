@@ -4,9 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@ui/c
 import { Loader2, Check, CreditCard, ChevronRight, ChevronDown } from 'lucide-react';
 import SubscriptionModal from './SubscriptionModal';
 
-const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) => {
-  // Initialize billing period from current user's subscription, default to monthly
-  const [billingPeriod, setBillingPeriod] = useState(currentBillingPeriod || 'monthly');
+const PricingSection = ({ currentTier = 'free' }) => {
   const [loading, setLoading] = useState(null);
   const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -61,8 +59,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
       name: 'Free',
       itemsLimit: 15,
       routinesLimit: 1,
-      priceMonthly: 0,
-      priceYearly: 0,
+      price: 0,
       autocreate: false,
       description: 'Get started with basic features',
       byocNote: 'BYOClaude (enter your own Anthropic API key) for autocreated chord charts',
@@ -72,8 +69,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
       name: 'Basic',
       itemsLimit: 80,
       routinesLimit: 5,
-      priceMonthly: 3,
-      priceYearly: 27,
+      price: 3,
       autocreate: false,
       description: 'More items and routines',
       byocNote: 'BYOClaude (enter your own Anthropic API key) for autocreated chord charts',
@@ -83,8 +79,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
       name: 'The Goods',
       itemsLimit: 200,
       routinesLimit: 10,
-      priceMonthly: 6,
-      priceYearly: 54,
+      price: 6,
       autocreate: true,
       description: 'Includes Autocreate for chord charts',
     },
@@ -93,8 +88,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
       name: 'More Goods',
       itemsLimit: 600,
       routinesLimit: 25,
-      priceMonthly: 12,
-      priceYearly: 100.80,
+      price: 12,
       autocreate: true,
       description: 'Even more items and routines',
     },
@@ -103,15 +97,14 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
       name: 'The Most',
       itemsLimit: 1500,
       routinesLimit: 50,
-      priceMonthly: 20,
-      priceYearly: 168,
+      price: 20,
       autocreate: true,
       description: 'Goes to 11',
     },
   ];
 
   const getSubscriptionUpdateMessage = (details) => {
-    const { old_tier, new_tier, tier_changed, period_changed, billing_period, proration_amount, autocreate_enabled } = details;
+    const { old_tier, new_tier, tier_changed, proration_amount, autocreate_enabled } = details;
 
     // Tier names for display
     const tierNames = {
@@ -123,21 +116,22 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
     };
 
     const newTierName = tierNames[new_tier] || new_tier;
-    const oldTierName = tierNames[old_tier] || old_tier;
 
-    // Billing period change (same tier, different period)
-    if (period_changed && !tier_changed) {
-      const periodName = billing_period === 'yearly' ? 'yearly' : 'monthly';
-      const nextBilling = billing_period === 'yearly' ? 'one year' : 'one month';
+    // Tier ordering (index determines hierarchy)
+    const tierOrder = ['free', 'basic', 'thegoods', 'moregoods', 'themost'];
+    const oldTierIndex = tierOrder.indexOf(old_tier);
+    const newTierIndex = tierOrder.indexOf(new_tier);
 
+    // Tier downgrade (moving to a lower tier index)
+    if (tier_changed && newTierIndex < oldTierIndex) {
       return {
-        title: '✅ Billing Updated',
-        message: `Cool, you're upgraded to ${periodName} billing${proration_amount > 0 ? `, with a prorated charge of $${proration_amount.toFixed(2)} usd` : ''}. We'll bill you again in ${nextBilling}, unless you use the "Manage Subscription" button to downgrade or cancel before then. 🤘Rock on!`
+        title: 'Plan Changed',
+        message: `You've downgraded to ${newTierName}. Your new limits will take effect immediately. Thanks for sticking with us! 🎸`
       };
     }
 
-    // Tier upgrade (with or without period change)
-    if (tier_changed && new_tier !== 'basic') {
+    // Tier upgrade (moving to a higher tier index)
+    if (tier_changed && newTierIndex > oldTierIndex) {
       const baseMessage = `Right on, you've upgraded to ${newTierName}!`;
       const proratedText = proration_amount > 0 ? ` Your card was charged a prorated amount of $${proration_amount.toFixed(2)} usd.` : '';
 
@@ -154,15 +148,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
       }
     }
 
-    // Tier downgrade
-    if (tier_changed && (old_tier !== 'basic' && new_tier === 'basic')) {
-      return {
-        title: 'Plan Changed',
-        message: `You've downgraded to ${newTierName}. Your new limits will take effect immediately. Thanks for sticking with us! 🎸`
-      };
-    }
-
-    // Generic tier change
+    // Generic tier change (same tier index, shouldn't happen but handle it)
     if (tier_changed) {
       return {
         title: 'Plan Updated',
@@ -177,14 +163,11 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
     };
   };
 
-  const handleUpgrade = async (tierId, billingPeriodOverride = null) => {
+  const handleUpgrade = async (tierId) => {
     if (tierId === 'free') return;
 
     setLoading(tierId);
     setError(null);
-
-    // Use the override if provided (from toggle buttons), otherwise use state
-    const period = billingPeriodOverride || billingPeriod;
 
     try {
       // Check if user already has a subscription (not on free tier)
@@ -204,7 +187,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tier: tierId,
-          billing_period: period,
+          billing_period: 'monthly',
         }),
       });
 
@@ -309,13 +292,6 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
     return 'Upgrade';
   };
 
-  // Calculate savings for current tier
-  const currentTierData = tiers.find(t => t.id === currentTier);
-  const savings = currentTierData ? (currentTierData.priceMonthly * 12 - currentTierData.priceYearly).toFixed(2) : 0;
-  const savingsPercent = currentTierData && currentTierData.priceMonthly > 0
-    ? Math.round(((currentTierData.priceMonthly * 12 - currentTierData.priceYearly) / (currentTierData.priceMonthly * 12)) * 100)
-    : 0;
-
   return (
     <div className="space-y-4">
       {/* Unplugged Mode Warning Banner */}
@@ -358,13 +334,8 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
       {/* Pricing Cards - Vertical stack with collapsible cards */}
       <div className="space-y-4">
         {tiers.map((tier, index) => {
-          // For the current tier card, show prices based on actual billing period
-          // For other cards, show prices based on the selected toggle in the header
-          const displayPeriod = tier.id === currentTier && currentBillingPeriod ? currentBillingPeriod : billingPeriod;
-          const price = displayPeriod === 'monthly' ? tier.priceMonthly : tier.priceYearly;
           const isCurrent = tier.id === currentTier;
           const isLoadingThis = loading === tier.id;
-
           const isCollapsed = collapsedTiers[tier.id];
 
           return (
@@ -387,12 +358,12 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
                           Your current plan
                         </span>
                       )}
-                      {isCollapsed && price > 0 && (
+                      {isCollapsed && tier.price > 0 && (
                         <span className="text-sm font-normal text-gray-400">
-                          ${price}/{displayPeriod === 'monthly' ? 'mo' : 'yr'}
+                          ${tier.price}/mo
                         </span>
                       )}
-                      {isCollapsed && price === 0 && (
+                      {isCollapsed && tier.price === 0 && (
                         <span className="text-sm font-normal text-gray-400">Free</span>
                       )}
                     </CardTitle>
@@ -412,13 +383,13 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
               <CardContent className="space-y-3">
                 {/* Price */}
                 <div className="text-center py-2">
-                  {price === 0 ? (
+                  {tier.price === 0 ? (
                     <div className="text-3xl font-bold text-gray-100">Free</div>
                   ) : (
                     <div className="text-3xl font-bold text-gray-100">
-                      ${price}
+                      ${tier.price}
                       <span className="text-sm text-gray-400 font-normal">
-                        usd/{displayPeriod === 'monthly' ? 'mo' : 'yr'}
+                        usd/mo
                       </span>
                     </div>
                   )}
@@ -449,67 +420,26 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
                   </div>
                 )}
 
-                {/* CTA Button or Billing Toggle for current plan */}
-                {tier.id !== 'free' && (
-                  <>
-                    {isCurrent && currentTier !== 'free' ? (
-                      // Show billing period toggle on current paid plan card
-                      <div className="flex items-center gap-2 bg-gray-700 rounded-lg p-1 border border-gray-600">
-                        <button
-                          onClick={() => handleUpgrade(currentTier, 'monthly')}
-                          disabled={loading === currentTier}
-                          className={`flex-1 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
-                            currentBillingPeriod === 'monthly'
-                              ? 'bg-orange-600 text-white'
-                              : 'text-gray-400 hover:text-gray-300'
-                          } disabled:opacity-50`}
-                        >
-                          Monthly
-                          {currentBillingPeriod === 'yearly' && tier.priceMonthly > 0 && (
-                            <span className="block text-[10px] opacity-90">
-                              (Pay ${(tier.priceMonthly - (tier.priceYearly / 12)).toFixed(2)} more/mo)
-                            </span>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleUpgrade(currentTier, 'yearly')}
-                          disabled={loading === currentTier}
-                          className={`flex-1 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
-                            currentBillingPeriod === 'yearly'
-                              ? 'bg-orange-600 text-white'
-                              : 'text-gray-400 hover:text-gray-300'
-                          } disabled:opacity-50`}
-                        >
-                          Yearly
-                          {currentBillingPeriod === 'monthly' && savingsPercent > 0 && (
-                            <span className="block text-[10px] opacity-90">
-                              (Save {savingsPercent}%/${savings})
-                            </span>
-                          )}
-                        </button>
-                      </div>
+                {/* CTA Button for non-current tiers */}
+                {tier.id !== 'free' && !isCurrent && (
+                  <Button
+                    onClick={() => handleUpgrade(tier.id)}
+                    disabled={isLoadingThis}
+                    className={`w-full ${
+                      index > currentTierIndex
+                        ? 'bg-orange-600 hover:bg-orange-700'
+                        : 'bg-gray-700 hover:bg-gray-600 border border-gray-600'
+                    }`}
+                  >
+                    {isLoadingThis ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Loading...
+                      </>
                     ) : (
-                      // Show upgrade/downgrade button for other tiers
-                      <Button
-                        onClick={() => handleUpgrade(tier.id)}
-                        disabled={isLoadingThis}
-                        className={`w-full ${
-                          index > currentTierIndex
-                            ? 'bg-orange-600 hover:bg-orange-700'
-                            : 'bg-gray-700 hover:bg-gray-600 border border-gray-600'
-                        }`}
-                      >
-                        {isLoadingThis ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Loading...
-                          </>
-                        ) : (
-                          getButtonText(index)
-                        )}
-                      </Button>
+                      getButtonText(index)
                     )}
-                  </>
+                  </Button>
                 )}
               </CardContent>
               )}

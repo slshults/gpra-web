@@ -47,7 +47,11 @@
                     },
                     opt_out_capturing: function() {},
                     has_opted_out_capturing: function() { return true; },
-                    has_opted_in_capturing: function() { return false; }
+                    has_opted_in_capturing: function() { return false; },
+                    // Survey stubs - displaySurvey won't work without SDK, fallback handles this
+                    displaySurvey: null,
+                    getSurveys: function(callback) { callback([]); },
+                    onSurveysLoaded: function(callback) { callback(); }
                 };
             }
         })();
@@ -72,5 +76,7 @@
 
     <!-- Theme Toggle JavaScript -->
     <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+    <!-- PostHog Feedback Survey -->
+    <script src="{{ url_for('static', filename='js/feedback-survey.js') }}"></script>
 </body>
 </html> 
