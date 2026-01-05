@@ -60,6 +60,7 @@ const AccountSettings = () => {
   // Merge with defaults so new keys (like dangerZone) default to collapsed
   const [collapsedCards, setCollapsedCards] = useState(() => {
     const defaults = {
+      overview: true,
       apiKey: true,
       practiceData: true,
       changePassword: true,
@@ -637,9 +638,31 @@ const AccountSettings = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Left Column - Settings */}
         <div className={`space-y-6 md:block ${mobileView === 'settings' ? '' : 'hidden'}`}>
-          {/* Overview Card - NOT collapsible, always at top */}
+          {/* Overview Card - Collapsible, collapsed by default showing username and tier */}
           <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="pt-6">
+            <CardHeader
+              className="cursor-pointer select-none"
+              onClick={() => toggleCard('overview')}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <CardTitle className="text-gray-100">{userProfile.username || 'Loading...'}</CardTitle>
+                  <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getTierBadgeColor(userProfile.tier)}`}>
+                    {getTierDisplayName(userProfile.tier)}
+                  </span>
+                  <span className={`text-sm font-medium ${getUsageColor(routineCount, routineLimit)}`}>
+                    {routineCount} / {routineLimit === Infinity ? '∞' : routineLimit} routines
+                  </span>
+                </div>
+                {collapsedCards.overview ? (
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+            </CardHeader>
+            {!collapsedCards.overview && (
+            <CardContent className="pt-0">
               <div className="flex items-start gap-6 flex-wrap">
                 {/* Account Info - Username and Email */}
                 <div className="flex-1 min-w-[200px] space-y-3">
@@ -784,39 +807,9 @@ const AccountSettings = () => {
                   )}
                 </div>
 
-                {/* Tier & Usage Stats */}
-                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                  <div className="text-center sm:text-right">
-                    <button
-                      onClick={() => {
-                        // Switch to subscription view on mobile, scroll on desktop
-                        if (window.innerWidth < 768) {
-                          setMobileView('subscription');
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        } else {
-                          const element = document.getElementById('subscription-card');
-                          if (element) {
-                            const offset = 80;
-                            const elementPosition = element.getBoundingClientRect().top;
-                            const offsetPosition = elementPosition + window.pageYOffset - offset;
-                            window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
-                          }
-                        }
-                      }}
-                      className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getTierBadgeColor(userProfile.tier)} mb-1 hover:opacity-80 transition-opacity cursor-pointer`}
-                    >
-                      {getTierDisplayName(userProfile.tier)}
-                    </button>
-                    <p className={`text-sm font-medium ${getUsageColor(routineCount, routineLimit)}`}>
-                      {routineCount} / {routineLimit === Infinity ? '∞' : routineLimit} routines
-                      {routineCount >= routineLimit && routineLimit !== Infinity && (
-                        <span className="text-xs text-red-400 ml-1">(at limit)</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
               </div>
             </CardContent>
+            )}
           </Card>
 
           {/* API Key Card - Collapsible */}
@@ -829,9 +822,6 @@ const AccountSettings = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-gray-100">Anthropic API key</CardTitle>
-                  <CardDescription className="text-gray-400">
-                    Manage your personal Anthropic API key
-                  </CardDescription>
                 </div>
                 {collapsedCards.apiKey ? (
                   <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -846,8 +836,8 @@ const AccountSettings = () => {
                 <div className="bg-blue-900/30 border border-blue-700 rounded-md p-4">
                   <h3 className="text-sm font-semibold text-blue-300 mb-2">About API keys</h3>
                   <ul className="text-sm text-gray-300 space-y-1 list-disc list-inside">
-                    <li><strong>Free/Basic tiers:</strong> Provide your own key to unlock autocreate</li>
-                    <li><strong>The Goods+ tiers:</strong> Autocreate included! Optionally use your own key to use your own rate limits</li>
+                    <li><strong>Free/Basic tiers:</strong> Provide your own API key to autocreate chord charts</li>
+                    <li><strong>The Goods+ tiers:</strong> Optional. Autocreated chord charts already included, but you can use your own key if you're hitting rate limits</li>
                     <li>Your key is encrypted and stored securely</li>
                     <li>
                       Get your API key from{' '}
@@ -882,7 +872,7 @@ const AccountSettings = () => {
                 {/* API Key input */}
                 <div className="space-y-2">
                   <Label htmlFor="api-key" className="text-gray-200">
-                    {hasExistingKey ? 'Update API key' : 'Enter API key'}
+                    {hasExistingKey ? 'Update API key' : 'Paste API key'}
                   </Label>
                   <div className="flex gap-2" data-tour="api-key-input">
                     <div className="relative flex-1">
@@ -921,9 +911,6 @@ const AccountSettings = () => {
                       )}
                     </Button>
                   </div>
-                  <p className="text-xs text-gray-400">
-                    Your API key starts with "sk-ant-" and is about 100 characters long
-                  </p>
                 </div>
 
                 {/* Validation result */}
@@ -995,7 +982,7 @@ const AccountSettings = () => {
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-gray-100">Practice data download</CardTitle>
+                  <CardTitle className="text-gray-100">Download practice history</CardTitle>
                   <CardDescription className="text-gray-400">
                     Download your practice history (last 90 days)
                   </CardDescription>
@@ -1260,7 +1247,7 @@ const AccountSettings = () => {
                       </span>
                     </div>
                     <p className="text-xs text-gray-400">
-                      Help us improve GPRA by allowing anonymous usage analytics via PostHog. We never sell your data.
+                      Help us improve GPRA by allowing usage analytics via PostHog cookies. (We'll never sell or share your data.)
                     </p>
                   </div>
                   <button
@@ -1303,7 +1290,7 @@ const AccountSettings = () => {
                 <div>
                   <CardTitle className="text-gray-100">Guided tour</CardTitle>
                   <CardDescription className="text-gray-400">
-                    Take the interactive tour again
+                    Take the intro tour again
                   </CardDescription>
                 </div>
                 {collapsedCards.guidedTour ? (
@@ -1336,7 +1323,7 @@ const AccountSettings = () => {
                 <div>
                   <CardTitle className="text-red-400">Danger zone</CardTitle>
                   <CardDescription className="text-gray-400">
-                    Pause your account, or delete it and all your data to be forgotten.
+                    Pause your payments, or delete your account and all your data
                   </CardDescription>
                 </div>
                 {collapsedCards.dangerZone ? (
