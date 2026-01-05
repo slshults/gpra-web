@@ -16,6 +16,31 @@
             }
         })();
     </script>
+    <!-- PostHog Analytics -->
+    {% if posthog_key %}
+    <script>
+        // GDPR-Compliant PostHog Loading
+        (function() {
+            var cookieConsent = localStorage.getItem('cookieConsent');
+            if (cookieConsent === 'all') {
+                !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture identify".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+                posthog.init('{{ posthog_key }}', {
+                    api_host: 'https://tacet.guitarpracticeroutine.com',
+                    person_profiles: 'identified_only',
+                    capture_pageview: true
+                });
+            } else {
+                window.posthog = {
+                    capture: function() {},
+                    identify: function() {},
+                    displaySurvey: null,
+                    getSurveys: function(cb) { cb([]); },
+                    onSurveysLoaded: function(cb) { cb(); }
+                };
+            }
+        })();
+    </script>
+    {% endif %}
     <style>
         /* Theme toggle positioning */
         .theme-toggle {
@@ -115,6 +140,7 @@
                     Found a bug? Have a feature request? Want to submit a PR? Just want to say hi?
                 </p>
                 <a href="#"
+                   onclick="triggerFeedbackSurvey(event)"
                    class="inline-block mt-3 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
                     Reach out
                 </a>
@@ -146,5 +172,6 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/feedback-survey.js') }}"></script>
 </body>
 </html>

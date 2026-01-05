@@ -18,6 +18,9 @@ import anthropic
 import json
 import stripe
 
+# Module-level config for templates
+posthog_key = os.getenv('POSTHOG_API_KEY', '')
+
 # Main route
 @app.route('/')
 def index():
@@ -33,7 +36,6 @@ def index():
         return redirect('/login')
 
     app.logger.info(f"Authenticated user accessing main app: {current_user.username}")
-    posthog_key = os.getenv('POSTHOG_API_KEY', '')
 
     # Check user's subscription tier to determine if ads should be shown
     ads_enabled = False  # Default: no ads
@@ -100,22 +102,22 @@ def reset_password_page():
 @app.route('/privacy')
 def privacy_page():
     """Privacy policy page - accessible to everyone"""
-    return render_template('privacy.html.jinja')
+    return render_template('privacy.html.jinja', posthog_key=posthog_key)
 
 @app.route('/terms')
 def terms_page():
     """Terms of service page - accessible to everyone"""
-    return render_template('terms.html.jinja')
+    return render_template('terms.html.jinja', posthog_key=posthog_key)
 
 @app.route('/faq')
 def faq_page():
     """FAQ page - accessible to everyone"""
-    return render_template('faq.html.jinja')
+    return render_template('faq.html.jinja', posthog_key=posthog_key)
 
 @app.route('/about')
 def about_page():
     """About page - accessible to everyone"""
-    return render_template('about.html.jinja')
+    return render_template('about.html.jinja', posthog_key=posthog_key)
 
 # Items API - Updated to use data layer
 @app.route('/api/items', methods=['GET', 'POST'])

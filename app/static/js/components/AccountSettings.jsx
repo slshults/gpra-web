@@ -23,7 +23,7 @@ const AccountSettings = () => {
   const [validating, setValidating] = useState(false);
   const [message, setMessage] = useState(null);
   const [isValid, setIsValid] = useState(null);
-  const [userProfile, setUserProfile] = useState({ username: '', email: '', tier: 'free', billing_period: null, oauth_providers: [], unplugged_mode: false });
+  const [userProfile, setUserProfile] = useState({ username: '', email: '', tier: 'free', oauth_providers: [], unplugged_mode: false });
   const [routineCount, setRoutineCount] = useState(0);
   const [routineLimit, setRoutineLimit] = useState(1);
 
@@ -117,7 +117,6 @@ const AccountSettings = () => {
           username: data.user || '',
           email: data.email || '',
           tier: data.tier || 'free',
-          billing_period: data.billing_period || null,
           oauth_providers: data.oauth_providers || [],
           unplugged_mode: data.unplugged_mode || false
         });
@@ -1344,7 +1343,7 @@ const AccountSettings = () => {
         {/* Right Column - Subscription */}
         <div id="subscription-card" className={`space-y-6 md:block ${mobileView === 'subscription' ? '' : 'hidden'}`}>
           {/* Each tier card is now collapsible within PricingSection */}
-          <PricingSection currentTier={userProfile.tier} currentBillingPeriod={userProfile.billing_period} />
+          <PricingSection currentTier={userProfile.tier} />
         </div>
       </div>
     </div>

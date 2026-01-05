@@ -60,8 +60,9 @@ Your role here is choregrapher/air traffic controller/stage-manager/director. Se
 - ✅ Database: Row-Level Security (RLS) with `user_id` on Items/Routines/ChordCharts, `subscriptions` table, Flask-AppBuilder's `ab_user` table
 - ✅ Authentication: Custom login/register pages (React) + Flask-AppBuilder backend, supports email OR username login
 - ✅ OAuth: Google OAuth (local + production) & Tidal OAuth (production only - no localhost support)
-  - **Tidal users**: Placeholder email `tidal_{user_id}@gpra.app`, can update via Stripe Customer Portal
-- ✅ Subscriptions: 5 Stripe tiers (free/basic/thegoods/moregoods/themost), complete integration
+  - **Tidal users**: Placeholder email `tidal_{user_id}@no_email_provided_by_tidal.com`, can update via Account Settings
+  - **Tidal lookup**: Always by username (stable), never by email (user may have changed it)
+- ✅ Subscriptions: 5 Stripe tiers (free/basic/thegoods/moregoods/themost), monthly billing only (yearly hidden until app runs 1 year)
 - ✅ Backend: Session management, tier-based feature gating, RLS middleware, Stripe billing endpoints
 - ✅ Frontend: Custom login/signup pages with OAuth-first layout, real-time password validation with visual checklist
 - ✅ Frontend: Account management complete, billing UI with pricing section
@@ -363,7 +364,9 @@ The **`playwright-gpra-testing` skill** is located at `~/.claude/skills/playwrig
 
 **Event Naming Convention**: All events use **snake_case past tense** (e.g., `practice_timer_started`, `chord_chart_created`, `user_logged_in`). Frontend tracking via `analytics.js` utilities, backend via `posthog_client.py`.
 
-**Cookie Consent Integration**: PostHog initialization in `base.html.jinja` checks `localStorage.cookieConsent` before loading. Only tracks if user explicitly accepts ('all'), opts out by default for GDPR compliance.
+**Cookie Consent Integration**: PostHog initialization in `base.html.jinja` and standalone pages (privacy, terms, about, faq) checks `localStorage.cookieConsent` before loading. Only tracks if user explicitly accepts ('all'), opts out by default for GDPR compliance.
+
+**Feedback Survey**: "Reach out" buttons trigger PostHog in-app feedback survey via `feedback-survey.js`. Survey ID configured in that file. Falls back to GitHub issues modal if PostHog unavailable.
 
 **Token conservation**: PostHog MCP is disabled by default. Enable when needed, disable when done.
 
