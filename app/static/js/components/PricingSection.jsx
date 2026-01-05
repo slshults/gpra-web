@@ -65,6 +65,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
       priceYearly: 0,
       autocreate: false,
       description: 'Get started with basic features',
+      byocNote: 'BYOClaude (enter your own Anthropic API key) for autocreated chord charts',
     },
     {
       id: 'basic',
@@ -95,7 +96,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
       priceMonthly: 12,
       priceYearly: 100.80,
       autocreate: true,
-      description: 'For serious practice routines',
+      description: 'Even more items and routines',
     },
     {
       id: 'themost',
@@ -105,7 +106,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
       priceMonthly: 20,
       priceYearly: 168,
       autocreate: true,
-      description: 'Unlimited potential',
+      description: 'Goes to 11',
     },
   ];
 
@@ -439,12 +440,6 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
                       <span className="font-medium text-orange-400">Includes Autocreate for chord charts</span>
                     </li>
                   )}
-                  {tier.id === 'themost' && (
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                      <span>Goes to 11</span>
-                    </li>
-                  )}
                 </ul>
 
                 {/* BYOC Note for Basic tier */}
@@ -593,7 +588,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
                 <p className="text-sm text-gray-400">
                   {unpluggedMode
                     ? 'Reactivate your subscription or view billing details'
-                    : 'Update payment method, view invoices, or cancel your subscription'}
+                    : 'Log in to your Stripe account to update your payment method, view invoices, view payment history, etc.'}
                 </p>
               </div>
               <Button
@@ -609,7 +604,7 @@ const PricingSection = ({ currentTier = 'free', currentBillingPeriod = null }) =
                 ) : (
                   <>
                     <CreditCard className="w-4 h-4 mr-2" />
-                    Manage Subscription
+                    Stripe billing portal
                   </>
                 )}
               </Button>
