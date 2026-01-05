@@ -335,7 +335,17 @@ class CustomAuthOAuthView(AuthOAuthView):
         logger.info(f"OAuth user info: {userinfo.get('email')}")
 
         # Check if user already exists
-        existing_user = self.appbuilder.sm.find_user(email=userinfo.get('email'))
+        # For Tidal users, ALWAYS look up by username first (not email)
+        # because Tidal doesn't provide email and users may have updated their placeholder email
+        username = userinfo.get('username')
+        if username and username.startswith('tidal_'):
+            # Tidal user - look up by stable username, NOT by email
+            existing_user = self.appbuilder.sm.find_user(username=username)
+            if existing_user:
+                logger.info(f"Found Tidal user by username: {username}")
+        else:
+            # Non-Tidal user - look up by email as usual
+            existing_user = self.appbuilder.sm.find_user(email=userinfo.get('email'))
 
         if intent == 'login':
             # LOGIN FLOW: Only authenticate existing users
