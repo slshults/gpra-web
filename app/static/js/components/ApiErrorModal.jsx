@@ -9,72 +9,137 @@ import {
 import { Button } from './ui/button';
 import { AlertTriangle, Clock, Loader2, Key } from 'lucide-react';
 
+// Exponential backoff for rate limits: 15s -> 30s -> 60s -> 120s (max)
+const RATE_LIMIT_BACKOFF_KEY = 'gpra_rate_limit_backoff';
+const BASE_WAIT_TIME = 15;
+const MAX_WAIT_TIME = 120;
+
+// Get current backoff level from localStorage
+const getBackoffLevel = () => {
+  try {
+    const stored = localStorage.getItem(RATE_LIMIT_BACKOFF_KEY);
+    if (stored) {
+      const data = JSON.parse(stored);
+      // Reset if more than 5 minutes since last rate limit
+      if (Date.now() - data.timestamp > 5 * 60 * 1000) {
+        return 0;
+      }
+      return data.level || 0;
+    }
+  } catch (e) {
+    console.warn('Error reading backoff level:', e);
+  }
+  return 0;
+};
+
+// Increment and save backoff level
+const incrementBackoffLevel = () => {
+  try {
+    const currentLevel = getBackoffLevel();
+    const newLevel = Math.min(currentLevel + 1, 3); // Cap at level 3 (120s)
+    localStorage.setItem(RATE_LIMIT_BACKOFF_KEY, JSON.stringify({
+      level: newLevel,
+      timestamp: Date.now()
+    }));
+    return newLevel;
+  } catch (e) {
+    console.warn('Error saving backoff level:', e);
+    return 0;
+  }
+};
+
+// Reset backoff (call this after successful autocreate)
+export const resetRateLimitBackoff = () => {
+  try {
+    localStorage.removeItem(RATE_LIMIT_BACKOFF_KEY);
+  } catch (e) {
+    console.warn('Error resetting backoff:', e);
+  }
+};
+
+// Calculate wait time based on backoff level
+const calculateWaitTime = (level) => {
+  // 15s, 30s, 60s, 120s
+  return Math.min(BASE_WAIT_TIME * Math.pow(2, level), MAX_WAIT_TIME);
+};
+
 const ApiErrorModal = ({ isOpen, onClose, error }) => {
   const [countdown, setCountdown] = useState(0);
   const [canRetry, setCanRetry] = useState(false);
+  const [errorInfo, setErrorInfo] = useState(null);
 
-  // Parse error to determine wait time and message
-  const parseError = (error) => {
+  // Parse error to determine type and base info (without incrementing backoff)
+  const getErrorType = (error) => {
     const errorMsg = error?.message || error || '';
-    
-    if (errorMsg.includes('529') || errorMsg.includes('overloaded')) {
+    const errorMsgLower = errorMsg.toLowerCase();
+
+    if (errorMsgLower.includes('529') || errorMsgLower.includes('overloaded')) {
       return {
         type: 'overload',
         title: 'API Temporarily Overloaded',
         message: 'The AI servers are experiencing high traffic right now.',
-        waitTime: 30, // 30 seconds for overload
+        waitTime: 30,
         icon: <Loader2 className="h-6 w-6 text-yellow-500 animate-spin" />
       };
     }
-    
-    if (errorMsg.includes('429') || errorMsg.includes('rate limit')) {
+
+    if (errorMsgLower.includes('429') || errorMsgLower.includes('rate limit')) {
       return {
         type: 'rate_limit',
-        title: 'Rate Limit Reached',
-        message: 'You\'ve hit the API rate limit. Please wait before trying again.',
-        waitTime: 60, // 60 seconds for rate limit
+        title: 'Oops!',
+        message: null,
+        waitTime: null, // Will be calculated with backoff
         icon: <Clock className="h-6 w-6 text-orange-500" />
       };
     }
-    
-    if (errorMsg.includes('500') || errorMsg.includes('502') || errorMsg.includes('503')) {
+
+    if (errorMsgLower.includes('500') || errorMsgLower.includes('502') || errorMsgLower.includes('503')) {
       return {
         type: 'server_error',
         title: 'Server Error',
         message: 'The server is experiencing issues. Let\'s try again in a moment.',
-        waitTime: 45, // 45 seconds for server errors
+        waitTime: 45,
         icon: <AlertTriangle className="h-6 w-6 text-red-500" />
       };
     }
-    
-    if (errorMsg.includes('timeout')) {
+
+    if (errorMsgLower.includes('timeout')) {
       return {
         type: 'timeout',
         title: 'Request Timeout',
         message: 'The analysis took too long. This might work better with smaller files.',
-        waitTime: 15, // 15 seconds for timeout
+        waitTime: 15,
         icon: <Clock className="h-6 w-6 text-blue-500" />
       };
     }
-    
-    // Generic error
+
     return {
       type: 'generic',
-      title: 'Something Went Wrong',
-      message: errorMsg || 'An unexpected error occurred.',
-      waitTime: 10, // 10 seconds for generic errors
+      title: 'Oops!',
+      message: error?.message || error || 'An unexpected error occurred.',
+      waitTime: 10,
       icon: <AlertTriangle className="h-6 w-6 text-gray-500" />
     };
   };
 
-  const errorInfo = parseError(error);
-
-  // Initialize countdown when modal opens
+  // Initialize countdown when modal opens - only increment backoff once here
   useEffect(() => {
     if (isOpen && error) {
-      setCountdown(errorInfo.waitTime);
+      const baseInfo = getErrorType(error);
+
+      // For rate limits, calculate wait time with exponential backoff
+      let waitTime = baseInfo.waitTime;
+      if (baseInfo.type === 'rate_limit') {
+        const currentLevel = getBackoffLevel();  // Get current (starts at 0)
+        waitTime = calculateWaitTime(currentLevel);  // Calculate first (15s for level 0)
+        incrementBackoffLevel();  // Then increment for next time
+      }
+
+      const finalErrorInfo = { ...baseInfo, waitTime };
+      setErrorInfo(finalErrorInfo);
+      setCountdown(waitTime);
       setCanRetry(false);
-      
+
       const timer = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {
@@ -85,10 +150,10 @@ const ApiErrorModal = ({ isOpen, onClose, error }) => {
           return prev - 1;
         });
       }, 1000);
-      
+
       return () => clearInterval(timer);
     }
-  }, [isOpen, error, errorInfo.waitTime]);
+  }, [isOpen, error]);
 
   const formatTime = (seconds) => {
     if (seconds < 60) return `${seconds}s`;
@@ -104,6 +169,9 @@ const ApiErrorModal = ({ isOpen, onClose, error }) => {
   };
 
   if (!isOpen || !error) return null;
+
+  // Wait for errorInfo to be set by useEffect
+  if (!errorInfo) return null;
 
   // Check if this is an API key required error
   const requiresApiKey = error?.requiresApiKey || false;
@@ -160,7 +228,24 @@ const ApiErrorModal = ({ isOpen, onClose, error }) => {
             {errorInfo.title}
           </DialogTitle>
           <DialogDescription className="text-left space-y-3">
-            <p>{errorInfo.message}</p>
+            {errorInfo.type === 'rate_limit' ? (
+              <p>
+                We've hit Anthropic's rate limit{' '}
+                <a
+                  href="/faq?expand=autocreate-limits"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open('/faq?expand=autocreate-limits', '_blank');
+                  }}
+                  className="text-blue-500 hover:text-blue-400 underline"
+                >
+                  (more info)
+                </a>
+              </p>
+            ) : (
+              <p>{errorInfo.message}</p>
+            )}
 
             {countdown > 0 ? (
               <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">

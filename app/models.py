@@ -230,6 +230,12 @@ class Subscription(Base):
     last_pause_action = Column(DateTime(timezone=True), nullable=True)  # Last pause/unpause timestamp
     last_deletion_action = Column(DateTime(timezone=True), nullable=True)  # Last schedule/cancel deletion timestamp
 
+    # Rate limiting for Anthropic API autocreate
+    autocreate_calls_today = Column(Integer, default=0, nullable=False)  # Daily API call counter
+    autocreate_calls_this_hour = Column(Integer, default=0, nullable=False)  # Hourly API call counter
+    autocreate_daily_reset_at = Column(DateTime(timezone=True), nullable=True)  # Next daily reset (midnight UTC)
+    autocreate_hourly_reset_at = Column(DateTime(timezone=True), nullable=True)  # Next hourly reset
+
     # Complimentary account tracking
     is_complimentary = Column(Boolean, default=False, nullable=False)  # True for free-forever accounts (beta testers, friends, contributors)
     complimentary_reason = Column(String(255), nullable=True)  # Reason for complimentary access (e.g., "Beta tester", "Friend", "Contributor")

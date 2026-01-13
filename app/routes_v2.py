@@ -462,12 +462,41 @@ def _get_autocreate_api_key():
     3. None (if neither available)
 
     Returns:
-        str: API key to use, or None if unavailable
+        tuple: (api_key, is_using_own_key, tier, is_complimentary)
+        - api_key: str or None - API key to use
+        - is_using_own_key: bool - True if using user's own key (byoClaude)
+        - tier: str - User's subscription tier
+        - is_complimentary: bool - Whether user has complimentary access
     """
     if not current_user.is_authenticated:
-        return None
+        return (None, False, 'free', False)
 
-    # First, try to get user's own API key
+    tier = 'free'
+    is_complimentary = False
+
+    # First, get user's subscription info
+    try:
+        from app.database import SessionLocal
+        from sqlalchemy import text
+
+        db = SessionLocal()
+        try:
+            result = db.execute(text("""
+                SELECT s.tier, s.is_complimentary
+                FROM subscriptions s
+                WHERE s.user_id = :user_id
+                AND s.status = 'active'
+            """), {'user_id': current_user.id}).fetchone()
+
+            if result:
+                tier = result[0]
+                is_complimentary = result[1] if result else False
+        finally:
+            db.close()
+    except Exception as e:
+        app.logger.error(f"Error checking subscription tier: {e}")
+
+    # Try to get user's own API key
     try:
         from app.database import SessionLocal
         from app.utils.encryption import decrypt_api_key
@@ -485,7 +514,7 @@ def _get_autocreate_api_key():
                 user_key = decrypt_api_key(result[0])
                 if user_key:
                     app.logger.info(f"[AUTOCREATE] Using user's own API key (byoClaude)")
-                    return user_key
+                    return (user_key, True, tier, is_complimentary)
         finally:
             db.close()
     except Exception as e:
@@ -493,34 +522,18 @@ def _get_autocreate_api_key():
 
     # If no user key, check if user's subscription tier includes autocreate
     try:
-        from app.database import SessionLocal
         from app.subscription_tiers import is_feature_enabled
-        from sqlalchemy import text
 
-        db = SessionLocal()
-        try:
-            result = db.execute(text("""
-                SELECT s.tier, s.is_complimentary
-                FROM subscriptions s
-                WHERE s.user_id = :user_id
-                AND s.status = 'active'
-            """), {'user_id': current_user.id}).fetchone()
-
-            if result:
-                tier = result[0]
-                is_complimentary = result[1] if result else False
-                if is_feature_enabled(tier, 'autocreate', is_complimentary):
-                    # Tier includes autocreate, use system key
-                    system_key = os.getenv('ANTHROPIC_API_KEY')
-                    if system_key:
-                        app.logger.info(f"[AUTOCREATE] Using system API key for {tier} tier user")
-                        return system_key
-        finally:
-            db.close()
+        if is_feature_enabled(tier, 'autocreate', is_complimentary):
+            # Tier includes autocreate, use system key
+            system_key = os.getenv('ANTHROPIC_API_KEY')
+            if system_key:
+                app.logger.info(f"[AUTOCREATE] Using system API key for {tier} tier user")
+                return (system_key, False, tier, is_complimentary)
     except Exception as e:
-        app.logger.error(f"Error checking subscription tier: {e}")
+        app.logger.error(f"Error checking feature availability: {e}")
 
-    return None
+    return (None, False, tier, is_complimentary)
 
 # AI chord chart creation
 @app.route('/api/autocreate-chord-charts', methods=['POST'])
@@ -647,25 +660,8 @@ def autocreate_chord_charts():
             app.logger.info(f"[AUTOCREATE] No user choice provided, will use automatic detection")
             
         # Get Anthropic API key (user's key if available, otherwise system key)
-        api_key = _get_autocreate_api_key()
+        api_key, is_using_own_key, tier, is_complimentary = _get_autocreate_api_key()
         if not api_key:
-            # Check subscription tier to give appropriate error message
-            from app.database import SessionLocal
-            from sqlalchemy import text
-
-            db = SessionLocal()
-            try:
-                result = db.execute(text("""
-                    SELECT s.tier
-                    FROM subscriptions s
-                    WHERE s.user_id = :user_id
-                    AND s.status = 'active'
-                """), {'user_id': current_user.id}).fetchone()
-
-                tier = result[0] if result else 'free'
-            finally:
-                db.close()
-
             # Free/Basic users need their own key, Standard+ can use system key
             if tier in ['free', 'basic']:
                 return jsonify({
@@ -675,12 +671,40 @@ def autocreate_chord_charts():
             else:
                 return jsonify({'error': 'Anthropic API key not configured'}), 500
 
+        # Get user_id for rate limiting and analytics
+        user_id = current_user.id if current_user.is_authenticated else None
+
+        # Check rate limits (byoClaude users are exempt)
+        from app.utils.rate_limits import (
+            check_autocreate_rate_limit,
+            increment_autocreate_usage,
+            get_autocreate_usage_info,
+            AUTOCREATE_RATE_LIMITS
+        )
+
+        allowed, reason, remaining_daily, remaining_hourly, daily_resets_at, hourly_resets_at = \
+            check_autocreate_rate_limit(user_id, tier, is_complimentary, is_using_own_key)
+
+        if not allowed:
+            app.logger.warning(f"[AUTOCREATE] Rate limit exceeded for user {user_id}: {reason}")
+            # Get usage info for the response
+            usage_info = get_autocreate_usage_info(user_id, tier, is_complimentary)
+            return jsonify({
+                'error': 'Rate limit exceeded',
+                'message': reason,
+                'limits': {
+                    'daily_used': usage_info['daily_used'],
+                    'daily_limit': usage_info['daily_limit'],
+                    'hourly_used': usage_info['hourly_used'],
+                    'hourly_limit': usage_info['hourly_limit'],
+                    'daily_resets_at': daily_resets_at,
+                    'hourly_resets_at': hourly_resets_at,
+                }
+            }), 429
+
         # Initialize Anthropic client with PostHog instrumentation
         from app.utils.llm_analytics import track_llm_generation, track_llm_span
         from app.utils.posthog_client import create_instrumented_anthropic_client
-
-        # Get user_id for PostHog analytics (needed for both client and tracking)
-        user_id = current_user.id if current_user.is_authenticated else None
 
         # Create client with LLM auto-instrumentation and proper distinct_id
         client = create_instrumented_anthropic_client(api_key, user_id=user_id)
@@ -693,9 +717,14 @@ def autocreate_chord_charts():
         # Process with simplified autocreate logic
         analysis_result = analyze_files_with_claude(client, uploaded_files, item_id, user_id)
         app.logger.info(f"[AUTOCREATE] Claude analysis completed, result type: {type(analysis_result)}")
-        
+
+        # Increment usage counter after successful API call (only for non-byoClaude users)
+        if not is_using_own_key:
+            increment_autocreate_usage(user_id)
+            app.logger.info(f"[AUTOCREATE] Usage counter incremented for user {user_id}")
+
         app.logger.debug("Claude analysis complete, creating chord charts")
-        
+
         return jsonify(analysis_result)
 
     except Exception as e:
@@ -3285,10 +3314,10 @@ Analyze the files below:"""
                     }
                 })
 
-        # Use Sonnet 4 for file type detection
+        # Use Sonnet 4.5 for file type detection (simple 3-way classification)
         llm_start_time = time.time()
         response = client.messages.create(
-            model="claude-opus-4-5-20251101",
+            model="claude-sonnet-4-5-20250514",
             max_tokens=3000,
             messages=[{
                 "role": "user",
@@ -3300,7 +3329,7 @@ Analyze the files below:"""
         # Track LLM Analytics for file type detection
         from app.utils.llm_analytics import llm_analytics
         llm_analytics.track_generation(
-            model="claude-opus-4-5-20241022",
+            model="claude-sonnet-4-5-20250514",
             input_messages=[{"role": "user", "content": "File type detection for guitar content"}],
             output_choices=[{"message": {"content": response.content[0].text}}],
             usage={
@@ -3499,11 +3528,11 @@ If you can't determine sections, use "Main" as the section name.""",
                     }
                 })
 
-        # Call Claude API with prompt caching enabled
+        # Call Claude API with prompt caching enabled (Sonnet 4.5 for simple text extraction)
         llm_start_time = time.time()
         try:
             response = client.messages.create(
-                model="claude-opus-4-5-20251101",
+                model="claude-sonnet-4-5-20250514",
                 max_tokens=8000,
                 messages=[{
                     "role": "user",
@@ -3538,7 +3567,7 @@ If you can't determine sections, use "Main" as the section name.""",
             # CRITICAL: Pass user_id from autocreate route
             # Note: user_id comes from simple_analyze_files caller, need to add to function signature
             generation_id = track_llm_generation(
-                model="claude-opus-4-5-20251101",
+                model="claude-sonnet-4-5-20250514",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from uploaded guitar files"  # Simplified for privacy
@@ -3568,7 +3597,7 @@ If you can't determine sections, use "Main" as the section name.""",
 
             # Track failed generation
             generation_id = track_llm_generation(
-                model="claude-opus-4-5-20251101",
+                model="claude-sonnet-4-5-20250514",
                 input_messages=[{"role": "user", "content": "Extract chord names from uploaded guitar files"}],
                 output_choices=[],
                 latency_seconds=llm_latency / 1000,  # Will be converted back to ms in track_llm_generation
@@ -3982,8 +4011,8 @@ Thanks so much for being thorough with this, you rock Claude! 🤘🎸🚀"""
                     }
                 })
 
-        # Use Sonnet 4.5 for visual analysis of chord diagrams
-        app.logger.info("Using Sonnet 4.5 for chord chart visual analysis")
+        # Use Opus 4.5 for visual analysis of chord diagrams (complex visual task)
+        app.logger.info("Using Opus 4.5 for chord chart visual analysis")
         llm_start_time = time.time()
         response = client.messages.create(
             model="claude-opus-4-5-20251101",
@@ -5068,7 +5097,7 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
         import time
         llm_start_time = time.time()
         response = client.messages.create(
-            model="claude-opus-4-5-20251101",
+            model="claude-sonnet-4-5-20250514",  # Sonnet for simple binary classification
             max_tokens=100,  # Short response needed
             temperature=0.1,
             messages=[{"role": "user", "content": assessment_prompt}]
@@ -5092,7 +5121,7 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
             }
 
         track_llm_generation(
-            model="claude-opus-4-5-20251101",
+            model="claude-sonnet-4-5-20250514",
             input_messages=[{
                 "role": "user",
                 "content": "Assess OCR text trustworthiness"
@@ -5137,7 +5166,7 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
             llm_latency = 0
 
         track_llm_generation(
-            model="claude-opus-4-5-20251101",
+            model="claude-sonnet-4-5-20250514",
             input_messages=[{
                 "role": "user",
                 "content": "Assess OCR text trustworthiness"
@@ -5235,6 +5264,79 @@ def last_payment_route():
     db = SessionLocal()
     try:
         return billing.get_last_payment(db)
+    finally:
+        db.close()
+
+
+@app.route('/api/autocreate/usage', methods=['GET'])
+def get_autocreate_usage():
+    """Get current autocreate API usage and limits for the authenticated user.
+
+    Returns usage information for the tier-based rate limiting system.
+    byoClaude users (using their own API key) have unlimited access.
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    from app.database import SessionLocal
+    from app.utils.rate_limits import get_autocreate_usage_info, get_tier_rate_limits
+    from app.utils.encryption import decrypt_api_key
+
+    db = SessionLocal()
+    try:
+        # Get user's subscription tier and check if they have their own API key
+        result = db.execute(text("""
+            SELECT s.tier, s.is_complimentary, u.encrypted_anthropic_api_key
+            FROM subscriptions s
+            JOIN ab_user u ON u.id = s.user_id
+            WHERE s.user_id = :user_id
+            AND s.status = 'active'
+        """), {'user_id': current_user.id}).fetchone()
+
+        if not result:
+            return jsonify({
+                'is_byo_claude': False,
+                'daily_used': 0,
+                'daily_limit': 0,
+                'hourly_used': 0,
+                'hourly_limit': 0,
+                'daily_resets_at': None,
+                'hourly_resets_at': None,
+                'tier': 'free',
+            })
+
+        tier = result[0]
+        is_complimentary = result[1] or False
+        encrypted_key = result[2]
+
+        # Check if user has their own API key
+        is_byo_claude = False
+        if encrypted_key:
+            try:
+                user_key = decrypt_api_key(encrypted_key)
+                is_byo_claude = bool(user_key)
+            except Exception:
+                pass
+
+        # Get usage info
+        usage_info = get_autocreate_usage_info(current_user.id, tier, is_complimentary)
+        daily_limit, hourly_limit = get_tier_rate_limits(tier, is_complimentary)
+
+        return jsonify({
+            'is_byo_claude': is_byo_claude,
+            'daily_used': usage_info['daily_used'],
+            'daily_limit': daily_limit if daily_limit is not None else 'unlimited',
+            'hourly_used': usage_info['hourly_used'],
+            'hourly_limit': hourly_limit if hourly_limit is not None else 'unlimited',
+            'daily_resets_at': usage_info['daily_resets_at'],
+            'hourly_resets_at': usage_info['hourly_resets_at'],
+            'tier': tier,
+            'is_complimentary': is_complimentary,
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error getting autocreate usage: {e}")
+        return jsonify({"error": "Failed to retrieve usage information"}), 500
     finally:
         db.close()
 

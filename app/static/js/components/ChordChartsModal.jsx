@@ -58,7 +58,7 @@ const findSimilarSongs = (sourceTitle, allItems, sourceItemId) => {
 import { Button } from '@ui/button';
 import { Check, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer } from 'lucide-react';
 import { ChordChartEditor } from './ChordChartEditor';
-import ApiErrorModal from './ApiErrorModal';
+import ApiErrorModal, { resetRateLimitBackoff } from './ApiErrorModal';
 import AutocreateSuccessModal from './AutocreateSuccessModal';
 import { serverDebug } from '../utils/logging';
 import {
@@ -1186,6 +1186,8 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         [itemId]: ''
       }));
 
+      // Reset rate limit backoff on success
+      resetRateLimitBackoff();
       setAutocreateProgress(prev => ({ ...prev, [itemId]: 'complete' }));
 
       // Show success modal
@@ -1349,6 +1351,9 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         [itemId]: ''
       }));
 
+      // Reset rate limit backoff on success
+      resetRateLimitBackoff();
+
       // Show success modal
       const itemDetails = getItemDetails(itemId);
       setAutocreateSuccessData({
@@ -1391,8 +1396,11 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
       // Show uploading for minimum 2 seconds, then switch to processing (copied from PracticePage)
       const minDisplayTime = 2000;
-      setTimeout(() => {
-        setAutocreateProgress(prev => ({ ...prev, [itemId]: 'processing' }));
+      let hasErrorOccurred = false;
+      const processingTimer = setTimeout(() => {
+        if (!hasErrorOccurred) {
+          setAutocreateProgress(prev => ({ ...prev, [itemId]: 'processing' }));
+        }
       }, minDisplayTime);
 
       const response = await fetch('/api/autocreate-chord-charts', {
@@ -1402,6 +1410,8 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       });
 
       if (response.ok) {
+        // Reset rate limit backoff on success
+        resetRateLimitBackoff();
         setAutocreateProgress(prev => ({ ...prev, [itemId]: 'complete' }));
 
         // Refresh chord charts
@@ -1448,6 +1458,10 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         }, 2000);
 
       } else {
+        // Prevent the processing timer from firing after error
+        hasErrorOccurred = true;
+        clearTimeout(processingTimer);
+
         // Parse error response
         let errorMessage = `Failed to create chord charts: ${response.statusText}`;
         try {
@@ -1484,7 +1498,12 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         // Show generic error modal for other errors
         setApiError({ message: errorMessage });
         setShowApiErrorModal(true);
-        setAutocreateProgress(prev => ({ ...prev, [itemId]: 'error' }));
+        // Clear progress immediately for 429/rate limit errors so user is back at clean state
+        setAutocreateProgress(prev => {
+          const newState = { ...prev };
+          delete newState[itemId];
+          return newState;
+        });
 
         // Clean up abort controller on error (copied from PracticePage)
         setAutocreateAbortController(prev => {
@@ -1492,15 +1511,20 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
           delete newState[itemId];
           return newState;
         });
-
-        setTimeout(() => {
-          setAutocreateProgress(prev => ({ ...prev, [itemId]: null }));
-        }, 3000);
       }
 
     } catch (error) {
+      // Prevent the processing timer from firing after error
+      hasErrorOccurred = true;
+      clearTimeout(processingTimer);
+
       console.error('Error processing files:', error);
-      setAutocreateProgress(prev => ({ ...prev, [itemId]: 'error' }));
+      // Clear progress immediately so user is back at clean state
+      setAutocreateProgress(prev => {
+        const newState = { ...prev };
+        delete newState[itemId];
+        return newState;
+      });
 
       // Clean up abort controller on error (copied from PracticePage)
       setAutocreateAbortController(prev => {
@@ -1508,10 +1532,6 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         delete newState[itemId];
         return newState;
       });
-
-      setTimeout(() => {
-        setAutocreateProgress(prev => ({ ...prev, [itemId]: null }));
-      }, 3000);
     }
   };
 
@@ -2365,14 +2385,6 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         </div>
 
         {/* Modals */}
-        {showApiErrorModal && (
-          <ApiErrorModal
-            isOpen={showApiErrorModal}
-            onClose={() => setShowApiErrorModal(false)}
-            error={apiError}
-          />
-        )}
-
         {showAutocreateSuccessModal && (
           <AutocreateSuccessModal
             isOpen={showAutocreateSuccessModal}
