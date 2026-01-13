@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@ui/button';
 import { Input } from '@ui/input';
 import { Label } from '@ui/label';
@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
-import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink, Play, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
+import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink, Play, Pause, ChevronDown, ChevronRight, Pencil, Volume2 } from 'lucide-react';
 import PricingSection from './PricingSection';
 import AccountDeletion from './AccountDeletion';
 
@@ -56,11 +56,23 @@ const AccountSettings = () => {
   // Mobile view toggle state
   const [mobileView, setMobileView] = useState('settings'); // 'settings' or 'subscription'
 
+  // Timer volume settings state
+  const [timerVolume, setTimerVolume] = useState(() => {
+    const stored = localStorage.getItem('gpra_timer_volume');
+    return stored !== null ? parseFloat(stored) : 5.5;
+  });
+  const [timerVolumeMessage, setTimerVolumeMessage] = useState(null);
+  const [isPlayingTestSound, setIsPlayingTestSound] = useState(false);
+  const testAudioRef = useRef(null);
+  const testAudioContextRef = useRef(null);
+  const testGainNodeRef = useRef(null);
+
   // Collapsed cards state - load from sessionStorage or default to all collapsed
   // Merge with defaults so new keys (like dangerZone) default to collapsed
   const [collapsedCards, setCollapsedCards] = useState(() => {
     const defaults = {
       overview: true,
+      timerVolume: true,
       apiKey: true,
       practiceData: true,
       changePassword: true,
@@ -611,6 +623,96 @@ const AccountSettings = () => {
   const canEditUsername = !isTidalUser;  // Tidal users can't edit username
   const canEditEmail = !isGoogleUser;     // Google users can't edit email
 
+  // Timer volume functions
+  const stopTestSound = () => {
+    if (testAudioRef.current) {
+      try {
+        testAudioRef.current.stop();
+      } catch {
+        // Sound may have already stopped
+      }
+      testAudioRef.current = null;
+    }
+    setIsPlayingTestSound(false);
+  };
+
+  const playTestSound = async () => {
+    if (isPlayingTestSound) {
+      stopTestSound();
+      return;
+    }
+
+    try {
+      // Create audio context if needed
+      if (!testAudioContextRef.current) {
+        testAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        testGainNodeRef.current = testAudioContextRef.current.createGain();
+        testGainNodeRef.current.connect(testAudioContextRef.current.destination);
+      }
+
+      // Resume audio context if suspended (browser autoplay policy)
+      if (testAudioContextRef.current.state === 'suspended') {
+        await testAudioContextRef.current.resume();
+      }
+
+      // Set gain based on current slider value (0-11 scale to 0-3 gain range)
+      testGainNodeRef.current.gain.value = (timerVolume / 11) * 3.0;
+
+      // Fetch and decode the audio file
+      const response = await fetch('/static/sound/timesUp.mp3');
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await testAudioContextRef.current.decodeAudioData(arrayBuffer);
+
+      // Stop any existing sound
+      stopTestSound();
+
+      // Create and play new sound
+      testAudioRef.current = testAudioContextRef.current.createBufferSource();
+      testAudioRef.current.buffer = audioBuffer;
+      testAudioRef.current.connect(testGainNodeRef.current);
+      testAudioRef.current.onended = () => {
+        setIsPlayingTestSound(false);
+        testAudioRef.current = null;
+      };
+      testAudioRef.current.start();
+      setIsPlayingTestSound(true);
+    } catch (error) {
+      console.error('Error playing test sound:', error);
+      setIsPlayingTestSound(false);
+    }
+  };
+
+  const saveTimerVolume = () => {
+    stopTestSound();
+    localStorage.setItem('gpra_timer_volume', timerVolume.toString());
+    setTimerVolumeMessage({ type: 'success', text: 'Volume saved!' });
+    setTimeout(() => setTimerVolumeMessage(null), 2000);
+  };
+
+  // Cleanup test sound when card collapses or component unmounts
+  useEffect(() => {
+    return () => {
+      stopTestSound();
+      if (testAudioContextRef.current) {
+        testAudioContextRef.current.close();
+      }
+    };
+  }, []);
+
+  // Stop test sound when timerVolume card is collapsed
+  useEffect(() => {
+    if (collapsedCards.timerVolume) {
+      stopTestSound();
+    }
+  }, [collapsedCards.timerVolume]);
+
+  // Update gain in real-time as slider moves
+  useEffect(() => {
+    if (testGainNodeRef.current && isPlayingTestSound) {
+      testGainNodeRef.current.gain.value = (timerVolume / 11) * 3.0;
+    }
+  }, [timerVolume, isPlayingTestSound]);
+
   return (
     <div className="max-w-7xl mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold mb-6 text-gray-100">Account Settings</h1>
@@ -808,6 +910,102 @@ const AccountSettings = () => {
 
               </div>
             </CardContent>
+            )}
+          </Card>
+
+          {/* Timer Volume Card - Collapsible */}
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader
+              className="cursor-pointer select-none"
+              onClick={() => toggleCard('timerVolume')}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-gray-100">Time's up sound level</CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Set the volume for the timer completion sound
+                  </CardDescription>
+                </div>
+                {collapsedCards.timerVolume ? (
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+            </CardHeader>
+            {!collapsedCards.timerVolume && (
+              <CardContent className="space-y-4">
+                {/* Volume slider */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="timer-volume" className="text-gray-200 flex items-center gap-2">
+                      <Volume2 className="w-4 h-4" />
+                      Volume level
+                    </Label>
+                    <span className="text-sm font-mono text-orange-400 bg-gray-900 px-2 py-1 rounded">
+                      {timerVolume.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-500">0</span>
+                    <input
+                      id="timer-volume"
+                      type="range"
+                      min="0"
+                      max="11"
+                      step="0.1"
+                      value={timerVolume}
+                      onChange={(e) => setTimerVolume(parseFloat(e.target.value))}
+                      className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                    />
+                    <span className="text-xs text-gray-500">11</span>
+                  </div>
+                  <p className="text-xs text-gray-500 italic">
+                    These go to eleven. 🎸
+                  </p>
+                </div>
+
+                {/* Test play button */}
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={playTestSound}
+                    variant="outline"
+                    size="sm"
+                    className={`bg-gray-700 hover:bg-gray-600 border-gray-600 ${isPlayingTestSound ? 'ring-2 ring-orange-500' : ''}`}
+                  >
+                    {isPlayingTestSound ? (
+                      <>
+                        <Pause className="w-4 h-4 mr-2" />
+                        Stop
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 mr-2" />
+                        Test sound
+                      </>
+                    )}
+                  </Button>
+                  <span className="text-xs text-gray-400">
+                    {isPlayingTestSound ? 'Click to stop' : 'Preview at current level'}
+                  </span>
+                </div>
+
+                {/* Save button and message */}
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={saveTimerVolume}
+                    className="bg-orange-600 hover:bg-orange-700"
+                  >
+                    <Check className="w-4 h-4 mr-2" />
+                    Save
+                  </Button>
+                  {timerVolumeMessage && (
+                    <span className={`text-sm ${timerVolumeMessage.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                      {timerVolumeMessage.text}
+                    </span>
+                  )}
+                </div>
+              </CardContent>
             )}
           </Card>
 

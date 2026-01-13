@@ -1048,7 +1048,11 @@ export const PracticePage = () => {
     
     // Create gain node
     gainNode.current = audioContext.current.createGain();
-    gainNode.current.gain.value = 3.0;  // Competing with electric guitar! 🎸
+    // Read volume from localStorage (0-11 scale, default 5.5 = 50%)
+    const storedVolume = localStorage.getItem('gpra_timer_volume');
+    const volumeLevel = storedVolume !== null ? parseFloat(storedVolume) : 5.5;
+    // Convert 0-11 scale to 0-3 gain range (max 3.0 for competing with electric guitar! 🎸)
+    gainNode.current.gain.value = (volumeLevel / 11) * 3.0;
 
     // Connect nodes
     gainNode.current.connect(audioContext.current.destination);
@@ -4754,6 +4758,11 @@ export const PracticePage = () => {
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
+                <p>
+                  Since this is your first time with the timer, you're going to want to set a level for it.
+                  It should be loud enough for you to hear it over your playing, but not loud enough to give
+                  you a jump scare or make your ears ring. <a href="/#Account" className="text-blue-400 hover:text-blue-300 underline">Go to settings</a> to set your levels now.
+                </p>
                 <p>A bell will ring when your timer is up. If you don't hear it, click the settings icon in your browser's address bar and enable sound:</p>
                 <img
                   src="/static/images/chromiumsoundsettings.png"
