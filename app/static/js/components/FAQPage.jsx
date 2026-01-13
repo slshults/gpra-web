@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@ui/card';
 
@@ -15,6 +15,33 @@ const FAQPage = () => {
 
   // Track which individual questions are expanded
   const [expandedQuestions, setExpandedQuestions] = useState({});
+
+  // Handle URL parameter to expand and scroll to a specific FAQ item
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const expandParam = params.get('expand');
+    if (expandParam) {
+      // Expand the parent category for autocreate questions
+      if (expandParam === 'autocreate-limits' || expandParam === 'autocreate-feature') {
+        setExpandedCategories(prev => ({ ...prev, chordCharts: true }));
+      }
+      // Expand the question
+      setExpandedQuestions(prev => ({
+        ...prev,
+        [expandParam]: true
+      }));
+      // Scroll to the element after a delay to allow render and expansion animation
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          const element = document.getElementById(expandParam);
+          if (element) {
+            // Use 'center' to account for any fixed headers and make target visible
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        });
+      }, 400);
+    }
+  }, []);
 
   const toggleCategory = (category) => {
     setExpandedCategories(prev => ({
@@ -54,7 +81,7 @@ const FAQPage = () => {
   );
 
   const FAQItem = ({ id, question, answer }) => (
-    <div className="border-b border-gray-700 last:border-0 pb-3 last:pb-0">
+    <div id={id} className="border-b border-gray-700 last:border-0 pb-3 last:pb-0">
       <button
         onClick={() => toggleQuestion(id)}
         className="w-full text-left flex items-start justify-between gap-4 py-2 hover:text-orange-400 transition-colors"
@@ -207,6 +234,26 @@ const FAQPage = () => {
               </a>
               .<br />
               <strong>The Goods tier and above:</strong> Autocreate is included! Just use the feature without needing your own API key.
+            </>
+          }
+        />
+        <FAQItem
+          id="autocreate-limits"
+          question="Are there limits on autocreate?"
+          answer={
+            <>
+              Yes! To keep the service sustainable, paid tiers have rate limits:
+              <ul className="list-disc pl-6 mt-2 space-y-1">
+                <li><strong>The Goods:</strong> 25 autocreates per day (10 per hour)</li>
+                <li><strong>More Goods:</strong> 50 autocreates per day (20 per hour)</li>
+                <li><strong>The Most:</strong> 100 autocreates per day (40 per hour)</li>
+              </ul>
+              <p className="mt-2">Limits reset daily at midnight UTC. The hourly burst limit prevents one user from causing Anthropic to rate limit the entire app for everyone. (If we hit Anthropic's rate limit, no one can use autocreate for a period.)</p>
+              <p className="mt-2">
+                <strong>If you're hitting rate limits too often:</strong> Add your own Anthropic API key in{' '}
+                <a href="/#Account" className="text-orange-400 hover:text-orange-300">Account Settings</a>
+                {' '}to use the rate limits on your API key instead of ours. You'll be billed directly by Anthropic for usage.
+              </p>
             </>
           }
         />

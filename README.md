@@ -29,7 +29,7 @@ Free single-user version to run on your local machine is [here](https://github.c
 - **Local songbook folder links** - quick access to files on your local from links in the app
 
 ### Optional auto-creation of chord charts with help from Claude AI
-- **Autocreate chord charts** from lyrics sheets with chord names, existing chord charts, or YouTube lesson URLs (using Sonnet 4.5)
+- **Autocreate chord charts** from lyrics sheets with chord names, existing chord charts, or YouTube lesson URLs (using Opus 4.5)
 - **Three processing paths**: Visual chord diagrams, chord names above lyrics, and tablature notation
 - **It's not all AI** - Using local OCR to pull section names and chord names from lyrics sheets with chord names, sending that to Claude for chord chart creation. (Visual analysis of uploaded chord charts is handled by Claude though) 
 - **Autocreate is Optional** - Hate AI? Then don't enter an Anthropic API key, and the app won't use AI at all.

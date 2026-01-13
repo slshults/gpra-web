@@ -242,7 +242,7 @@
                     </div>
                 </details>
 
-                <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                <details id="autocreate-feature" class="border-b border-gray-200 dark:border-gray-700 pb-4">
                     <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
                         <span>What is the autocreate feature?</span>
                         <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-300 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -264,6 +264,25 @@
                     <div class="mt-2 text-sm text-gray-700 dark:text-gray-300 leading-relaxed pl-2">
                         <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">Free</code> and <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">Basic</code> tiers: Enter your own Anthropic API key on the <a href="/#Account" class="text-orange-600 dark:text-orange-400 hover:underline">Account</a> page (this is the "BYOC" model, as in Bring Your Own Claude). You'll need an Anthropic account so you can generate your API key at <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">console.anthropic.com</a>.<br><br>
                         <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">The Goods</code> tier and above: Autocreate is included! Just use the feature without needing your own API key. (The plans above the <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">Basic</code> tier use my Anthropic API key, so Anthropic charges me for your usage.)
+                    </div>
+                </details>
+
+                <details id="autocreate-limits" class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                        <span>Are there limits on autocreate?</span>
+                        <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-300 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 text-sm text-gray-700 dark:text-gray-300 leading-relaxed pl-2">
+                        Yes! To keep the service sustainable, paid tiers have rate limits:
+                        <ul class="list-disc pl-6 mt-2 space-y-1">
+                            <li><strong>The Goods:</strong> 25 autocreates per day (10 per hour)</li>
+                            <li><strong>More Goods:</strong> 50 autocreates per day (20 per hour)</li>
+                            <li><strong>The Most:</strong> 100 autocreates per day (40 per hour)</li>
+                        </ul>
+                        <p class="mt-2">Limits reset daily at midnight UTC. The hourly burst limit prevents one user from causing Anthropic to rate limit the entire app for everyone. (If we hit Anthropic's rate limit, no one can use autocreate for a period.)</p>
+                        <p class="mt-2"><strong>Power users:</strong> Add your own Anthropic API key in <a href="/#Account" class="text-orange-600 dark:text-orange-400 hover:underline">Account Settings</a> to use the rate limits on your API key instead of ours. You'll be billed directly by Anthropic for usage.</p>
                     </div>
                 </details>
 
@@ -574,5 +593,40 @@
 
     <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
     <script src="{{ url_for('static', filename='js/feedback-survey.js') }}"></script>
+    <script>
+        // Handle URL parameter to expand and scroll to a specific FAQ item
+        (function() {
+            const params = new URLSearchParams(window.location.search);
+            const expandParam = params.get('expand');
+            if (expandParam) {
+                const targetElement = document.getElementById(expandParam);
+                if (targetElement && targetElement.tagName === 'DETAILS') {
+                    // Open the target details element
+                    targetElement.setAttribute('open', '');
+
+                    // Also ensure parent details elements are open (for nested structure)
+                    let parent = targetElement.parentElement;
+                    while (parent) {
+                        if (parent.tagName === 'DETAILS') {
+                            parent.setAttribute('open', '');
+                        }
+                        parent = parent.parentElement;
+                    }
+
+                    // Scroll to the element after a brief delay to allow DOM updates
+                    setTimeout(function() {
+                        targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                        // Add a brief highlight effect
+                        targetElement.style.transition = 'background-color 0.3s ease';
+                        targetElement.style.backgroundColor = 'rgba(249, 115, 22, 0.2)'; // orange highlight
+                        setTimeout(function() {
+                            targetElement.style.backgroundColor = '';
+                        }, 2000);
+                    }, 100);
+                }
+            }
+        })();
+    </script>
 </body>
 </html>

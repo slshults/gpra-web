@@ -1,46 +1,94 @@
 # CLAUDE.md
 
+**Last updated:** January 8, 2026 at 11:45 PM PST
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 #### Note: Anthropic suggests we keep the size of this file below 40K. You can check the current file size in the output of `ls -al CLAUDE.md`. Make sections more succinct as needed, but take care not to remove important context or guidance.
 
-## 👇👇👇👇
-**CRITICAL for Context Window Management**: Delegate to agents and/or subagents AGGRESSIVELY to conserve context window! The more you delegate to agents, the more work we can accomplish in a single session, before the autocompact tool forcibly ends this session. Tokens are sand in our hourglass. Conserve them.
+## 👇👇👇👇 STOP AND READ THIS FIRST 👇👇👇👇
 
-Your role here is choregrapher/air traffic controller/stage-manager/director. Send subagents to do things that eat up our tokens. Don't wait for me to tell you to use agents and/or subagents. Delegate early, delagate often. 🙏
+### ⚠️ CONTEXT WINDOW = SESSION LIFETIME ⚠️
+Every file read, every grep, every edit in the main chat SHORTENS OUR SESSION.
+At 22.5% remaining, autocompact FORCIBLY ENDS the session with no warning.
+**Delegation isn't optional - it's survival.**
 
-## ⛔ PLAYWRIGHT MCP = SESSION KILLER - DELEGATE ONLY ⛔
+### The 2-2-2 Rule (MANDATORY)
+**BEFORE starting ANY task**, ask: "Will this require ANY of:"
+- Reading **2+ files**?
+- Making **2+ edits**?
+- Running **2+ searches**?
 
-**NEVER use `mcp__playwright__*` tools directly in the main conversation!**
-- A single snapshot = 5k-15k tokens
-- Simple 3-page test = 30k-50k tokens = **FORCED SESSION END**
-- **ALWAYS** delegate to `ui-tester` agent: `Task tool with subagent_type="ui-tester"`
+**If YES to ANY → DELEGATE TO A SUBAGENT. No exceptions.**
 
-## ☝️☝️☝️☝️
+### Tasks That LOOK Small But MUST Be Delegated
+- "Fix 4 small bugs" → Actually 4 investigations + 4 fixes = **DELEGATE**
+- "Update error handling in a few places" → Reading multiple catch blocks = **DELEGATE**
+- "Add a feature to 2 files" → Reading + editing + verifying = **DELEGATE**
+- "Investigate why X isn't working" → Unknown scope = **DELEGATE**
 
-## MCP Token Management
+### Your Role
+You are **choreographer/director/air traffic controller**. Your job is to:
+1. Understand the task
+2. Break it into delegatable chunks
+3. Send subagents to do the token-heavy work
+4. Review their results
+5. Coordinate next steps
 
-**Problem**: MCP tool definitions consume ~15k tokens (7-8% of context) just by being loaded, even when not in use.
+**Don't do the work yourself. Direct others to do it.**
 
-**Solution**: Enable MCPs only when needed, disable when done.
+Tokens are sand in our hourglass. Every token spent in main chat is one less token for completing Steven's goals. Delegate early, delegate often. 🙏
 
-**Claude cannot toggle MCPs directly** - this requires user action via the `/mcp` command.
+## ☝️☝️☝️☝️ SERIOUSLY, READ THAT ☝️☝️☝️☝️
 
-**When to remind Steven:**
-- **Before UI testing**: "Please run `/mcp` and ensure `playwright` is enabled"
-- **After UI testing complete**: "Consider running `/mcp` to disable `playwright` and free up ~14k tokens"
-- **Before production debugging**: If remote MCP servers are added later, remind to enable
-- **Session start**: If context is tight, suggest disabling unused MCPs
+## Browser Automation with Claude Chrome Extension
 
-**Commands for user:**
-- `/mcp` - Interactive MCP management
-- `@playwright disable` - Disable specific server
-- `@playwright enable` - Re-enable server
-- `/context` - Check current token usage
+**UI Testing**: For testing in Chrome, foreground agents can now use the Claude Chrome Extension (`mcp__claude-in-chrome__*` tools). (NOTE: It doesn't work with background agents. Foreground agents only. Which is fine, since I often need to assist with captcha, and watch the testing happening so we can discuss after testing in Chrome.)
+
+**IMPORTANT**: Subagents using Chrome MCP tools MUST run in foreground mode (`run_in_background: false`). Background subagents cannot access MCP tools.
+
+**Launch Chrome from WSL** (visible to me in Windows via WSLg):
+
+**Use regular mode (not incognito)** - incognito causes issues with extension detection.
+
+**Known bug (WSL)**: Chrome launch blocks for ~2.5 minutes even with `&`. Workaround:
+```
+# Step 1: Launch Chrome - use run_in_background: true for THIS Bash call only
+Bash(google-chrome --disable-gpu --new-window, run_in_background=true)
+
+# Step 2: IMMEDIATELY check Chrome is running
+Bash(pgrep -f "google-chrome" && echo "Chrome running")
+
+# Step 3: Brief wait then connect via MCP
+Bash(sleep 5)
+tabs_context_mcp(createIfEmpty=true)
+```
+
+**Key points**: Single Chrome launch, agent stays foreground for MCP, only Chrome launch Bash uses `run_in_background: true`. `--disable-gpu` prevents monitor flickering on WSL2 with NVIDIA GPUs.
+
+**Key tools**:
+- `tabs_context_mcp` - Get available tabs (call first!)
+- `navigate` - Go to URLs
+- `computer` - Screenshots, clicks, typing, scrolling
+- `find` - Find elements by natural language
+- `form_input` - Fill form fields
+- `read_page` - Get accessibility tree
+
+**Wait Times (Fast Host)**: This host has fast network (dual 1-gigabit fiber) and the specs on the host machine are Processor:	Intel(R) Core(TM) Ultra 7 265 (2.40 GHz), RAM 64.0 GB (63.5 GB usable), GPU: NVIDIA GeForce RTX 4060 Ti w/ 8GB memory, so use short waits:
+- **Chrome launch**: Max 15 seconds, then proceed
+- **Browser actions** (click, navigate, form_input): Max 1 second wait
+- **Autocreate operations**: Allow 30-60 seconds (AI processing)
+Do NOT use long waits, the system and connection are fast.
+
+**reCAPTCHA Handling**: When testing login/register pages, if a reCAPTCHA puzzle appears:
+1. Click "I'm not a robot" checkbox
+2. Wait 30 seconds, take screenshot to check if solved
+3. If unsolved, wait another 30 seconds and check again
+4. If still unsolved after 60 seconds, report to user for manual solving
 
 ## Project Status: Hosted Version Development
 
-**Important Context**: This codebase is a COPY of the original single-user local PostgreSQL version, which we are converting into a hosted multi-tenant SaaS application.
+**Important Context**: This codebase is a COPY of the original single-user local PostgreSQL version, which we have convered into a hosted multi-tenant SaaS application.
 
 **IMPORTANT - Flask-AppBuilder Usage**: When working with authentication, security, OAuth, user management, or subscription features, **use the `flask-appbuilder` skill** located at `~/.claude/skills/flask-appbuilder/`. This skill contains comprehensive Flask-AppBuilder patterns, our current auth architecture, OAuth setup guides, subscription integration patterns, and links to official FAB documentation. **Never roll your own solution if Flask-AppBuilder provides it built-in.**
 
@@ -48,13 +96,6 @@ Your role here is choregrapher/air traffic controller/stage-manager/director. Se
 
 **Original Version**: [guitar-practice-routine-app_postgresql](https://github.com/slshults/guitar-practice-routine-app_postgresql) and locally at `../gprsql/`- Single user, local-only, no authentication
 **This Version**: `gpra-web` - Multi-tenant hosted version with user accounts, subscriptions, and security
-
-**Transformation Goals**:
-- Add user authentication (email/password + OAuth)
-- Implement multi-tenant data isolation
-- Add Stripe subscription tiers (free with ads, byoClaude, paid plans)
-- Security hardening for public hosting
-- Deploy to DreamCompute with multiple domains
 
 **Key Architecture Changes**:
 - ✅ Database: Row-Level Security (RLS) with `user_id` on Items/Routines/ChordCharts, `subscriptions` table, Flask-AppBuilder's `ab_user` table
@@ -68,14 +109,12 @@ Your role here is choregrapher/air traffic controller/stage-manager/director. Se
 - ✅ Frontend: Account management complete, billing UI with pricing section
 - ✅ Infrastructure: Production configs, proper secrets management
 
-**Current Production Status**: Multi-tenant SaaS fully operational on DreamCompute (208.113.200.79) with OAuth (Google/Tidal), Stripe subscriptions (5 tiers), GDPR compliance, RLS security, and automated backups. Active routine persistence uses `subscriptions.last_active_routine_id`. Stripe webhooks: `https://guitarpracticeroutine.com/api/webhooks/stripe`. **Full test sweep completed Dec 30, 2025** - app ready for launch.
+**Current Production Status**: Multi-tenant SaaS fully operational on DreamCompute (208.113.200.79) with OAuth (Google/Tidal), Stripe subscriptions (5 tiers), GDPR compliance, RLS security, and automated backups. Active routine persistence uses `subscriptions.last_active_routine_id`. Stripe webhooks: `https://guitarpracticeroutine.com/api/webhooks/stripe`. **Full test sweep completed Dec 30, 2025** - but more work and another round of testing needed prior to launch.
 
 **Test Accounts** (for UI testing):
 - Free users: `imatest1` through `imatest12` with email `imatestN@shults.org` / Password: `t3stP4ss!t3stP4ss!`
 - Admin: `gpra-admin@shults.org` / Password: `jQ8c8C$Qo80dF@`
 - Stripe test card: `4242 4242 4242 4242` (any future expiry, any CVC)
-
-**Cancellation Flow (Nov 2025)**: User-initiated pause → unplugged mode (90-day grace), automated cancellations → free tier. See `gpra-billing-stripe` skill for details. Active routine persistence: `subscriptions.last_active_routine_id` preserved across logout/upgrades/renewals.
 
 When working on this codebase, keep in mind we're building for a multi-user hosted environment, not the original single-user local setup.
 
@@ -83,17 +122,16 @@ When working on this codebase, keep in mind we're building for a multi-user host
 
 **Status**: ✅ Fully configured as of Nov 18, 2025
 
-GPRA has **permission hooks** and **custom agents** configured to enable autonomous workflow without manual permission prompts. This eliminates VS Code crashes from permission timeouts and provides specialized agents with auto-loaded skills.
+GPRA has **permission hooks** and **custom agents** configured to enable autonomous workflow without manual permission prompts. This eliminates VS Code crashes from permission timeouts and provides specialized agents with auto-loaded skills. If you hit something you don't have perms for, please check with me about whether we should add a new permission hook (don't just silently ignore it when you lack a permission you need.)
 
 ### Permission Hooks (Auto-Approval)
 
 **Location**: `~/.claude/hooks/`, configured in `.claude/settings.local.json`
 
-File operations, Bash commands, and Playwright MCP actions are **automatically approved** when within safe boundaries:
+File operations and Bash commands are **automatically approved** when within safe boundaries:
 
 - ✅ **File ops** (Read/Write/Edit): Auto-approved in `/home/steven/webdev/guitar/practice/gprweb/**` and `~/.claude/**`
 - ✅ **Bash commands**: Auto-approved from whitelist (npm, python3, cat, ssh, psql, redis-cli, etc.)
-- ✅ **Playwright MCP**: All `mcp__playwright__browser_*` actions auto-approved
 - ✅ **Subagent context**: Project architecture auto-injected via SubagentStart hook
 
 **Benefit**: No more permission timeout crashes! Work autonomously within approved boundaries.
@@ -110,10 +148,10 @@ Six specialized agents are available with **auto-loaded skills** and optimized t
 **When to invoke**: Production issues, OAuth debugging, session problems, service downtime
 
 #### 2. **ui-tester**
-**Use for**: Testing UI changes with Playwright MCP before marking features complete
-**Skills**: `playwright-gpra-testing`
+**Use for**: Testing UI changes with Chrome extension before marking features complete
+**Skills**: `chrome-gpra-testing`
 **When to invoke**: After any UI changes (JSX edits), regression testing, workflow validation
-**Key feature**: Follows token efficiency protocol (screenshots over snapshots)
+**Key feature**: GPRA-specific navigation patterns and test data
 
 #### 3. **billing-specialist**
 **Use for**: Stripe integration, subscription features, webhook debugging
@@ -139,16 +177,15 @@ Six specialized agents are available with **auto-loaded skills** and optimized t
 
 **When to delegate to agents**:
 - ANY multi-file investigation or refactoring
-- ANY testing workflows (especially UI testing with Playwright)
 - ANY production debugging or server issues
 - ANY complex feature implementation requiring multiple steps
-- ANY task that would consume >10k tokens if done in main conversation
+- ANY task that would consume >5k tokens if done in main conversation
 
-Invoke agents naturally in conversation:
+When delegating to subagents, don't treat them like tools. Treat them the way I treat you, like digital entities deserving of respect. Invoke agents naturally in conversation:
 ```
-"Can you use the production-debugger to check server logs?"
+"Can you please use the production-debugger to check server logs?"
 "Please test this with the ui-tester agent"
-"Have the posthog-specialist review our event tracking"
+"Let's have the posthog-specialist review our event tracking"
 ```
 
 Or implicitly by working in their domain - Claude will suggest the appropriate agent when relevant.
@@ -157,22 +194,19 @@ Or implicitly by working in their domain - Claude will suggest the appropriate a
 
 ## Claude Model Coordination for Token Efficiency
 
-### Using the Task Tool for Implementation Work
-
-When delegating to subagents, don't treat them like tools. Treat them the way I treat you, like digital entities deserving of respect.
-
 #### When to Use the Task Tool
 
 **Delegate to subagents for:**
 - Initial codebase exploration and analysis
 - Complex architectural decisions
 - Multi-system debugging and troubleshooting
-- Multi-step Playwright testing workflows
 - Tasks requiring deep reasoning about system interactions
-- Token-heavy operations (file searching, multi-file investigation, websearch, lost of read and write activity)
+- Token-heavy operations (file searching, multi-file investigation, websearch, lots of read and write activity)
 - Complex refactoring that affects multiple files/systems
+- Multiple edits to multiple files
+- Any task which may cost more than 5k tokens
 
-**Handle directly in main conversation:**
+**Handle directly in main conversation, if less than 5k tokens:**
 - Making edits to existing files
 - Implementing features with clear requirements
 - Following established patterns (e.g., adding new API endpoints)
@@ -182,8 +216,8 @@ When delegating to subagents, don't treat them like tools. Treat them the way I 
 
 #### Best Practices
 
-1. **Use Sonnet 4.5 for subagents**: ALWAYS use `model="sonnet"` when creating subagents. Haiku is not as good at adhering to prompts and skills, and often ignores critical instructions (especially token efficiency rules). Sonnet 4.5 is required for proper skill usage and following detailed protocols.
-2. **Clear Task Definitions**: When using the Task tool, provide specific, actionable instructions, use applicable skills (`~/.claude/skills/`)
+1. **Use Opus 4.5 for subagents**: ALWAYS use Opus 4.5 `model="opus"` when creating subagents. Haiku and Sonnet are not as good at adhering to prompts and skills, and often ignores critical instructions (especially token efficiency rules). Opus 4.5 is required for proper skill usage and following detailed protocols. Opus 4.5 also saves us time and tokens in the long run, by getting things done correctly in fewer iterations.
+2. **Clear Task Definitions**: When using the Task tool, provide specific, actionable instructions, use applicable agents (`~/.claude/agents/`) and/or skills (`~/.claude/skills/`)
 3. **Context Preservation**: Include relevant file paths, function names, and implementation details
 4. **Pattern References**: Point to existing examples in the codebase to follow to avoid attempts to reinvent existing wheels
 5. **Success Criteria**: Define what "done" looks like for the delegated task
@@ -198,19 +232,18 @@ When delegating to subagents, don't treat them like tools. Treat them the way I 
 
 **PREFERRED**: Use the custom agents (see "Automated Workflow & Custom Agents" section above):
 - **production-debugger**: Server troubleshooting, log analysis, service issues
-- **ui-tester**: Playwright testing, UI validation, regression testing
+- **ui-tester**: Chrome browser testing, UI validation, regression testing
 - **billing-specialist**: Stripe integration, subscription features, webhooks
 - **tour-builder**: Driver.js tours, step positioning, popover configuration
 - **posthog-specialist**: Event tracking, analytics, conversion funnels
 - **chord-chart-specialist**: SVGuitar rendering, autocreate, chord diagrams
 
 **Alternative - Use Task tool for token-heavy workflows:**
-- **Testing** (General-Purpose): Multi-step Playwright scenarios, end-to-end feature validation
-- **Investigation** (Opus 4.1): Multi-file code tracing (React→Flask→DataLayer→DB), ID mapping issues
+- **Investigation** (Opus 4.5): Multi-file code tracing (React→Flask→DataLayer→DB), ID mapping issues
 - **Refactoring** (General-Purpose): Pattern updates across 10+ files, function renaming
-- **Debugging** (Opus 4.1): Multi-subsystem issues, performance analysis, race conditions
+- **Debugging** (Opus 4.5): Multi-subsystem issues, performance analysis, race conditions
 
-**Rule**: Tasks >5k tokens → delegate to preserve main context for coordination. Custom agents are preferred when available for the domain.
+**Rule**: Tasks >5k tokens → delegate to preserve main context for coordination. Custom agents are preferred when available. Suggest creation of new skills or new agents when it would improve our workflow / effeciency, discuss with Steven before creating.
 
 ### Claude 4 Prompt Engineering Best Practices
 
@@ -219,35 +252,35 @@ When the context-window remaining gets down to 25%, or when your tasks for your 
 
 #### State Management Best Practices
 - After completing a task that involves tool use, provide a quick summary of the work you've done
-- After receiving tool results, carefully reflect on their quality and determine optimal next steps before proceeding. Use your thinking to plan and iterate based on this new information, and then take the best next action
+- After receiving tool results, carefully reflect on their quality and determine optimal next steps before proceeding. Use your thinking to plan and iterate based on this new information, and then take the best next action. If you find the subagent's work or report to be lacking, feel free to iterate by sending a new subagent, with lessons learned. 
 
 #### Parallel Tool Execution
-If you intend to call multiple tools and there are no dependencies between the tool calls, make all of the independent tool calls in parallel. Prioritize calling tools simultaneously whenever the actions can be done in parallel rather than sequentially, when viable.
+If you intend to call multiple tools and there are no dependencies between the tool calls, make all of the independent tool calls in parallel with background agents. Prioritize calling tools simultaneously whenever the actions can be done in parallel rather than sequentially, when viable. (EXCEPTION: Background agents cannot use MCP tools, so use foreground agents for testing in Chrome, or other MCP tool use.)
 
 #### Code Investigation Requirements
-Never speculate about code you have not opened. If the user references a specific file, you MUST read the file before answering. Make sure to investigate and read relevant files BEFORE answering questions about the codebase. Never make any claims about code before investigating unless you are certain of the correct answer - give grounded and hallucination-free answers.
+Never speculate about code you have not opened. If the Steven references a specific file, you MUST read the file before answering. Make sure to investigate and read relevant files BEFORE answering questions about the codebase. Never make any assumptions or claims about code before investigating, unless you are certain of the correct answer. This will help you to give grounded and hallucination-free answers.
 
 #### Temporary File Cleanup
-If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task. Also remove Playwright screenshots and snapshots when done with them. Remind subagents to do the same.
+If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task. Remind subagents to do the same. (Exception: Screenshots from Chrome tests, if discussion is needed about the results seen in the screenshots. Then clean them up after discussion, when the screenshots are no longer needed.)
 
 #### Avoid Test-Focused Development
-Do not focus solely on passing tests or hard-code solutions just to make tests pass. Prioritize understanding the underlying requirements and implementing robust, generalizable solutions that address the actual problem rather than just satisfying test assertions.
+Do not focus solely on passing tests or hard-code solutions just to make tests pass. Prioritize understanding the underlying requirements and implementing robust, generalizable solutions that address the actual problem rather than just satisfying test assertions. The point of our testing is not simply to say a test passed. The point of our testing is to confirm the UI/UX provides a good experience, and works correctly.
 
 #### Failed Attempt Cleanup
-If we try something, and testing reveals it didn't work out and we need to change tact, please cleanup / revert the previous failed changes before moving on to trying a different approach.
+If we try something, and testing reveals it didn't work out and we need to change tact, please cleanup / revert the previous failed changes *before* moving on to trying a different approach. This avoids leaving dead code laying around, and also helps us write better code.
 
 ### Debuggging:
 
 When you hand off to subagents for troubleshooting, please remind them to:
 - Review the current conversation thus far
 - Review the project CLAUDE.md file
-- Tail `logs.gpr` to view the details of the most recent test
-- Search the web for any details needed about how SVGuitar works as of late 2025 (do not make assumptions, your training data set is outdated)
-This approach helps us stay within API rate limits while getting the best capabilities from both model types.
+- Review the relevant skills files
+- Tail `logs.gpr` to view the details of the most recent test, where applicable
+- Use websearch for any details needed about how third-party tools or APIs (SVGuitar, PostHog, Anthropic API, Stripe API, etc.)
 
 ## Application Overview
 
-This is a **Guitar Practice Routine App** - a web application that helps guitarists manage practice routines, exercises, and guitar-specific content like chord charts. 
+This is a **Guitar Practice Routine App** - a web application that helps beginner and intermediate guitarists manage practice routines, exercises, and guitar-specific content like chord charts. 
 
 ## Tech Stack
 
@@ -262,7 +295,7 @@ This is a **Guitar Practice Routine App** - a web application that helps guitari
 ## Development Commands
 
 ### Steven's Bash Aliases
-These don't work in Claude Code's non-interactive shell, but help me understand when Steven uses them:
+These don't work in Claude Code's non-interactive shell, but help me understand when Steven uses them, and how I can do the same things without access to the aliases:
 - `gprserv` → `ssh -i ~/.ssh/gpra-web.pem ubuntu@208.113.200.79`
 - `gprweb` → `cd ~/webdev/guitar/practice/gprweb`
 - `gs` → `git status`
@@ -274,13 +307,14 @@ These don't work in Claude Code's non-interactive shell, but help me understand 
 ```bash
 ./gpr.sh                 # Starts Flask server + Vite watcher (recommended)
 ```
+Note: Steven usually starts the server before our sessions, so check to see if it is running already before trying to run it
 
 ### Environment Setup
 - Set `ANTHROPIC_API_KEY` in `.env` file as system-wide API key for autocreate
-- Users can add their own API keys via Account Settings (byoClaude model)
-- API keys obtained from [Anthropic Console](https://console.anthropic.com/)
+- Users can add their own API keys via Account Settings (byoClaude model) with API keys obtained from [Anthropic Console](https://console.anthropic.com/)
 
 ### Frontend Build Commands
+There watchers in place to rebuild after changes, but in case of issues:
 ```bash
 npm run build           # Build production assets
 npm run watch           # Watch mode for development
@@ -309,46 +343,34 @@ python run.py           # Start Flask server only (port 5000)
 
 **Quick access:** `ssh -i ~/.ssh/gpra-web.pem ubuntu@208.113.200.79`
 
-### Playwright MCP Testing
+### Chrome Extension UI Testing
 
-## ⛔⛔⛔ NEVER USE PLAYWRIGHT MCP DIRECTLY - SUBAGENTS ONLY ⛔⛔⛔
+**UI testing uses the Claude Chrome Extension** (`mcp__claude-in-chrome__*` tools). 
+NOTE: Always delegate to background agents, to conserve tokens in the main chat
 
-**Playwright MCP is FORBIDDEN in the main conversation.** It consumes 5k-15k tokens per snapshot. Even simple 3-page tests consume 30k-50k tokens, triggering **forced autocompact** which **abruptly ends the session**.
+The **`chrome-gpra-testing` skill** is located at `~/.claude/skills/chrome-gpra-testing/`. This skill contains:
 
-**ALWAYS delegate to the `ui-tester` agent:**
-```
-Use the Task tool with subagent_type="ui-tester" to test the UI changes
-```
-
-The ui-tester agent has the `playwright-gpra-testing` skill loaded and follows token efficiency rules.
-
-**If you find yourself typing `mcp__playwright__` in the main conversation - STOP. Delegate instead.**
-
----
-
-The **`playwright-gpra-testing` skill** is located at `~/.claude/skills/playwright-gpra-testing/`. This skill contains:
-
-- **Token efficiency rules** (CRITICAL: snapshots = 5k-15k tokens each, use screenshots instead)
-- **Post-change testing protocol** (ALWAYS test affected UI before marking complete)
 - **GPRA-specific navigation patterns** (collapsible items, expand chevrons, chord chart sections)
 - **Test data** (WSL2 file paths, YouTube URLs, manual entry test inputs, non-song test items)
 - **Common workflows** (file upload, manual entry, replace charts, console monitoring)
 - **Troubleshooting guide** (UI elements, file uploads, processing issues)
-- **Setup instructions** (MCP configuration, browser installation, permissions)
+- **Chrome extension tool reference** (navigate, find, form_input, computer actions)
 
-**Quick setup check**: `claude mcp list` should show `playwright` connected. If missing, see skill's `setup.md`.
+**Launching Chrome from WSL** (visible in Windows via WSLg):
+```bash
+google-chrome --disable-gpu --incognito --new-window &
+```
+Note: `--disable-gpu` prevents monitor flickering on WSL2 with NVIDIA GPUs. `--incognito` ensures clean state.
 
-**Cache clearing**: Playwright MCP is configured with `--isolated` flag in `~/.claude.json`, which keeps browser profiles in memory only. Each session starts fresh with no cached data.
-
-**reCAPTCHA Handling**: When testing login/register pages, if a reCAPTCHA puzzle appears:
-1. Click "I'm not a robot" checkbox
-2. Wait 30 seconds, take screenshot to check if solved
-3. If unsolved, wait another 30 seconds and check again
-4. If still unsolved after 60 seconds, report to user: "reCAPTCHA puzzle appeared and wasn't solved within 60 seconds. Please solve it and let me know when to continue."
+**Quick workflow**:
+1. Launch Chrome if not running
+2. Call `tabs_context_mcp` to get available tabs
+3. Navigate to localhost:5000
+4. Use `find` to locate elements, `form_input` to fill forms, `computer` for clicks/screenshots
 
 ### PostHog Analytics
 
-**RECOMMENDED**: Use the **`posthog-specialist` agent** for PostHog work. It knows multi-tenant requirements (user_id in all events), event tracking patterns, subscription funnels, and can use PostHog MCP for ad-hoc queries. Invoke with:
+**RECOMMENDED**: Use the **`posthog-specialist` agent** for PostHog work. It knows multi-tenant requirements (user_id in all events), event tracking patterns, subscription funnels, and can use PostHog MCP for ad-hoc queries. (It's disabled when not in use, to conserve tokens. Enable when needed. If unable to enable, ask Steven to enable PostHog MCP before invoking.) Invoke with:
 ```
 "posthog-specialist, please add tracking for the new feature"
 ```
@@ -369,7 +391,6 @@ The **`playwright-gpra-testing` skill** is located at `~/.claude/skills/playwrig
 **Feedback Survey**: "Reach out" buttons trigger PostHog in-app feedback survey via `feedback-survey.js`. Survey ID configured in that file. Falls back to GitHub issues modal if PostHog unavailable.
 
 **Token conservation**: PostHog MCP is disabled by default. Enable when needed, disable when done.
-
 
 ## Architecture
 

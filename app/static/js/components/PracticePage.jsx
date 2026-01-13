@@ -22,7 +22,7 @@ import { useNavigation } from '@contexts/NavigationContext';
 import { ChevronDown, ChevronRight, Check, Plus, FileText, Book, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer } from 'lucide-react';
 import { NoteEditor, renderMarkdown } from './NoteEditor';
 import { ChordChartEditor } from './ChordChartEditor';
-import ApiErrorModal from './ApiErrorModal';
+import ApiErrorModal, { resetRateLimitBackoff } from './ApiErrorModal';
 import AutocreateSuccessModal from './AutocreateSuccessModal';
 import { serverDebug, serverInfo } from '../utils/logging';
 import {
@@ -2770,6 +2770,9 @@ export const PracticePage = () => {
       const result = await response.json();
       console.log(`[AUTOCREATE] Manual input processed successfully:`, result);
 
+      // Reset rate limit backoff on success
+      resetRateLimitBackoff();
+
       // Force refresh UI state - same as other autocreate methods
       const chartResponse = await fetch(`/api/items/${itemId}/chord-charts`);
       const charts = await chartResponse.json();
@@ -2884,9 +2887,13 @@ export const PracticePage = () => {
   };
 
   const processYouTubeTranscript = async (itemId, transcript) => {
+    // Flag to prevent processing timer from firing after error
+    let hasErrorOccurred = false;
+    let processingTimer = null;
+
     try {
       // Set reading transcript state for YouTube processing
-      setAutocreateProgress({ [itemId]: 'reading_transcript' });
+      setAutocreateProgress(prev => ({ ...prev, [itemId]: 'reading_transcript' }));
 
       // Use existing autocreate endpoint with chord_names type
       const formData = new FormData();
@@ -2901,8 +2908,10 @@ export const PracticePage = () => {
       // Show uploading for minimum 2 seconds, then switch to processing
       const minDisplayTime = 2000;
 
-      setTimeout(() => {
-        setAutocreateProgress({ [itemId]: 'processing' });
+      processingTimer = setTimeout(() => {
+        if (!hasErrorOccurred) {
+          setAutocreateProgress(prev => ({ ...prev, [itemId]: 'processing' }));
+        }
       }, minDisplayTime);
 
       const response = await fetch('/api/autocreate-chord-charts', {
@@ -2936,6 +2945,9 @@ export const PracticePage = () => {
 
       const result = await response.json();
       console.log('[YOUTUBE] Chord charts created successfully:', result);
+
+      // Reset rate limit backoff on success
+      resetRateLimitBackoff();
 
       // Check if the result contains the "no chord names found" error
       if (result.error && result.error.includes('No chord names found in this transcript')) {
@@ -3037,6 +3049,10 @@ export const PracticePage = () => {
       });
 
     } catch (error) {
+      // Prevent the processing timer from firing after error
+      hasErrorOccurred = true;
+      if (processingTimer) clearTimeout(processingTimer);
+
       console.error('Error processing YouTube transcript:', error);
 
       // Check if this is an API key required error
@@ -3067,7 +3083,7 @@ export const PracticePage = () => {
     console.log(`[AUTOCREATE] handleMixedContentChoice called with contentType: ${contentType}, itemId: ${itemId}, files:`, files.length);
     
     try {
-      setAutocreateProgress({ [itemId]: 'processing' });
+      setAutocreateProgress(prev => ({ ...prev, [itemId]: 'processing' }));
       setShowMixedContentModal(false);
       
       console.log(`[AUTOCREATE] Starting processing for ${contentType} with ${files.length} files`);
@@ -3124,7 +3140,9 @@ export const PracticePage = () => {
       
       if (result.success) {
         console.log(`[AUTOCREATE] Processing successful, setting state to complete`);
-        setAutocreateProgress({ [itemId]: 'complete' });
+        // Reset rate limit backoff on success
+        resetRateLimitBackoff();
+        setAutocreateProgress(prev => ({ ...prev, [itemId]: 'complete' }));
 
         // Get item details once for reuse
         const itemDetails = getItemDetails(itemId);
@@ -3213,33 +3231,39 @@ export const PracticePage = () => {
   
   const handleFileDrop = async (itemId, files) => {
     if (!files || files.length === 0) return;
-    
+
     // Validate file count
     if (files.length > 5) {
       alert('Maximum 5 files allowed. Please select fewer files.');
       return;
     }
-    
+
+    // Flag to prevent processing timer from firing after error
+    let hasErrorOccurred = false;
+    let processingTimer = null;
+
     try {
-      setAutocreateProgress({ [itemId]: 'uploading' });
-      
+      setAutocreateProgress(prev => ({ ...prev, [itemId]: 'uploading' }));
+
       // Create abort controller for this request
       const abortController = new AbortController();
       setAutocreateAbortController(prev => ({ ...prev, [itemId]: abortController }));
-      
+
       const formData = new FormData();
       Array.from(files).forEach((file, index) => {
         formData.append(`file${index}`, file);
       });
       formData.append('itemId', itemId);
-      
+
       // Show uploading for minimum 2 seconds, then switch to processing
       const minDisplayTime = 2000;
-      
-      setTimeout(() => {
-        setAutocreateProgress({ [itemId]: 'processing' });
+
+      processingTimer = setTimeout(() => {
+        if (!hasErrorOccurred) {
+          setAutocreateProgress(prev => ({ ...prev, [itemId]: 'processing' }));
+        }
       }, minDisplayTime);
-      
+
       const response = await fetch('/api/autocreate-chord-charts', {
         method: 'POST',
         body: formData,
@@ -3283,8 +3307,10 @@ export const PracticePage = () => {
         });
         return;
       }
-      
-      setAutocreateProgress({ [itemId]: 'complete' });
+
+      // Reset rate limit backoff on success
+      resetRateLimitBackoff();
+      setAutocreateProgress(prev => ({ ...prev, [itemId]: 'complete' }));
 
       // Get item details once for reuse
       const itemDetails = getItemDetails(itemId);
@@ -3395,6 +3421,10 @@ export const PracticePage = () => {
       }, 5000);
       
     } catch (error) {
+      // Prevent the processing timer from firing after error
+      hasErrorOccurred = true;
+      if (processingTimer) clearTimeout(processingTimer);
+
       if (error.name === 'AbortError') {
         console.log('Autocreate request was cancelled');
         return;
@@ -3425,10 +3455,15 @@ export const PracticePage = () => {
         // Show API error modal for these specific errors
         setApiError(error);
         setShowApiErrorModal(true);
-        setAutocreateProgress({ [itemId]: 'idle' }); // Reset to idle state
+        // Clear progress so user is back at clean state
+        setAutocreateProgress(prev => {
+          const newState = { ...prev };
+          delete newState[itemId];
+          return newState;
+        });
       } else {
         // Generic error handling for other errors
-        setAutocreateProgress({ [itemId]: 'error' });
+        setAutocreateProgress(prev => ({ ...prev, [itemId]: 'error' }));
       }
       
       // Clear error state after delay (only for generic errors)
