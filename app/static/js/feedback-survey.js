@@ -70,6 +70,99 @@ function triggerFeedbackSurvey(event) {
 }
 
 /**
+ * MutationObserver to watch for PostHog survey elements and inject styles immediately
+ * This is much faster than waiting with setTimeout
+ */
+let surveyObserver = null;
+
+function startSurveyObserver() {
+  // Don't create multiple observers
+  if (surveyObserver) {
+    return;
+  }
+
+  surveyObserver = new MutationObserver(function(mutations) {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          // Check if this node or any child matches PostHog survey
+          const surveyEl = node.matches && node.matches('[class*="PostHogSurvey"]')
+            ? node
+            : node.querySelector && node.querySelector('[class*="PostHogSurvey"]');
+
+          if (surveyEl) {
+            console.log('[FeedbackSurvey] MutationObserver detected survey element');
+            // PostHog may need a moment to attach shadowRoot
+            attemptStyleInjection(surveyEl);
+          }
+        }
+      }
+    }
+  });
+
+  surveyObserver.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+
+  console.log('[FeedbackSurvey] MutationObserver started');
+}
+
+function stopSurveyObserver() {
+  if (surveyObserver) {
+    surveyObserver.disconnect();
+    surveyObserver = null;
+    console.log('[FeedbackSurvey] MutationObserver stopped');
+  }
+}
+
+/**
+ * Attempts to inject styles, with retries for shadowRoot attachment
+ * PostHog may attach shadowRoot slightly after the element is added
+ */
+function attemptStyleInjection(surveyEl, retryCount = 0) {
+  if (surveyEl.shadowRoot) {
+    injectSurveyStyles(surveyEl.shadowRoot);
+    stopSurveyObserver();
+  } else if (retryCount < 10) {
+    // Retry with requestAnimationFrame for tighter timing
+    requestAnimationFrame(function() {
+      attemptStyleInjection(surveyEl, retryCount + 1);
+    });
+  } else {
+    console.log('[FeedbackSurvey] shadowRoot not available after retries');
+  }
+}
+
+/**
+ * Injects GPRA dark theme styles into PostHog survey's shadow DOM
+ * PostHog uses shadow DOM which isolates styles, so we need to inject directly
+ */
+function injectSurveyStyles(shadowRoot) {
+  // Check if we've already injected styles
+  if (shadowRoot.querySelector('#gpra-survey-styles')) {
+    console.log('[FeedbackSurvey] Styles already injected');
+    return;
+  }
+
+  const styleEl = document.createElement('style');
+  styleEl.id = 'gpra-survey-styles';
+  styleEl.textContent = `
+    /* GPRA dark theme for PostHog survey textarea */
+    textarea {
+      background-color: #0a0d14 !important;
+      color: #f7f9fb !important;
+      border-color: #374151 !important;
+    }
+    textarea::placeholder {
+      color: #9ca3af !important;
+    }
+  `;
+  shadowRoot.appendChild(styleEl);
+  console.log('[FeedbackSurvey] Injected GPRA styles into shadow DOM');
+}
+
+/**
  * Actually displays the survey
  * Separated out for clarity and reuse
  */
@@ -114,6 +207,9 @@ function displayTheSurvey() {
       }, true); // forceReload = true
     }
 
+    // Start MutationObserver to catch survey element as soon as it's added
+    startSurveyObserver();
+
     // displaySurvey is the recommended method for programmatically showing surveys
     // It shows the survey as a popover in the corner of the screen
     // For API-type surveys, we may need to pass additional options
@@ -129,14 +225,25 @@ function displayTheSurvey() {
 
     console.log('[FeedbackSurvey] displaySurvey called successfully');
 
-    // Check if the survey DOM element was created after a short delay
+    // Fallback: Check if the survey DOM element was created after a short delay
+    // MutationObserver should catch it faster, but this is a safety net
     setTimeout(function() {
       const surveyElement = document.querySelector('.PostHogSurvey-' + FEEDBACK_SURVEY_ID);
       const anyPostHogSurvey = document.querySelector('[class*="PostHogSurvey"]');
-      console.log('[FeedbackSurvey] Survey element found:', !!surveyElement);
-      console.log('[FeedbackSurvey] Any PostHog survey element:', !!anyPostHogSurvey);
+      console.log('[FeedbackSurvey] Fallback check - Survey element found:', !!surveyElement);
+      console.log('[FeedbackSurvey] Fallback check - Any PostHog survey element:', !!anyPostHogSurvey);
       if (!surveyElement && !anyPostHogSurvey) {
         console.warn('[FeedbackSurvey] Survey element not created - displaySurvey may have silently failed');
+        stopSurveyObserver(); // Clean up observer if survey never appeared
+      }
+
+      // Inject GPRA dark theme CSS into PostHog's shadow DOM (fallback if MutationObserver missed it)
+      if (surveyElement && surveyElement.shadowRoot) {
+        injectSurveyStyles(surveyElement.shadowRoot);
+        stopSurveyObserver();
+      } else if (anyPostHogSurvey && anyPostHogSurvey.shadowRoot) {
+        injectSurveyStyles(anyPostHogSurvey.shadowRoot);
+        stopSurveyObserver();
       }
     }, 500);
 

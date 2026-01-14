@@ -59,6 +59,19 @@
   color: hsl(210 40% 98%) !important;
 }
 
+/* PostHog survey styling - dark input field to match GPRA theme */
+[class*="PostHogSurvey"] textarea,
+[class*="PostHogSurvey"] .textarea {
+  background-color: #0a0d14 !important;
+  color: #f7f9fb !important;
+  border-color: #1f2937 !important;
+}
+
+[class*="PostHogSurvey"] textarea::placeholder,
+[class*="PostHogSurvey"] .textarea::placeholder {
+  color: #9ca3af !important;
+}
+
 /* Custom styles for the guitar practice app */
 
 /* Modal scroll styling */
