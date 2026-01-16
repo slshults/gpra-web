@@ -173,6 +173,41 @@ def set_session_cookie_domain():
         # localhost, 127.0.0.1, or unknown domain - use default (same-origin)
         app.config['SESSION_COOKIE_DOMAIN'] = None
 
+@app.before_request
+def redirect_non_admin_from_admin():
+    """
+    Redirect non-admin users from /admin/* to /#Account.
+
+    Flask-AppBuilder shows "Access Denied" for non-admin users.
+    We redirect them to the React app's Account page instead.
+    """
+    from flask import redirect
+    from flask_login import current_user
+
+    # Only check /admin/* routes
+    if not request.path.startswith('/admin'):
+        return None
+
+    # Allow login/logout endpoints (they're under /admin/ in FAB)
+    if '/login' in request.path or '/logout' in request.path or '/oauth' in request.path:
+        return None
+
+    # Check if user is authenticated
+    if not current_user.is_authenticated:
+        # Not logged in - redirect to login page
+        return redirect('/login')
+
+    # Check if user has Admin role
+    admin_role_name = app.config.get('AUTH_ROLE_ADMIN', 'Admin')
+    user_roles = [role.name for role in current_user.roles]
+
+    if admin_role_name not in user_roles:
+        # Non-admin user trying to access /admin/* - send to Account page
+        return redirect('/#Account')
+
+    # Admin user - allow access
+    return None
+
 # CSRF Configuration (uses Redis sessions configured above)
 app.config['WTF_CSRF_ENABLED'] = True
 app.config['WTF_CSRF_TIME_LIMIT'] = None  # No time limit on CSRF tokens
