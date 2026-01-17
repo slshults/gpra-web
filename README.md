@@ -1,8 +1,8 @@
 # Guitar Practice Routine Assistant
 
-A web app for guitar players to manage practice routines, create chord charts, and track practice progress. This is the web app. 
+A web app for guitar players to manage practice routines, create chord charts, and track practice progress. 
 
-Free single-user version to run on your local machine is [here](https://github.com/slshults/guitar-practice-routine-app_postgresql).
+This repo is for the [gpra.app](https://guitarpracticeroutine.com/). The free single-user version to run on your own local machine is [here](https://github.com/slshults/guitar-practice-routine-app_postgresql).
 
 ## Feature Highlights
 

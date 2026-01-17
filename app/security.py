@@ -946,11 +946,11 @@ class CustomSecurityManager(SecurityManager):
             item_result = db.execute(text("""
                 INSERT INTO items (item_id, title, notes, duration, description, "order", tuning, songbook, user_id, created_at, updated_at)
                 VALUES ('', 'For What It''s Worth',
-                    'Classic Buffalo Springfield song - great for practicing basic chord changes',
+                    'There''s somethin'' happenin'' here...',
                     '5',
                     'Work on smooth transitions between E and A chords. Focus on strumming pattern and timing.',
                     0, 'EADGBE',
-                    'D:\\Users\\YourUserNameHere\\Documents\\Guitar\\Songbook\\ForWhatItsWorth',
+                    'C:\\Users\\Steven\\Documents\\Guitar\\Songbook\\ForWhatItsWorth',
                     :user_id, NOW(), NOW())
                 RETURNING id, item_id
             """), {'user_id': user.id})

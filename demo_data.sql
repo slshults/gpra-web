@@ -7,7 +7,7 @@ INSERT INTO routines (id, name, created_at, "order") VALUES
 
 -- Insert demo practice item
 INSERT INTO items (id, item_id, title, notes, duration, description, "order", tuning, songbook, created_at, updated_at) VALUES
-(1, '1', 'For What It''s Worth', 'Classic Buffalo Springfield song - great for practicing basic chord changes', '5', 'Work on smooth transitions between E and A chords. Focus on strumming pattern and timing.', 0, 'EADGBE', 'D:\Users\YourUserNameHere\Documents\Guitar\Songbook\ForWhatItsWorth', NOW(), NOW());
+(1, '1', 'For What It''s Worth', 'There''s somethin'' happenin'' here...', '5', 'Work on smooth transitions between E and A chords. Focus on strumming pattern and timing.', 0, 'EADGBE', 'C:\Users\Steven\Documents\Guitar\Songbook\ForWhatItsWorth', NOW(), NOW());
 
 -- Add item to routine
 INSERT INTO routine_items (routine_id, item_id, "order", completed, created_at) VALUES

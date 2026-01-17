@@ -24,6 +24,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
     'F': '',
     'G': '',
     'H': '',
+    'I': '',
   });
   const [error, setError] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
@@ -50,6 +51,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
             'F': item['F'] || '',
             'G': item['G'] || '',
             'H': item['H'] || '',
+            'I': item['I'] || '',
           });
           setError(null);
           setIsDirty(false);
@@ -67,6 +69,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
           'F': '',
           'G': '',
           'H': '',
+          'I': '',
         });
         setError(null);
         setIsDirty(false);
@@ -90,6 +93,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
         'F': fullItem['F'] || '',
         'G': fullItem['G'] || '',
         'H': fullItem['H'] || '',
+        'I': fullItem['I'] || '',
       });
       setError(null);
       setIsDirty(false);
@@ -291,8 +295,8 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
               <Label htmlFor="songbook">Songbook folder</Label>
               <Input
                 id="songbook"
-                value={formData['F']}
-                onChange={(e) => handleFormChange('F', e.target.value)}
+                value={formData['I']}
+                onChange={(e) => handleFormChange('I', e.target.value)}
                 placeholder='e.g.: "C:\Users\Steven\Documents\Guitar\Songbook\SongName"'
                 className="bg-gray-900 font-mono"
               />
