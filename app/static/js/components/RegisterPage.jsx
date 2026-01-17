@@ -4,7 +4,7 @@ import { Input } from '@ui/input';
 import { Label } from '@ui/label';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
-import { Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 const RECAPTCHA_SITE_KEY = '6LcjIvQrAAAAAM4psu6wJT3NlL8RIwH4tNiiAJ6C';
 
@@ -240,7 +240,7 @@ const RegisterPage = () => {
         <Card className="w-full max-w-md bg-gray-800 border-gray-700">
           <CardContent className="pt-6">
             <div className="text-center space-y-4">
-              <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
+              <span className="text-6xl block" role="img" aria-label="guitar">🎸</span>
               <h2 className="text-2xl font-bold text-gray-100">Welcome to GPRA!</h2>
               <p className="text-gray-400">
                 You now have an account, and we've logged you in. Click that button to start the tour...

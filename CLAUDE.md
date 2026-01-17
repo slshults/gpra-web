@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**Last updated:** January 8, 2026 at 11:45 PM PST
+**Last updated:** January 16, 2026
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -499,7 +499,7 @@ The `gpr.sh` script runs:
 ### File Path Handling
 - WSL-friendly path mapping for Windows folders (see `app/routes.py`)
 - Local songbook folder linking supported
-- **Songbook path backward compatibility**: Column I = songbook path (new items), Column F = description (legacy items may have path here). PracticePage checks both: `itemDetails['I'] || itemDetails['F']`
+- **Songbook path columns**: Column I = songbook path, Column F = description. ItemEditor.jsx uses column 'I' for the "Songbook folder" field. PracticePage checks both for backward compatibility: `itemDetails['I'] || itemDetails['F']`
 
 ### Guitar-Specific Features
 - SVGuitar integration for chord chart rendering
