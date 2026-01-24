@@ -17,6 +17,9 @@ import DeletionBanner from '@components/DeletionBanner';
 import { useLightweightItems } from '@hooks/useLightweightItems';
 import { setUserContext } from './utils/analytics';
 
+// Initialize rate limit handling (intercepts fetch for 429 errors)
+import './utils/rateLimitHandler';
+
 const ItemsPage = () => {
   const { items, refreshItems } = useLightweightItems();
   return <PracticeItemsList items={items} onItemsChange={refreshItems} />;

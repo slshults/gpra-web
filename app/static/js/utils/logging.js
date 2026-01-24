@@ -4,10 +4,56 @@ let lastConnectionAttempt = 0;
 let connectionCheckInterval = null;
 const CONNECTION_CHECK_DELAY = 30000; // 30 seconds between reconnection attempts
 
+// Throttling for debug logs to prevent flooding
+let logQueue = [];
+let flushTimeout = null;
+const LOG_FLUSH_INTERVAL = 2000; // Batch logs every 2 seconds
+const MAX_QUEUE_SIZE = 10; // Max logs to batch before forcing a flush
+
 // Check if we're in debug/dev mode (set by Flask in base.html.jinja)
 const isDebugMode = () => typeof window !== 'undefined' && window.GPRA_DEBUG === true;
 
-// Frontend logging utility that sends logs to backend
+// Flush queued logs to server
+const flushLogQueue = async () => {
+  if (logQueue.length === 0) return;
+
+  const logsToSend = [...logQueue];
+  logQueue = [];
+  flushTimeout = null;
+
+  // Send as a single batched request
+  try {
+    const response = await fetch('/api/debug/log', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: logsToSend.map(l => `[${l.level}] ${l.message}`).join('\n'),
+        level: 'DEBUG',
+        context: { batched: true, count: logsToSend.length }
+      })
+    });
+
+    if (response.ok && isServerDown) {
+      isServerDown = false;
+      hideConnectionModal();
+      if (connectionCheckInterval) {
+        clearInterval(connectionCheckInterval);
+        connectionCheckInterval = null;
+      }
+    }
+  } catch (error) {
+    if (!isServerDown) {
+      isServerDown = true;
+      lastConnectionAttempt = Date.now();
+      showConnectionModal();
+      scheduleReconnectionAttempts();
+    }
+  }
+};
+
+// Frontend logging utility that sends logs to backend (with throttling)
 export const serverLog = async (message, level = 'DEBUG', context = {}) => {
   // Only send logs to server in debug mode
   if (!isDebugMode()) {
@@ -19,39 +65,22 @@ export const serverLog = async (message, level = 'DEBUG', context = {}) => {
     return;
   }
 
-  try {
-    const response = await fetch('/api/debug/log', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message,
-        level,
-        context
-      })
-    });
+  // Add to queue instead of sending immediately
+  logQueue.push({ message, level, context });
 
-    if (response.ok && isServerDown) {
-      // Server is back up!
-      isServerDown = false;
-      hideConnectionModal();
-      if (connectionCheckInterval) {
-        clearInterval(connectionCheckInterval);
-        connectionCheckInterval = null;
-      }
+  // Flush immediately if queue is full
+  if (logQueue.length >= MAX_QUEUE_SIZE) {
+    if (flushTimeout) {
+      clearTimeout(flushTimeout);
+      flushTimeout = null;
     }
-  } catch (error) {
-    // Use original console methods to avoid recursive loop
-    if (!isServerDown) {
-      isServerDown = true;
-      lastConnectionAttempt = Date.now();
-      showConnectionModal();
-      scheduleReconnectionAttempts();
-    }
-    // Use original console methods to prevent recursion
-    originalConsoleError('Failed to send log to server:', error);
-    originalConsoleLog(`[${level}] ${message}`, context);
+    flushLogQueue();
+    return;
+  }
+
+  // Schedule a flush if not already scheduled
+  if (!flushTimeout) {
+    flushTimeout = setTimeout(flushLogQueue, LOG_FLUSH_INTERVAL);
   }
 };
 

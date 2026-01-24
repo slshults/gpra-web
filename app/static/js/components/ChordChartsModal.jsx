@@ -125,8 +125,8 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
           frets: actualChartData.numFrets || 5,
           position: actualChartData.startingFret || 1,
           tuning: [], // Hide tuning labels in the small display
-          width: 160,             // Compact width matching container
-          height: 220,            // Compact height matching container
+          width: 128,             // Reduced ~20% (was 160)
+          height: 176,            // Reduced ~20% (was 220)
           fretSize: 1.2,          // Match editor settings
           fingerSize: 0.75,       // Larger finger size for text visibility (match editor)
           sidePadding: 0.2,       // Match editor settings
@@ -176,8 +176,8 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
           if (svg) {
             svg.style.width = '100%';
             svg.style.height = '100%';
-            svg.style.maxWidth = '160px';  // Match container width w-40
-            svg.style.maxHeight = '224px'; // Match container height h-56
+            svg.style.maxWidth = '128px';  // Reduced ~20% (was 160)
+            svg.style.maxHeight = '180px'; // Reduced ~20% (was 224)
             svg.style.position = 'relative';
             svg.style.zIndex = '1';
           }
@@ -194,9 +194,11 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
     e.preventDefault();
     e.stopPropagation();
     setShowMenu(false);
+    // Note: chart data is flattened at top level (not nested in chord_data)
     onEdit(chart.id, {
       title: chart.title,
-      chord_data: chart.chord_data,
+      // Pass the full chart object since data is flattened at top level
+      ...chart,
       sectionId: chart.sectionId,
       sectionLabel: chart.sectionLabel,
       sectionRepeatCount: chart.sectionRepeatCount
@@ -227,9 +229,21 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
     setShowMenu(false);
 
     // Toggle line break after this chord
+    // Note: chart data is flattened at top level (not nested in chord_data), so we reconstruct it
     const updatedChartData = {
-      ...chart.chord_data,
-      hasLineBreakAfter: !chart.hasLineBreakAfter
+      fingers: chart.fingers || [],
+      barres: chart.barres || [],
+      tuning: chart.tuning || 'EADGBE',
+      capo: chart.capo || 0,
+      startingFret: chart.startingFret || 1,
+      numFrets: chart.numFrets || 5,
+      numStrings: chart.numStrings || 6,
+      openStrings: chart.openStrings || [],
+      mutedStrings: chart.mutedStrings || [],
+      sectionId: chart.sectionId || '',
+      sectionLabel: chart.sectionLabel || '',
+      sectionRepeatCount: chart.sectionRepeatCount || '',
+      hasLineBreakAfter: !chart.hasLineBreakAfter  // Toggle the value
     };
 
     onEdit(chart.id, {
@@ -248,7 +262,7 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
   };
 
   return (
-    <div className="relative mx-auto" style={{ maxWidth: '180px' }}>
+    <div className="relative mx-auto" style={{ maxWidth: '144px' }}>
       {/* Chord chart display */}
       <div
         className="bg-gray-800 p-1 rounded-lg cursor-pointer relative group"
@@ -269,7 +283,7 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
         </button>
 
         {/* Chord diagram container using SVGuitar (copied sizing from PracticePage) */}
-        <div className="relative w-40 mx-auto flex items-center justify-center overflow-hidden" style={{height: '230px'}}>
+        <div className="relative w-32 mx-auto flex items-center justify-center overflow-hidden" style={{height: '184px'}}>
           <div
             ref={chartRef}
             className="w-full h-full"
@@ -609,8 +623,18 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
         // Update each chart in the section
         const updatePromises = sectionCharts.map(async (chart) => {
+          // Note: chart data is flattened at top level (not nested in chord_data), so we reconstruct it
           const updatedChartData = {
-            ...chart.chord_data,
+            fingers: chart.fingers || [],
+            barres: chart.barres || [],
+            tuning: chart.tuning || 'EADGBE',
+            capo: chart.capo || 0,
+            startingFret: chart.startingFret || 1,
+            numFrets: chart.numFrets || 5,
+            numStrings: chart.numStrings || 6,
+            openStrings: chart.openStrings || [],
+            mutedStrings: chart.mutedStrings || [],
+            hasLineBreakAfter: chart.hasLineBreakAfter || false,
             sectionId: sectionId,
             sectionLabel: updates.label !== undefined ? updates.label : (chart.sectionLabel || 'Section'),
             sectionRepeatCount: updates.repeatCount !== undefined ? updates.repeatCount : (chart.sectionRepeatCount || '')
@@ -1882,7 +1906,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                     return chordRows.map((row, rowIndex) => (
                       <div
                         key={rowIndex}
-                        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2"
+                        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2"
                       >
                         {row.map(chart => (
                           <MemoizedChordChart

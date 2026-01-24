@@ -82,11 +82,23 @@ export const getFileManagerName = () => {
   return 'File Manager';
 };
 
+/**
+ * Check if a path is a web URL
+ * @param {string} path - The path to check
+ * @returns {boolean} True if path is a web URL (http:// or https://)
+ */
+export const isWebUrl = (path) => {
+  if (!path) return false;
+  const trimmed = path.trim().toLowerCase();
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+};
+
 export default {
   detectOS,
   isMobile,
   supportsFolderOpening,
   getPlatformDisplayName,
   isMobileDevice,
-  getFileManagerName
+  getFileManagerName,
+  isWebUrl
 };

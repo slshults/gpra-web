@@ -289,15 +289,15 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
             </div>
           </div>
 
-          {/* Songbook folder field - only show on desktop platforms */}
+          {/* Songbook folder/link field - only show on desktop platforms */}
           {supportsFolderOpening() && (
             <div className="space-y-2">
-              <Label htmlFor="songbook">Songbook folder</Label>
+              <Label htmlFor="songbook">Songbook folder or link</Label>
               <Input
                 id="songbook"
                 value={formData['I']}
                 onChange={(e) => handleFormChange('I', e.target.value)}
-                placeholder='e.g.: "C:\Users\Steven\Documents\Guitar\Songbook\SongName"'
+                placeholder='e.g.: "C:\Users\...\SongName" or "https://tabs.ultimate-guitar.com/..."'
                 className="bg-gray-900 font-mono"
               />
             </div>
