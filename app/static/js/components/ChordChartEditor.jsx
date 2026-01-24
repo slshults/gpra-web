@@ -10,8 +10,8 @@ const defaultChartConfig = {
   sidePadding: 0.2,       // Standard padding
   fontFamily: 'Arial',
   // Key: set explicit dimensions that work well
-  width: 160,             // Compact width matching container
-  height: 220,            // Compact height matching container
+  width: 128,             // Reduced ~20% (was 160)
+  height: 176,            // Reduced ~20% (was 220)
   // Dark theme colors for visibility
   color: '#ffffff',           // White finger dots
   backgroundColor: 'transparent',
@@ -732,15 +732,15 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
         if (editorSvg) {
           editorSvg.style.width = '100%';
           editorSvg.style.height = '100%';
-          editorSvg.style.maxWidth = '160px';  // Match container width w-40
-          editorSvg.style.maxHeight = '224px'; // Match container height h-56
+          editorSvg.style.maxWidth = '128px';  // Reduced ~20% (was 160)
+          editorSvg.style.maxHeight = '180px'; // Reduced ~20% (was 224)
         }
 
         if (resultSvg) {
           resultSvg.style.width = '100%';
           resultSvg.style.height = '100%';
-          resultSvg.style.maxWidth = '160px';  // Match container width w-40
-          resultSvg.style.maxHeight = '224px'; // Match container height h-56
+          resultSvg.style.maxWidth = '128px';  // Reduced ~20% (was 160)
+          resultSvg.style.maxHeight = '180px'; // Reduced ~20% (was 224)
         }
         
         setupEditorInteraction();
@@ -794,7 +794,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
                   tryAutofill(title);
                 }
               }}
-              placeholder="Enter chord name (e.g. Am, C7)"
+              placeholder="Enter chord name (e.g. Am, C7) then hit 'Enter'"
               className="bg-gray-900"
               disabled={isLoadingChord}
             />
@@ -887,7 +887,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
           <div>
             <div className="text-lg text-white mb-2">Editor</div>
             <div className="border border-gray-700 rounded-lg px-1 pt-1 pb-0">
-              <div className="relative w-40 mx-auto flex items-center justify-center overflow-hidden select-none" style={{height: '230px'}}>
+              <div className="relative w-32 mx-auto flex items-center justify-center overflow-hidden select-none" style={{height: '184px'}}>
                 <div id="editor-chart" ref={editorContainerRef} className="cursor-pointer select-none" />
               </div>
             </div>
@@ -896,7 +896,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
           <div>
             <div className="text-lg text-white mb-2">Result</div>
             <div className="border border-gray-700 rounded-lg px-1 pt-1 pb-0">
-              <div className="relative w-40 mx-auto flex items-center justify-center overflow-hidden select-none" style={{height: '230px'}}>
+              <div className="relative w-32 mx-auto flex items-center justify-center overflow-hidden select-none" style={{height: '184px'}}>
                 <div id="result-chart" className="select-none" />
               </div>
             </div>

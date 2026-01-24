@@ -8,6 +8,9 @@ import ForgotPasswordPage from '@components/ForgotPasswordPage';
 import ResetPasswordPage from '@components/ResetPasswordPage';
 import CookieConsent from '@components/CookieConsent';
 
+// Initialize rate limit handling (intercepts fetch for 429 errors)
+import './utils/rateLimitHandler';
+
 // Get page type from data attribute
 const authRoot = document.getElementById('auth-root');
 const page = authRoot?.getAttribute('data-page');

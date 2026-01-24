@@ -3,7 +3,7 @@ from sqlalchemy import and_, func
 from sqlalchemy.orm import joinedload
 from app.models import ChordChart, Item
 from app.repositories.base import BaseRepository
-from app.middleware.rls import filter_by_user
+from app.middleware.rls import filter_by_user, get_current_user_id
 import json
 import logging
 
@@ -51,6 +51,11 @@ class ChordChartRepository(BaseRepository):
     def batch_create(self, item_id: str, chord_charts_data: List[Dict[str, Any]]) -> List[ChordChart]:
         """Create multiple chord charts in a single transaction."""
         created_charts = []
+        # Get current user ID for RLS
+        current_user_id = get_current_user_id()
+        if not current_user_id:
+            logging.warning("batch_create: No user context, chord charts will have NULL user_id")
+
         try:
             for i, chart_data in enumerate(chord_charts_data):
                 # Determine order - check for insertion context first (matching sheets version)
@@ -85,7 +90,8 @@ class ChordChartRepository(BaseRepository):
                         item_id=item_id,
                         title=chart_data.get('title', f'Chord {i+1}'),
                         chord_data=chord_data_obj,
-                        order_col=order
+                        order_col=order,
+                        user_id=current_user_id
                     )
                 elif 'title' in chart_data and 'chord_data' in chart_data:
                     # Direct format (nested chord_data)
@@ -93,7 +99,8 @@ class ChordChartRepository(BaseRepository):
                         item_id=item_id,
                         title=chart_data.get('title', f'Chord {i+1}'),
                         chord_data=chart_data.get('chord_data', {}),
-                        order_col=order
+                        order_col=order,
+                        user_id=current_user_id
                     )
                 else:
                     # Sheets format (from migration)
@@ -101,7 +108,8 @@ class ChordChartRepository(BaseRepository):
                         item_id=item_id,
                         title=chart_data.get('C', f'Chord {i+1}'),
                         chord_data=chart_data.get('D', {}),
-                        order_col=int(chart_data.get('F', order)) if chart_data.get('F') else order
+                        order_col=int(chart_data.get('F', order)) if chart_data.get('F') else order,
+                        user_id=current_user_id
                     )
                 
                 self.db.add(chart)
@@ -219,17 +227,22 @@ class ChordChartRepository(BaseRepository):
             'sectionId': chord_data.get('sectionId'),
             'sectionLabel': chord_data.get('sectionLabel'),
             'sectionRepeatCount': chord_data.get('sectionRepeatCount'),
-            'hasLineBreakAfter': chord_data.get('hasLineBreakAfter', False)
+            # Support both field names: 'hasLineBreakAfter' (frontend/standard) and 'lineBreakAfter' (autocreate)
+            'hasLineBreakAfter': chord_data.get('hasLineBreakAfter', chord_data.get('lineBreakAfter', False))
         })
         
         return result
     
     def _from_sheets_format(self, sheets_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert Sheets API format to SQLAlchemy format."""
+        """Convert Sheets API format to SQLAlchemy format.
 
-        # Handle both old Sheets column format (C, D, F) and new flattened frontend format
+        Handles three formats:
+        1. Old Google Sheets column format (C, D, F)
+        2. Nested format with chord_data already provided: {title, chord_data: {...}}
+        3. Flattened format with SVGuitar props at top level: {title, fingers, barres, ...}
+        """
+        # Format 1: Old Google Sheets column format (C, D, F)
         if 'C' in sheets_data or 'D' in sheets_data or 'F' in sheets_data:
-            # Old Google Sheets column format
             result = {
                 'title': sheets_data.get('C', ''),
                 'chord_data': sheets_data.get('D', {}),
@@ -238,21 +251,42 @@ class ChordChartRepository(BaseRepository):
             if 'F' in sheets_data and sheets_data['F']:
                 result['order_col'] = int(sheets_data['F'])
             return result
-        else:
-            # New flattened frontend format - build chord_data from individual properties
-            title = sheets_data.get('title', '')
 
-            # Extract all non-title properties into chord_data (matching sheets version behavior)
-            chord_data = {}
-            for key, value in sheets_data.items():
-                if key not in ['title', 'id', 'itemId', 'createdAt', 'order']:
-                    chord_data[key] = value
+        # Format 2: Nested format with chord_data already provided
+        # This is what the frontend sends when editing via ChordChartsModal
+        if 'chord_data' in sheets_data and isinstance(sheets_data.get('chord_data'), dict):
+            title = sheets_data.get('title', '')
+            chord_data = sheets_data['chord_data'].copy()
+
+            # Also merge any top-level section metadata into chord_data
+            # (frontend may send sectionId, sectionLabel at both levels)
+            for section_key in ['sectionId', 'sectionLabel', 'sectionRepeatCount']:
+                if section_key in sheets_data and sheets_data[section_key] is not None:
+                    chord_data[section_key] = sheets_data[section_key]
 
             result = {
                 'title': title,
                 'chord_data': chord_data,
             }
-            # Only set order_col if it's explicitly provided (don't default to 0 on updates)
+            # Only set order_col if it's explicitly provided
             if 'order' in sheets_data and sheets_data['order'] is not None:
                 result['order_col'] = int(sheets_data['order'])
             return result
+
+        # Format 3: Flattened frontend format - build chord_data from individual properties
+        title = sheets_data.get('title', '')
+
+        # Extract all non-title properties into chord_data (matching sheets version behavior)
+        chord_data = {}
+        for key, value in sheets_data.items():
+            if key not in ['title', 'id', 'itemId', 'createdAt', 'order']:
+                chord_data[key] = value
+
+        result = {
+            'title': title,
+            'chord_data': chord_data,
+        }
+        # Only set order_col if it's explicitly provided (don't default to 0 on updates)
+        if 'order' in sheets_data and sheets_data['order'] is not None:
+            result['order_col'] = int(sheets_data['order'])
+        return result

@@ -269,8 +269,12 @@ def chord_chart(chart_id):
     if request.method == 'PUT':
         if not request.is_json:
             return jsonify({"error": "Request must be JSON"}), 400
-            
+
+        # Debug logging for line break feature
+        app.logger.info(f"[LINE BREAK DEBUG] Received PUT for chart {chart_id}: hasLineBreakAfter={request.json.get('hasLineBreakAfter')}")
         updated_chart = data_layer.update_chord_chart(chart_id, request.json)
+        if updated_chart:
+            app.logger.info(f"[LINE BREAK DEBUG] Returning updated chart: hasLineBreakAfter={updated_chart.get('hasLineBreakAfter')}")
         return jsonify(updated_chart) if updated_chart else ('', 404)
         
     elif request.method == 'DELETE':
@@ -2596,6 +2600,7 @@ def logout_route():
 
 # Debug and logging routes
 @app.route('/api/debug/log', methods=['POST'])
+@limiter.exempt  # Exempt from rate limiting - this is just logging, not a security concern
 def debug_log():
     """Handle frontend debug logging"""
     if request.is_json:

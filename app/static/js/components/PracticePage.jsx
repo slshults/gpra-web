@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useState, useRef, useMemo, memo } from 'react';
 import { trackPracticeEvent, trackActiveRoutine, trackChordChartEvent, trackSongbookLinkClick } from '../utils/analytics';
-import { supportsFolderOpening, isMobileDevice, getFileManagerName } from '../utils/platform';
+import { supportsFolderOpening, isMobileDevice, getFileManagerName, isWebUrl } from '../utils/platform';
 
 // Simple debounce function
 const debounce = (func, wait) => {
@@ -19,7 +19,7 @@ import { useActiveRoutine } from '@hooks/useActiveRoutine';
 import { useItemDetails } from '@hooks/useItemDetails';
 import { usePracticeItems } from '@hooks/usePracticeItems';
 import { useNavigation } from '@contexts/NavigationContext';
-import { ChevronDown, ChevronRight, Check, Plus, FileText, Book, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer } from 'lucide-react';
+import { ChevronDown, ChevronRight, Check, Plus, FileText, Book, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer, ExternalLink } from 'lucide-react';
 import { NoteEditor, renderMarkdown } from './NoteEditor';
 import { ChordChartEditor } from './ChordChartEditor';
 import ApiErrorModal, { resetRateLimitBackoff } from './ApiErrorModal';
@@ -124,8 +124,8 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
           frets: actualChartData.numFrets || 5,
           position: actualChartData.startingFret || 1,
           tuning: [], // Hide tuning labels in the small display
-          width: 220,             // Match editor dimensions
-          height: 310,            // Match editor dimensions
+          width: 176,             // Reduced ~20% (was 220)
+          height: 248,            // Reduced ~20% (was 310)
           fretSize: 1.2,          // Match editor settings
           fingerSize: 0.75,       // Larger finger size for text visibility (match editor)
           sidePadding: 0.2,       // Match editor settings
@@ -175,8 +175,8 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
           if (svg) {
             svg.style.width = '100%';
             svg.style.height = '100%';
-            svg.style.maxWidth = '180px';
-            svg.style.maxHeight = '192px';
+            svg.style.maxWidth = '144px';
+            svg.style.maxHeight = '154px';
             svg.style.position = 'relative';
             svg.style.zIndex = '1';
 
@@ -263,7 +263,7 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
         </button>
       )}
       
-      <div className="relative mx-auto flex items-center justify-center overflow-hidden" style={{width: '180px', height: '192px'}}>
+      <div className="relative mx-auto flex items-center justify-center overflow-hidden" style={{width: '144px', height: '154px'}}>
         <div
           ref={chartRef}
           className="w-full h-full"
@@ -1806,7 +1806,8 @@ export const PracticePage = () => {
       const method = isUpdate ? 'PUT' : 'POST';
       
       serverDebug(`${isUpdate ? 'Updating' : 'Creating'} chord chart`, { method, url });
-      
+      console.log('[DEBUG LINE BREAKS] Sending to server:', { title: chartDataWithSection.title, hasLineBreakAfter: chartDataWithSection.hasLineBreakAfter });
+
       const response = await fetch(url, {
         method: method,
         headers: {
@@ -1821,7 +1822,8 @@ export const PracticePage = () => {
 
       const savedChart = await response.json();
       serverInfo('Chord chart saved successfully', { savedChart });
-      
+      console.log('[DEBUG LINE BREAKS] Server returned:', { id: savedChart.id, title: savedChart.title, hasLineBreakAfter: savedChart.hasLineBreakAfter });
+
       // DEBUG: Detailed logging of saved chord data format
       console.log('DEBUG: Saved chord detailed breakdown:', {
         id: savedChart.id,
@@ -1941,6 +1943,9 @@ export const PracticePage = () => {
             }));
           }
           
+          console.log('[DEBUG LINE BREAKS] setChordSections update:', itemId, 'updated sections with hasLineBreakAfter values:',
+            updatedSections.flatMap(s => s.chords).map(c => ({id: c.id, title: c.title, hasLineBreakAfter: c.hasLineBreakAfter})));
+
           return {
             ...prev,
             [itemId]: updatedSections
@@ -3683,6 +3688,11 @@ export const PracticePage = () => {
                           const sectionsFromState = chordSections[itemReferenceId];
                           const sectionsFromCharts = sectionsFromState ? null : getChordSections(itemReferenceId);
                           const finalSections = sectionsFromState || sectionsFromCharts || [];
+
+                          // Debug: Log the sections data during render to verify state updates
+                          console.log('[DEBUG LINE BREAKS] Rendering sections for item', itemReferenceId,
+                            'from state:', !!sectionsFromState,
+                            'chords:', finalSections.flatMap(s => s.chords).map(c => ({id: c.id, title: c.title, hasLineBreakAfter: c.hasLineBreakAfter})));
                           
                           // Map sections to JSX elements with itemReferenceId in scope
                           const sections = finalSections.map((section, sectionIndex) => {
@@ -3754,24 +3764,30 @@ export const PracticePage = () => {
                                   // Group chords by line breaks
                                   const chordRows = [];
                                   let currentRow = [];
-                                  
+
+                                  console.log('[DEBUG LINE BREAKS] Processing section:', section.id, 'chords:', section.chords.map(c => ({id: c.id, title: c.title, hasLineBreakAfter: c.hasLineBreakAfter})));
+
                                   section.chords.forEach((chart, index) => {
                                     currentRow.push(chart);
-                                    
+
                                     // Start new row if:
                                     // 1. This chord has a line break after it
                                     // 2. We've reached 5 chords
                                     // 3. This is the last chord
-                                    if (chart.hasLineBreakAfter || currentRow.length >= 5 || index === section.chords.length - 1) {
+                                    const shouldBreak = chart.hasLineBreakAfter || currentRow.length >= 5 || index === section.chords.length - 1;
+                                    if (shouldBreak) {
+                                      console.log('[DEBUG LINE BREAKS] Creating row with', currentRow.length, 'chords. Reason:', chart.hasLineBreakAfter ? 'hasLineBreakAfter' : currentRow.length >= 5 ? 'max 5' : 'last chord');
                                       chordRows.push([...currentRow]);
                                       currentRow = [];
                                     }
                                   });
-                                  
+
+                                  console.log('[DEBUG LINE BREAKS] Final row structure:', chordRows.map((row, i) => `Row ${i}: ${row.map(c => c.title).join(', ')}`));
+
                                   return chordRows.map((row, rowIndex) => (
                                     <div
-                                      key={rowIndex}
-                                      className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2"
+                                      key={`row-${rowIndex}-${row.map(c => c.id).join('-')}`}
+                                      className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2"
                                     >
                                       {row.map(chart => (
                                         <MemoizedChordChart
@@ -4340,43 +4356,70 @@ export const PracticePage = () => {
                     {/* Tuning and Songbook section */}
                     <div className="mt-4">
                       <div className="flex items-center justify-between">
-                        {/* Songbook folder link - show for desktop OR mobile */}
-                        {(itemDetails?.['I'] || itemDetails?.['F']) && (supportsFolderOpening() || isMobileDevice()) && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
+                        {/* Songbook folder/link - show for web URLs always, local paths on desktop/mobile */}
+                        {(() => {
+                          const songbookPath = itemDetails?.['I'] || itemDetails?.['F'];
+                          if (!songbookPath) return null;
 
-                              // Column I = Songbook path (new items), Column F = Description (legacy items with path)
-                              const folderPath = itemDetails['I'] || itemDetails['F'];
-                              const itemName = itemDetails?.['C'] || `Item ${routineItem['A']}`;
+                          const isUrl = isWebUrl(songbookPath);
 
-                              // Track songbook link click
-                              trackSongbookLinkClick(itemName, folderPath);
+                          // Show if: it's a web URL (any platform) OR it's a local path on supported platform
+                          if (!isUrl && !supportsFolderOpening() && !isMobileDevice()) return null;
 
-                              if (isMobileDevice()) {
-                                // Mobile: Just show the path
-                                setCopiedFolderPath(folderPath);
-                                setShowFolderPathModal(true);
-                              } else {
-                                // Desktop: Copy to clipboard and show instructions
-                                navigator.clipboard.writeText(folderPath).then(() => {
-                                  setCopiedFolderPath(folderPath);
-                                  setShowFolderPathModal(true);
-                                }).catch(err => {
-                                  console.error('Failed to copy to clipboard:', err);
-                                  // Fallback: still show modal with path
-                                  setCopiedFolderPath(folderPath);
-                                  setShowFolderPathModal(true);
-                                });
-                              }
-                            }}
-                            className="text-gray-400 hover:text-gray-300 hover:underline flex items-center"
-                            title={isMobileDevice() ? 'View folder path' : 'Copy folder path'}
-                          >
-                            <Book className="h-4 w-4 mr-2" />
-                            {isMobileDevice() ? 'View Songbook Folder' : 'Copy Folder Path'}
-                          </button>
-                        )}
+                          const itemName = itemDetails?.['C'] || `Item ${routineItem['A']}`;
+
+                          if (isUrl) {
+                            // Web URL: render as clickable link
+                            return (
+                              <a
+                                href={songbookPath}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  trackSongbookLinkClick(itemName, songbookPath);
+                                }}
+                                className="text-gray-400 hover:text-gray-300 hover:underline flex items-center"
+                                title="Open songbook link in new tab"
+                              >
+                                <ExternalLink className="h-4 w-4 mr-2" />
+                                Open Songbook Link
+                              </a>
+                            );
+                          } else {
+                            // Local path: copy to clipboard and show modal
+                            return (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  trackSongbookLinkClick(itemName, songbookPath);
+
+                                  if (isMobileDevice()) {
+                                    // Mobile: Just show the path
+                                    setCopiedFolderPath(songbookPath);
+                                    setShowFolderPathModal(true);
+                                  } else {
+                                    // Desktop: Copy to clipboard and show instructions
+                                    navigator.clipboard.writeText(songbookPath).then(() => {
+                                      setCopiedFolderPath(songbookPath);
+                                      setShowFolderPathModal(true);
+                                    }).catch(err => {
+                                      console.error('Failed to copy to clipboard:', err);
+                                      // Fallback: still show modal with path
+                                      setCopiedFolderPath(songbookPath);
+                                      setShowFolderPathModal(true);
+                                    });
+                                  }
+                                }}
+                                className="text-gray-400 hover:text-gray-300 hover:underline flex items-center"
+                                title={isMobileDevice() ? 'View folder path' : 'Copy folder path'}
+                              >
+                                <Book className="h-4 w-4 mr-2" />
+                                {isMobileDevice() ? 'View Songbook Folder' : 'Copy Folder Path'}
+                              </button>
+                            );
+                          }
+                        })()}
                         {/* Tuning */}
                         {itemDetails?.['H'] && (
                           <span className="text-sm font-mono font-bold text-gray-400">
