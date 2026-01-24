@@ -13,7 +13,6 @@ ENV/
 *.env
 .python-version
 instance/
-CLAUDE.md
 
 # Credentials and secrets
 token.json
@@ -30,6 +29,7 @@ sudoers.d.gpra
 *.sublime-project
 .obsidian/
 *.code-workspace
+CLAUDE.md
 
 # Build and cache
 dist/
@@ -86,3 +86,4 @@ MIGRATION_CHECKLIST.md
 RLS_IMPLEMENTATION_SUMMARY.md
 ARCHITECTURE_CHANGES.md
 MIGRATION_GUIDE.md
+
