@@ -311,7 +311,7 @@ class DataLayer:
                             'id': str(row[0]),  # chord_id as string to match repository format
                             'itemId': item_id,  # Use the requested item_id, not the comma-separated string
                             'title': row[2],
-                            'createdAt': row[4] if row[4] else '',
+                            'createdAt': row[4].isoformat() if row[4] else '',
                             'order': row[5]
                         }
 
