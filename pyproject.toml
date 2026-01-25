@@ -31,7 +31,8 @@ dependencies = [
     "itsdangerous",
     "stripe",
     "flask-appbuilder",
-    "posthog"
+    "posthog",
+    "youtube_transcript_api"
 ]
 
 [tool.setuptools]
