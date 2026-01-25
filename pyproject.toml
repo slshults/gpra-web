@@ -32,7 +32,8 @@ dependencies = [
     "stripe",
     "flask-appbuilder",
     "posthog",
-    "youtube_transcript_api"
+    "youtube_transcript_api",
+    "fpdf2"
 ]
 
 [tool.setuptools]

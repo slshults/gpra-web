@@ -40,7 +40,8 @@ export default defineConfig({
       '@ui': path.resolve(__dirname, 'app/static/js/components/ui'),
       '@lib': path.resolve(__dirname, 'app/static/js/lib'),
       '@hooks': path.resolve(__dirname, 'app/static/js/hooks'),
-      '@contexts': path.resolve(__dirname, 'app/static/js/contexts')
+      '@contexts': path.resolve(__dirname, 'app/static/js/contexts'),
+      '@utils': path.resolve(__dirname, 'app/static/js/utils')
     }
   },
   optimizeDeps: {

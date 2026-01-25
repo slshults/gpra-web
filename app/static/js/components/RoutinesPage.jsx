@@ -824,7 +824,7 @@ const RoutinesPage = () => {
                       placeholder="Enter name for new routine, then click '+ Add'"
                       value={newRoutineName}
                       onChange={(e) => setNewRoutineName(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleCreateRoutine()}
+                      onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleCreateRoutine()}
                       className="flex-grow"
                     />
                     <Button

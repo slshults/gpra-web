@@ -5723,6 +5723,508 @@ def delete_account_free():
         db.close()
 
 
+# =============================================================================
+# EXPORT ENDPOINTS - "Download all the things!"
+# =============================================================================
+
+@app.route('/api/user/export/items', methods=['GET'])
+def export_items():
+    """
+    Export user's practice items as CSV or JSON.
+
+    Query params:
+        format: 'csv' or 'json' (default: json)
+
+    Returns: File download with Content-Disposition header
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from datetime import datetime
+        import csv
+        from io import StringIO
+
+        format_type = request.args.get('format', 'json').lower()
+
+        # Get all items (RLS-filtered by user)
+        items = data_layer.get_all_items()
+
+        if format_type == 'csv':
+            # Create CSV in memory
+            si = StringIO()
+            writer = csv.writer(si)
+
+            # Write header
+            writer.writerow(['ItemID', 'Title', 'Notes', 'Duration', 'Description', 'Order', 'Tuning', 'SongbookPath'])
+
+            # Write data rows
+            for item in items:
+                writer.writerow([
+                    item.get('B', ''),  # ItemID
+                    item.get('C', ''),  # Title
+                    item.get('D', ''),  # Notes
+                    item.get('E', ''),  # Duration
+                    item.get('F', ''),  # Description
+                    item.get('G', ''),  # Order
+                    item.get('H', ''),  # Tuning
+                    item.get('I', '')   # SongbookPath
+                ])
+
+            output = si.getvalue()
+            response = app.response_class(
+                response=output,
+                mimetype='text/csv'
+            )
+            response.headers['Content-Disposition'] = f'attachment; filename=items-{datetime.utcnow().date()}.csv'
+            return response
+
+        else:  # JSON (default)
+            # Transform to cleaner format for export
+            items_data = [{
+                'item_id': item.get('B', ''),
+                'title': item.get('C', ''),
+                'notes': item.get('D', ''),
+                'duration': item.get('E', ''),
+                'description': item.get('F', ''),
+                'order': item.get('G', ''),
+                'tuning': item.get('H', ''),
+                'songbook_path': item.get('I', '')
+            } for item in items]
+
+            response = jsonify(items_data)
+            response.headers['Content-Disposition'] = f'attachment; filename=items-{datetime.utcnow().date()}.json'
+            return response
+
+    except Exception as e:
+        app.logger.error(f"Error exporting items for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to export items"}), 500
+
+
+@app.route('/api/user/export/routines', methods=['GET'])
+def export_routines():
+    """
+    Export user's routines as CSV or JSON.
+
+    Query params:
+        format: 'csv' or 'json' (default: json)
+
+    Returns: File download with Content-Disposition header
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from datetime import datetime
+        import csv
+        from io import StringIO
+
+        format_type = request.args.get('format', 'json').lower()
+
+        # Get all routines (RLS-filtered by user)
+        routines = data_layer.get_all_routines()
+
+        # For each routine, get the item IDs
+        routines_with_items = []
+        for routine in routines:
+            routine_id = routine.get('ID')
+            items = data_layer.get_routine_items(int(routine_id)) if routine_id else []
+            # Extract ItemIDs from items (Column B is ItemID)
+            item_ids = [item.get('B', '') for item in items if item.get('B')]
+
+            routines_with_items.append({
+                'routine_id': routine_id,
+                'name': routine.get('name', ''),
+                'order': routine.get('order', ''),
+                'created': routine.get('created', ''),
+                'item_ids': item_ids
+            })
+
+        if format_type == 'csv':
+            # Create CSV in memory
+            si = StringIO()
+            writer = csv.writer(si)
+
+            # Write header
+            writer.writerow(['RoutineID', 'Name', 'Order', 'ItemIDs'])
+
+            # Write data rows
+            for routine in routines_with_items:
+                writer.writerow([
+                    routine['routine_id'],
+                    routine['name'],
+                    routine['order'],
+                    ', '.join(routine['item_ids'])  # Comma-separated item IDs
+                ])
+
+            output = si.getvalue()
+            response = app.response_class(
+                response=output,
+                mimetype='text/csv'
+            )
+            response.headers['Content-Disposition'] = f'attachment; filename=routines-{datetime.utcnow().date()}.csv'
+            return response
+
+        else:  # JSON (default)
+            response = jsonify(routines_with_items)
+            response.headers['Content-Disposition'] = f'attachment; filename=routines-{datetime.utcnow().date()}.json'
+            return response
+
+    except Exception as e:
+        app.logger.error(f"Error exporting routines for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to export routines"}), 500
+
+
+@app.route('/api/user/export/chord-charts', methods=['GET'])
+def export_chord_charts():
+    """
+    Export user's chord charts as JSON (needed for client-side PDF generation).
+
+    Returns: JSON with structure { items: [{ item_id, item_title, charts: [...] }] }
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from datetime import datetime
+
+        # Get all items to iterate through
+        items = data_layer.get_all_items()
+
+        # Collect item IDs for batch fetch
+        item_ids = [int(item.get('B')) for item in items if item.get('B')]
+
+        # Get chord charts for all items
+        charts_by_item = data_layer.batch_get_chord_charts(item_ids)
+
+        # Build the export structure
+        items_with_charts = []
+        for item in items:
+            item_id = item.get('B', '')
+            if item_id and str(item_id) in charts_by_item:
+                charts = charts_by_item[str(item_id)]
+                if charts:  # Only include items that have charts
+                    items_with_charts.append({
+                        'item_id': item_id,
+                        'item_title': item.get('C', ''),
+                        'tuning': item.get('H', ''),
+                        'charts': charts  # Full chart data including svg_content if present
+                    })
+
+        export_data = {
+            'exported_at': datetime.utcnow().isoformat(),
+            'items': items_with_charts
+        }
+
+        response = jsonify(export_data)
+        response.headers['Content-Disposition'] = f'attachment; filename=chord-charts-{datetime.utcnow().date()}.json'
+        return response
+
+    except Exception as e:
+        app.logger.error(f"Error exporting chord charts for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to export chord charts"}), 500
+
+
+@app.route('/api/user/export/all', methods=['GET'])
+def export_all():
+    """
+    Export all user data as a ZIP file containing:
+    - items.csv + items.json
+    - routines.csv + routines.json
+    - chord-charts.json + chord-charts.pdf
+    - practice-history.csv + practice-history.json
+
+    Returns: ZIP file download
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from datetime import datetime
+        import csv
+        from io import StringIO, BytesIO
+        import zipfile
+        import json
+        from app import appbuilder
+        from app.models import PracticeEvent
+
+        db = appbuilder.session
+        user_id = current_user.id
+        export_date = datetime.utcnow().date()
+
+        # Create ZIP file in memory
+        zip_buffer = BytesIO()
+
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+
+            # ===== ITEMS =====
+            items = data_layer.get_all_items()
+
+            # Items CSV
+            items_csv = StringIO()
+            writer = csv.writer(items_csv)
+            writer.writerow(['ItemID', 'Title', 'Notes', 'Duration', 'Description', 'Order', 'Tuning', 'SongbookPath'])
+            for item in items:
+                writer.writerow([
+                    item.get('B', ''),
+                    item.get('C', ''),
+                    item.get('D', ''),
+                    item.get('E', ''),
+                    item.get('F', ''),
+                    item.get('G', ''),
+                    item.get('H', ''),
+                    item.get('I', '')
+                ])
+            zip_file.writestr('items.csv', items_csv.getvalue())
+
+            # Items JSON
+            items_json = [{
+                'item_id': item.get('B', ''),
+                'title': item.get('C', ''),
+                'notes': item.get('D', ''),
+                'duration': item.get('E', ''),
+                'description': item.get('F', ''),
+                'order': item.get('G', ''),
+                'tuning': item.get('H', ''),
+                'songbook_path': item.get('I', '')
+            } for item in items]
+            zip_file.writestr('items.json', json.dumps(items_json, indent=2))
+
+            # ===== ROUTINES =====
+            routines = data_layer.get_all_routines()
+
+            # Build routines with their items
+            routines_with_items = []
+            for routine in routines:
+                routine_id = routine.get('ID')
+                routine_items = data_layer.get_routine_items(int(routine_id)) if routine_id else []
+                item_ids = [item.get('B', '') for item in routine_items if item.get('B')]
+
+                routines_with_items.append({
+                    'routine_id': routine_id,
+                    'name': routine.get('name', ''),
+                    'order': routine.get('order', ''),
+                    'created': routine.get('created', ''),
+                    'item_ids': item_ids
+                })
+
+            # Routines CSV
+            routines_csv = StringIO()
+            writer = csv.writer(routines_csv)
+            writer.writerow(['RoutineID', 'Name', 'Order', 'ItemIDs'])
+            for routine in routines_with_items:
+                writer.writerow([
+                    routine['routine_id'],
+                    routine['name'],
+                    routine['order'],
+                    ', '.join(routine['item_ids'])
+                ])
+            zip_file.writestr('routines.csv', routines_csv.getvalue())
+
+            # Routines JSON
+            zip_file.writestr('routines.json', json.dumps(routines_with_items, indent=2))
+
+            # ===== CHORD CHARTS =====
+            item_ids = [int(item.get('B')) for item in items if item.get('B')]
+            charts_by_item = data_layer.batch_get_chord_charts(item_ids)
+
+            items_with_charts = []
+            for item in items:
+                item_id = item.get('B', '')
+                if item_id and str(item_id) in charts_by_item:
+                    charts = charts_by_item[str(item_id)]
+                    if charts:
+                        items_with_charts.append({
+                            'item_id': item_id,
+                            'item_title': item.get('C', ''),
+                            'tuning': item.get('H', ''),
+                            'charts': charts
+                        })
+
+            chord_charts_data = {
+                'exported_at': datetime.utcnow().isoformat(),
+                'items': items_with_charts
+            }
+            zip_file.writestr('chord-charts.json', json.dumps(chord_charts_data, indent=2))
+            # Note: PDF chord charts are generated client-side with SVGuitar for proper visual rendering
+
+            # ===== PRACTICE HISTORY (skip old PDF generation) =====
+            # The following PDF generation code has been removed - client-side now handles it
+            if False and items_with_charts:  # Disabled - client generates PDFs with proper chord diagrams
+                try:
+                    from fpdf import FPDF
+
+                    pdf = FPDF(orientation='L', unit='mm', format='A4')  # Landscape A4
+                    pdf.set_auto_page_break(auto=True, margin=15)
+                    pdf.add_page()
+
+                    # Title
+                    pdf.set_font('Helvetica', 'B', 16)
+                    pdf.cell(0, 10, 'Guitar Practice Routine App - Chord Charts', align='C', new_x='LMARGIN', new_y='NEXT')
+                    pdf.set_font('Helvetica', '', 10)
+                    pdf.cell(0, 6, f'Exported {export_date}', align='C', new_x='LMARGIN', new_y='NEXT')
+                    pdf.ln(5)
+
+                    page_width = pdf.w - 20  # margins
+                    col_width = page_width / 5  # 5 columns
+                    chart_height = 35
+
+                    for item in items_with_charts:
+                        # Item header
+                        pdf.set_font('Helvetica', 'B', 12)
+                        pdf.cell(0, 8, item.get('item_title', 'Untitled'), new_x='LMARGIN', new_y='NEXT')
+
+                        if item.get('tuning'):
+                            pdf.set_font('Helvetica', 'I', 9)
+                            pdf.cell(0, 5, f"Tuning: {item['tuning']}", new_x='LMARGIN', new_y='NEXT')
+
+                        pdf.ln(2)
+
+                        # Group charts by section
+                        sections = {}
+                        for chart in item.get('charts', []):
+                            section = chart.get('sectionLabel', 'General')
+                            if section not in sections:
+                                sections[section] = []
+                            sections[section].append(chart)
+
+                        for section_name, charts in sections.items():
+                            # Section header
+                            pdf.set_font('Helvetica', 'B', 10)
+                            pdf.cell(0, 6, section_name, new_x='LMARGIN', new_y='NEXT')
+
+                            # Charts in 5-column layout
+                            start_y = pdf.get_y()
+                            col_idx = 0
+
+                            for chart in charts:
+                                if col_idx >= 5:
+                                    col_idx = 0
+                                    pdf.ln(chart_height)
+                                    start_y = pdf.get_y()
+
+                                x = 10 + (col_idx * col_width)
+                                y = start_y
+
+                                # Check if we need a new page
+                                if y + chart_height > pdf.h - 20:
+                                    pdf.add_page()
+                                    start_y = pdf.get_y()
+                                    y = start_y
+
+                                # Chord name
+                                pdf.set_xy(x, y)
+                                pdf.set_font('Helvetica', 'B', 9)
+                                pdf.cell(col_width - 2, 5, chart.get('title', 'Unknown'), new_x='LEFT', new_y='NEXT')
+
+                                pdf.set_font('Courier', '', 7)
+                                line_y = y + 5
+
+                                # Starting fret
+                                if chart.get('startingFret', 1) > 1:
+                                    pdf.set_xy(x, line_y)
+                                    pdf.cell(col_width - 2, 3, f"Fret: {chart['startingFret']}", new_x='LEFT', new_y='NEXT')
+                                    line_y += 3
+
+                                # Finger positions
+                                fingers = chart.get('fingers', [])
+                                if fingers:
+                                    fret_info = ' '.join([f"{f[0]}:{f[1]}" for f in fingers if isinstance(f, list) and len(f) >= 2])
+                                    if fret_info:
+                                        pdf.set_xy(x, line_y)
+                                        pdf.cell(col_width - 2, 3, f"Frets: {fret_info[:20]}", new_x='LEFT', new_y='NEXT')
+                                        line_y += 3
+
+                                # Open strings
+                                open_strings = chart.get('openStrings', [])
+                                if open_strings:
+                                    pdf.set_xy(x, line_y)
+                                    pdf.cell(col_width - 2, 3, f"Open: {', '.join(map(str, open_strings))}", new_x='LEFT', new_y='NEXT')
+                                    line_y += 3
+
+                                # Muted strings
+                                muted = chart.get('mutedStrings', [])
+                                if muted:
+                                    pdf.set_xy(x, line_y)
+                                    pdf.cell(col_width - 2, 3, f"Muted: {', '.join(map(str, muted))}", new_x='LEFT', new_y='NEXT')
+                                    line_y += 3
+
+                                # Barres
+                                barres = chart.get('barres', [])
+                                if barres:
+                                    barre_str = ', '.join([f"Bar {b['fret']}" for b in barres if isinstance(b, dict)])
+                                    if barre_str:
+                                        pdf.set_xy(x, line_y)
+                                        pdf.cell(col_width - 2, 3, barre_str[:20], new_x='LEFT', new_y='NEXT')
+
+                                # Draw box around chord
+                                pdf.set_draw_color(150, 150, 150)
+                                pdf.rect(x, y, col_width - 2, chart_height - 2)
+
+                                col_idx += 1
+
+                            pdf.ln(chart_height + 5)
+
+                        pdf.ln(3)
+
+                    # Generate PDF bytes
+                    pdf_bytes = pdf.output()
+                    zip_file.writestr('chord-charts.pdf', pdf_bytes)
+                except Exception as pdf_error:
+                    app.logger.warning(f"Could not generate chord charts PDF: {pdf_error}")
+                    # Continue without PDF - JSON is already included
+
+            # ===== PRACTICE HISTORY =====
+            events = db.query(PracticeEvent).filter_by(user_id=user_id).order_by(PracticeEvent.created_at.desc()).all()
+
+            # Practice History CSV
+            history_csv = StringIO()
+            writer = csv.writer(history_csv)
+            writer.writerow(['Event Type', 'Item Name', 'Routine Name', 'Duration (seconds)', 'Created At'])
+            for event in events:
+                writer.writerow([
+                    event.event_type,
+                    event.item_name or '',
+                    event.routine_name or '',
+                    event.duration_seconds or '',
+                    event.created_at.isoformat()
+                ])
+            zip_file.writestr('practice-history.csv', history_csv.getvalue())
+
+            # Practice History JSON
+            events_json = [{
+                'event_type': event.event_type,
+                'item_name': event.item_name,
+                'routine_name': event.routine_name,
+                'duration_seconds': event.duration_seconds,
+                'additional_data': event.additional_data,
+                'created_at': event.created_at.isoformat()
+            } for event in events]
+            zip_file.writestr('practice-history.json', json.dumps(events_json, indent=2))
+
+        # Prepare ZIP file for download
+        zip_buffer.seek(0)
+
+        response = app.response_class(
+            response=zip_buffer.getvalue(),
+            mimetype='application/zip'
+        )
+        response.headers['Content-Disposition'] = f'attachment; filename=gpra-export-{export_date}.zip'
+        return response
+
+    except Exception as e:
+        app.logger.error(f"Error exporting all data for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to export data"}), 500
+
+
 @app.route('/api/webhooks/stripe', methods=['POST'])
 def stripe_webhook():
     """Handle Stripe webhook events"""

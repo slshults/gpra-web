@@ -789,7 +789,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
               onChange={(e) => setTitle(e.target.value)}
               onBlur={() => tryAutofill(title)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
                   tryAutofill(title);
                 }

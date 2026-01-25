@@ -13,6 +13,7 @@ ENV/
 *.env
 .python-version
 instance/
+CLAUDE.md
 
 # Credentials and secrets
 token.json
@@ -29,7 +30,6 @@ sudoers.d.gpra
 *.sublime-project
 .obsidian/
 *.code-workspace
-CLAUDE.md
 
 # Build and cache
 dist/
@@ -72,7 +72,7 @@ celerybeat-schedule
 *[Cc]opy*
 *2024*
 *2025*
-CLAUDE.md~
+*~
 *.backup
 
 # Migration documentation (local reference only)

@@ -148,8 +148,26 @@ const AccountDeletion = ({ userTier, unpluggedMode }) => {
     window.location.href = stripePortalUrl || '/login';
   };
 
-  const downloadPracticeData = () => {
-    window.open('/api/user/practice-data/download?format=csv', '_blank');
+  const downloadAllData = async () => {
+    try {
+      const response = await fetch('/api/user/export/all');
+      if (!response.ok) {
+        throw new Error('Failed to download data');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const date = new Date().toISOString().split('T')[0];
+      a.download = `gpra-export-${date}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading data:', error);
+      setMessage({ type: 'error', text: 'Failed to download your data. Please try again.' });
+    }
   };
 
   const handleCancelDeletion = async () => {
@@ -250,16 +268,16 @@ const AccountDeletion = ({ userTier, unpluggedMode }) => {
           <div className="flex items-center justify-between bg-blue-900/20 border border-blue-700 rounded-md p-4">
             <div>
               <h3 className="text-sm font-semibold text-gray-200">Download your data first</h3>
-              <p className="text-xs text-gray-400">Export your practice history before deletion</p>
+              <p className="text-xs text-gray-400">Your items, routines, chord charts, and practice history</p>
             </div>
             <Button
-              onClick={downloadPracticeData}
+              onClick={downloadAllData}
               variant="outline"
               size="sm"
               className="border-blue-600 text-blue-400 hover:bg-blue-900/40"
             >
               <Download className="w-4 h-4 mr-2" />
-              Download (90 days)
+              Download all your data
             </Button>
           </div>
 

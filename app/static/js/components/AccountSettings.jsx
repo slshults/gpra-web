@@ -10,9 +10,16 @@ import {
   CardTitle,
 } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
-import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink, Play, Pause, ChevronDown, ChevronRight, Pencil, Volume2 } from 'lucide-react';
+import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink, Play, Pause, ChevronDown, ChevronRight, Pencil, Volume2, Download } from 'lucide-react';
 import PricingSection from './PricingSection';
 import AccountDeletion from './AccountDeletion';
+import {
+  downloadItems,
+  downloadRoutines,
+  downloadChordChartsJson,
+  downloadAllData,
+  generateChordChartsPDF
+} from '@utils/downloads';
 
 const AccountSettings = () => {
   const [apiKey, setApiKey] = useState('');
@@ -31,6 +38,14 @@ const AccountSettings = () => {
   const [showExpirationWarning, setShowExpirationWarning] = useState(false);
   const [expirationDays, setExpirationDays] = useState(0);
   const [downloadingData, setDownloadingData] = useState(false);
+
+  // Extended download states for "Download all the things!" feature
+  const [downloadingItems, setDownloadingItems] = useState(false);
+  const [downloadingRoutines, setDownloadingRoutines] = useState(false);
+  const [downloadingChordChartsJson, setDownloadingChordChartsJson] = useState(false);
+  const [downloadingChordChartsPdf, setDownloadingChordChartsPdf] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  const [downloadError, setDownloadError] = useState(null);
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -297,6 +312,72 @@ const AccountSettings = () => {
       console.error('Download failed:', error);
     } finally {
       setDownloadingData(false);
+    }
+  };
+
+  // Extended download handlers for "Download all the things!"
+  const handleDownloadItems = async (format) => {
+    setDownloadingItems(true);
+    setDownloadError(null);
+    try {
+      await downloadItems(format);
+    } catch (error) {
+      console.error('Download items failed:', error);
+      setDownloadError(`Failed to download items: ${error.message}`);
+    } finally {
+      setDownloadingItems(false);
+    }
+  };
+
+  const handleDownloadRoutines = async (format) => {
+    setDownloadingRoutines(true);
+    setDownloadError(null);
+    try {
+      await downloadRoutines(format);
+    } catch (error) {
+      console.error('Download routines failed:', error);
+      setDownloadError(`Failed to download routines: ${error.message}`);
+    } finally {
+      setDownloadingRoutines(false);
+    }
+  };
+
+  const handleDownloadChordChartsJson = async () => {
+    setDownloadingChordChartsJson(true);
+    setDownloadError(null);
+    try {
+      await downloadChordChartsJson();
+    } catch (error) {
+      console.error('Download chord charts JSON failed:', error);
+      setDownloadError(`Failed to download chord charts: ${error.message}`);
+    } finally {
+      setDownloadingChordChartsJson(false);
+    }
+  };
+
+  const handleDownloadChordChartsPdf = async () => {
+    setDownloadingChordChartsPdf(true);
+    setDownloadError(null);
+    try {
+      await generateChordChartsPDF();
+    } catch (error) {
+      console.error('Generate chord charts PDF failed:', error);
+      setDownloadError(`Failed to generate PDF: ${error.message}`);
+    } finally {
+      setDownloadingChordChartsPdf(false);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    setDownloadingAll(true);
+    setDownloadError(null);
+    try {
+      await downloadAllData();
+    } catch (error) {
+      console.error('Download all data failed:', error);
+      setDownloadError(`Failed to download data bundle: ${error.message}`);
+    } finally {
+      setDownloadingAll(false);
     }
   };
 
@@ -781,7 +862,7 @@ const AccountSettings = () => {
                           placeholder="Username"
                           disabled={usernameLoading}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveUsername();
+                            if (e.key === 'Enter' && !e.shiftKey) saveUsername();
                             if (e.key === 'Escape') cancelEditingUsername();
                           }}
                           autoFocus
@@ -844,7 +925,7 @@ const AccountSettings = () => {
                           placeholder="Email"
                           disabled={emailLoading}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveEmail();
+                            if (e.key === 'Enter' && !e.shiftKey) saveEmail();
                             if (e.key === 'Escape') cancelEditingEmail();
                           }}
                           autoFocus
@@ -1187,7 +1268,7 @@ const AccountSettings = () => {
             )}
           </Card>
 
-          {/* Practice Data Download Card - Collapsible */}
+          {/* Download Your Data Card - Collapsible */}
           <Card className="bg-gray-800 border-gray-700">
             <CardHeader
               className="cursor-pointer select-none"
@@ -1196,9 +1277,9 @@ const AccountSettings = () => {
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-gray-100">Download practice history</CardTitle>
+                  <CardTitle className="text-gray-100">Download your data</CardTitle>
                   <CardDescription className="text-gray-400">
-                    Download your practice history (last 90 days)
+                    Export your practice data, items, routines, and chord charts
                   </CardDescription>
                 </div>
                 {collapsedCards.practiceData ? (
@@ -1209,7 +1290,17 @@ const AccountSettings = () => {
               </div>
             </CardHeader>
             {!collapsedCards.practiceData && (
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
+                {/* Error Display */}
+                {downloadError && (
+                  <Alert className="bg-red-900/30 border-red-700">
+                    <X className="h-4 w-4 text-red-400" />
+                    <AlertDescription className="text-gray-300">
+                      {downloadError}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {/* Expiration Warning */}
                 {showExpirationWarning && (
                   <Alert className="bg-orange-900/30 border-orange-700">
@@ -1230,46 +1321,181 @@ const AccountSettings = () => {
                   </Alert>
                 )}
 
-                {/* Download Buttons */}
-                <div className="flex gap-3 flex-col sm:flex-row">
-                  <Button
-                    onClick={() => downloadPracticeData('csv')}
-                    disabled={downloadingData}
-                    className="bg-orange-600 hover:bg-orange-700 flex-1"
-                  >
-                    {downloadingData ? (
-                      <>
+                {/* Practice History Section */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-gray-200">Practice history (last 90 days)</h3>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      onClick={() => downloadPracticeData('csv')}
+                      disabled={downloadingData}
+                      size="sm"
+                      className="bg-orange-600 hover:bg-orange-700"
+                      data-ph-capture-attribute-button="download-practice-csv"
+                    >
+                      {downloadingData ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Downloading...
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-4 h-4 mr-2" />
-                        Download CSV
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    onClick={() => downloadPracticeData('json')}
-                    disabled={downloadingData}
-                    variant="outline"
-                    className="bg-gray-700 hover:bg-gray-600 border-gray-600 flex-1"
-                  >
-                    {downloadingData ? (
-                      <>
+                      ) : (
+                        <Download className="w-4 h-4 mr-2" />
+                      )}
+                      CSV
+                    </Button>
+                    <Button
+                      onClick={() => downloadPracticeData('json')}
+                      disabled={downloadingData}
+                      size="sm"
+                      variant="outline"
+                      className="bg-gray-700 hover:bg-gray-600 border-gray-600"
+                      data-ph-capture-attribute-button="download-practice-json"
+                    >
+                      {downloadingData ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Downloading...
-                      </>
-                    ) : (
-                      'Download JSON'
-                    )}
-                  </Button>
+                      ) : (
+                        <Download className="w-4 h-4 mr-2" />
+                      )}
+                      JSON
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Practice data is automatically deleted after 90 days.
+                  </p>
                 </div>
 
-                {/* Info note */}
-                <p className="text-xs text-gray-400">
-                  Practice data is automatically deleted after 90 days. Download your data regularly to keep permanent records.
-                </p>
+                {/* Items Section */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-gray-200">All practice items</h3>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      onClick={() => handleDownloadItems('csv')}
+                      disabled={downloadingItems}
+                      size="sm"
+                      className="bg-orange-600 hover:bg-orange-700"
+                      data-ph-capture-attribute-button="download-items-csv"
+                    >
+                      {downloadingItems ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4 mr-2" />
+                      )}
+                      CSV
+                    </Button>
+                    <Button
+                      onClick={() => handleDownloadItems('json')}
+                      disabled={downloadingItems}
+                      size="sm"
+                      variant="outline"
+                      className="bg-gray-700 hover:bg-gray-600 border-gray-600"
+                      data-ph-capture-attribute-button="download-items-json"
+                    >
+                      {downloadingItems ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4 mr-2" />
+                      )}
+                      JSON
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Routines Section */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-gray-200">All routines</h3>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      onClick={() => handleDownloadRoutines('csv')}
+                      disabled={downloadingRoutines}
+                      size="sm"
+                      className="bg-orange-600 hover:bg-orange-700"
+                      data-ph-capture-attribute-button="download-routines-csv"
+                    >
+                      {downloadingRoutines ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4 mr-2" />
+                      )}
+                      CSV
+                    </Button>
+                    <Button
+                      onClick={() => handleDownloadRoutines('json')}
+                      disabled={downloadingRoutines}
+                      size="sm"
+                      variant="outline"
+                      className="bg-gray-700 hover:bg-gray-600 border-gray-600"
+                      data-ph-capture-attribute-button="download-routines-json"
+                    >
+                      {downloadingRoutines ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4 mr-2" />
+                      )}
+                      JSON
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Chord Charts Section */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-gray-200">All chord charts</h3>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      onClick={handleDownloadChordChartsPdf}
+                      disabled={downloadingChordChartsPdf}
+                      size="sm"
+                      className="bg-orange-600 hover:bg-orange-700"
+                      data-ph-capture-attribute-button="download-chords-pdf"
+                    >
+                      {downloadingChordChartsPdf ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4 mr-2" />
+                      )}
+                      PDF
+                    </Button>
+                    <Button
+                      onClick={handleDownloadChordChartsJson}
+                      disabled={downloadingChordChartsJson}
+                      size="sm"
+                      variant="outline"
+                      className="bg-gray-700 hover:bg-gray-600 border-gray-600"
+                      data-ph-capture-attribute-button="download-chords-json"
+                    >
+                      {downloadingChordChartsJson ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4 mr-2" />
+                      )}
+                      JSON
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-gray-700 pt-4">
+                  {/* Download Everything Section */}
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium text-gray-200">Download all your data</h3>
+                    <p className="text-xs text-gray-400 mb-2">
+                      Get everything in one ZIP file: items, routines, chord charts, and practice history.
+                    </p>
+                    <Button
+                      onClick={handleDownloadAll}
+                      disabled={downloadingAll}
+                      className="bg-orange-600 hover:bg-orange-700 w-full sm:w-auto"
+                      data-ph-capture-attribute-button="download-all-zip"
+                    >
+                      {downloadingAll ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Preparing ZIP...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 mr-2" />
+                          Download ZIP
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             )}
           </Card>
