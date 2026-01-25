@@ -910,10 +910,11 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
             variant={editMode === 'dots' ? 'default' : 'outline'}
             onClick={() => setEditMode('dots')}
             className={`flex-1 ${
-              editMode === 'dots' 
-                ? 'bg-blue-700 hover:bg-blue-800 text-white' 
+              editMode === 'dots'
+                ? 'bg-blue-700 hover:bg-blue-800 text-white'
                 : 'bg-black hover:bg-gray-800 text-gray-300 border border-gray-600'
             }`}
+            data-ph-capture-attribute-button="chord-editor-dots-mode"
           >
             Edit dots
           </Button>
@@ -923,10 +924,11 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
               setEditMode('fingers');
             }}
             className={`flex-1 ${
-              editMode === 'fingers' 
-                ? '!bg-blue-800 hover:!bg-blue-900 !text-white !border !border-blue-600' 
+              editMode === 'fingers'
+                ? '!bg-blue-800 hover:!bg-blue-900 !text-white !border !border-blue-600'
                 : '!bg-black hover:!bg-gray-800 !text-gray-300 !border !border-gray-600'
             }`}
+            data-ph-capture-attribute-button="chord-editor-fingers-mode"
           >
             Edit fingers
           </Button>
@@ -934,10 +936,11 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
             variant={editMode === 'barres' ? 'default' : 'outline'}
             onClick={() => setEditMode('barres')}
             className={`flex-1 ${
-              editMode === 'barres' 
-                ? '!bg-green-700 hover:!bg-green-800 !text-white !border !border-green-600' 
+              editMode === 'barres'
+                ? '!bg-green-700 hover:!bg-green-800 !text-white !border !border-green-600'
                 : '!bg-black hover:!bg-gray-800 !text-gray-300 !border !border-gray-600'
             }`}
+            data-ph-capture-attribute-button="chord-editor-barres-mode"
           >
             Edit barres
           </Button>
@@ -983,9 +986,9 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
 
         {/* Action buttons */}
         <div className="flex gap-2">
-          <Button 
+          <Button
             onClick={() => {
-              
+
               const saveData = {
                 title,
                 startingFret,
@@ -1012,18 +1015,20 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
               });
 
               onSave(saveData);
-            }} 
+            }}
             className={`flex-1 ${title.trim() ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
             disabled={!title.trim()}
+            data-ph-capture-attribute-button={editingChordId ? "chord-editor-update" : "chord-editor-save"}
           >
             {editingChordId ? 'Update chord chart' : 'Add chord chart'}
           </Button>
-          
+
           {onCancel && (
-            <Button 
+            <Button
               onClick={onCancel}
               variant="outline"
               className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-700"
+              data-ph-capture-attribute-button="chord-editor-cancel"
             >
               Cancel
             </Button>

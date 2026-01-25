@@ -25,6 +25,8 @@ const AuthButton = () => {
                   variant="ghost"
                   size="sm"
                   className="text-gray-400 hover:text-gray-200 h-auto py-1"
+                  aria-label="Account settings"
+                  data-ph-capture-attribute-button="account-settings"
                 >
                   <Settings className="h-4 w-4" />
                 </Button>
@@ -39,6 +41,7 @@ const AuthButton = () => {
             variant="ghost"
             size="sm"
             className="text-gray-400 hover:text-gray-200 h-auto py-1"
+            data-ph-capture-attribute-button="logout"
           >
             logout
           </Button>
@@ -51,12 +54,13 @@ const AuthButton = () => {
           onClick={handleLogin}
           variant="default"
           className="bg-blue-600 hover:bg-blue-700 text-gray-100"
+          data-ph-capture-attribute-button="login"
         >
           {error ? (
             "Auth Error - Click to retry"
           ) : (
             <>
-              <LogOut className="mr-2 h-4 w-4" />
+              <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
               Let me in
             </>
           )}

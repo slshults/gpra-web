@@ -49,36 +49,42 @@ import '../utils/logging';
 // Data transformation no longer needed - DataLayer returns proper format directly
 
 // Custom Play icon with solid triangle
-const PlayIcon = ({ className }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    viewBox="0 0 24 24" 
-    fill="currentColor" 
+const PlayIcon = ({ className, ...props }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
     className={className}
+    aria-hidden="true"
+    {...props}
   >
     <path d="M8 5v14l11-7z" />
   </svg>
 );
 
 // Custom Pause icon with solid bars
-const PauseIcon = ({ className }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    viewBox="0 0 24 24" 
-    fill="currentColor" 
+const PauseIcon = ({ className, ...props }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
     className={className}
+    aria-hidden="true"
+    {...props}
   >
     <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
   </svg>
 );
 
 // Custom Reset icon
-const ResetIcon = ({ className }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    viewBox="0 0 24 24" 
-    fill="currentColor" 
+const ResetIcon = ({ className, ...props }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
     className={className}
+    aria-hidden="true"
+    {...props}
   >
     <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
   </svg>
@@ -219,6 +225,7 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
           zIndex: 20
         }}
         aria-label="Edit chord chart"
+        data-ph-capture-attribute-button="edit-chord-chart"
       >
         ✏️
       </button>
@@ -238,6 +245,7 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
           zIndex: 20
         }}
         aria-label="Delete chord chart"
+        data-ph-capture-attribute-button="delete-chord-chart"
       >
         ×
       </button>
@@ -258,6 +266,7 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
             zIndex: 20
           }}
           aria-label="Insert chord after this one"
+          data-ph-capture-attribute-button="insert-chord-after"
         >
           +
         </button>
@@ -3512,6 +3521,7 @@ export const PracticePage = () => {
             onClick={resetProgress}
             className="text-gray-300 hover:text-white"
             title="Reset progress and all timers"
+            data-ph-capture-attribute-button="reset-routine-progress"
           >
             Reset progress
           </Button>
@@ -3566,6 +3576,7 @@ export const PracticePage = () => {
                         : 'border-gray-400 text-transparent hover:border-gray-300'}`}
                     onClick={(e) => toggleComplete(routineItem['A'], e)}  // Column A is ID
                     aria-label={isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
+                    data-ph-capture-attribute-button="toggle-item-complete"
                   >
                     <Check className="h-4 w-4" aria-hidden="true" />
                   </button>
@@ -3587,6 +3598,7 @@ export const PracticePage = () => {
                       className="text-gray-400"
                       onClick={(e) => resetTimer(routineItem['A'], e)}
                       title="Reset timer"
+                      data-ph-capture-attribute-button="reset-timer-header"
                     >
                       <ResetIcon className="h-5 w-5" />
                     </Button>
@@ -3605,6 +3617,8 @@ export const PracticePage = () => {
                       onClick={(e) => toggleTimer(routineItem['A'], e)}  // Column A is ID
                       className="w-48 h-48 rounded-full border-4 border-gray-600 flex items-center justify-center hover:border-gray-500 transition-colors"
                       title={isTimerActive ? "Pause timer" : "Start timer"}
+                      aria-label={isTimerActive ? "Pause practice timer" : "Start practice timer"}
+                      data-ph-capture-attribute-button={isTimerActive ? "pause-practice-timer" : "start-practice-timer"}
                     >
                       {isTimerActive ? (
                         <PauseIcon className="h-24 w-24 text-red-500" />
@@ -3620,6 +3634,7 @@ export const PracticePage = () => {
                         <button
                           onClick={(e) => resetTimer(routineItem['A'], e)}  // Column A is ID
                           className="flex items-center space-x-2 text-gray-400 hover:text-gray-300 transition-colors"
+                          data-ph-capture-attribute-button="reset-practice-timer"
                         >
                           <ResetIcon className="h-4 w-4" />
                           <span>Reset Timer</span>
@@ -3633,6 +3648,7 @@ export const PracticePage = () => {
                         variant="outline"
                         className="max-w-md text-gray-300 hover:text-white"
                         onClick={(e) => toggleComplete(routineItem['A'], e)}
+                        data-ph-capture-attribute-button="mark-item-done"
                       >
                         Mark done
                       </Button>
@@ -3726,11 +3742,13 @@ export const PracticePage = () => {
                                   onClick={() => deleteSection(itemReferenceId, section.id)}
                                   disabled={deletingSection.size > 0}
                                   className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                                    deletingSection.size > 0 
-                                      ? 'bg-gray-500 cursor-not-allowed' 
+                                    deletingSection.size > 0
+                                      ? 'bg-gray-500 cursor-not-allowed'
                                       : 'bg-red-600 hover:bg-red-700 cursor-pointer'
                                   } text-white`}
                                   title={deletingSection.size > 0 ? "Deleting..." : "Delete section"}
+                                  aria-label="Delete chord section"
+                                  data-ph-capture-attribute-button="delete-chord-section"
                                 >
                                   {deletingSection.size > 0 ? (
                                     <Loader2 className="h-3 w-3 animate-spin" />

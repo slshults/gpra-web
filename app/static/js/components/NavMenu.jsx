@@ -35,6 +35,7 @@ const NavMenu = ({ className, userStatus, onUnpluggedAttempt }) => {
             onClick={() => handleNavClick(item)}
             aria-current={activePage === item ? "page" : undefined}
             data-tour={item === 'Practice' ? 'practice-tab' : item === 'Routines' ? 'routines-tab' : item === 'Items' ? 'items-tab' : undefined}
+            data-ph-capture-attribute-nav={`nav-${item.toLowerCase()}`}
           >
             {item}
           </Button>

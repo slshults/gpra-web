@@ -723,6 +723,7 @@ const AccountSettings = () => {
           variant={mobileView === 'settings' ? 'default' : 'outline'}
           onClick={() => setMobileView('settings')}
           className={mobileView === 'settings' ? 'bg-orange-600' : 'bg-gray-700 border-gray-600'}
+          data-ph-capture-attribute-button="mobile-view-settings"
         >
           Settings
         </Button>
@@ -730,6 +731,7 @@ const AccountSettings = () => {
           variant={mobileView === 'subscription' ? 'default' : 'outline'}
           onClick={() => setMobileView('subscription')}
           className={mobileView === 'subscription' ? 'bg-orange-600' : 'bg-gray-700 border-gray-600'}
+          data-ph-capture-attribute-button="mobile-view-subscription"
         >
           Subscription
         </Button>
@@ -744,6 +746,7 @@ const AccountSettings = () => {
             <CardHeader
               className="cursor-pointer select-none"
               onClick={() => toggleCard('overview')}
+              data-ph-capture-attribute-toggle="settings-overview-card"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -809,8 +812,10 @@ const AccountSettings = () => {
                             onClick={startEditingUsername}
                             className="text-gray-400 hover:text-gray-200 p-1"
                             title="Edit username"
+                            aria-label="Edit username"
+                            data-ph-capture-attribute-button="edit-username"
                           >
-                            <Pencil className="w-4 h-4" />
+                            <Pencil className="w-4 h-4" aria-hidden="true" />
                           </button>
                         )}
                       </div>
@@ -870,8 +875,10 @@ const AccountSettings = () => {
                             onClick={startEditingEmail}
                             className="text-gray-400 hover:text-gray-200 p-1"
                             title="Edit email"
+                            aria-label="Edit email"
+                            data-ph-capture-attribute-button="edit-email"
                           >
-                            <Pencil className="w-4 h-4" />
+                            <Pencil className="w-4 h-4" aria-hidden="true" />
                           </button>
                         )}
                       </div>
@@ -918,6 +925,7 @@ const AccountSettings = () => {
             <CardHeader
               className="cursor-pointer select-none"
               onClick={() => toggleCard('timerVolume')}
+              data-ph-capture-attribute-toggle="settings-timer-volume-card"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -995,8 +1003,9 @@ const AccountSettings = () => {
                   <Button
                     onClick={saveTimerVolume}
                     className="bg-orange-600 hover:bg-orange-700"
+                    data-ph-capture-attribute-button="save-timer-volume"
                   >
-                    <Check className="w-4 h-4 mr-2" />
+                    <Check className="w-4 h-4 mr-2" aria-hidden="true" />
                     Save
                   </Button>
                   {timerVolumeMessage && (
@@ -1015,6 +1024,7 @@ const AccountSettings = () => {
               className="cursor-pointer select-none"
               onClick={() => toggleCard('apiKey')}
               data-tour="api-key-card-header"
+              data-ph-capture-attribute-toggle="settings-api-key-card"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -1091,8 +1101,10 @@ const AccountSettings = () => {
                         onClick={() => setShowKey(!showKey)}
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
                         disabled={loading || validating}
+                        aria-label={showKey ? "Hide API key" : "Show API key"}
+                        data-ph-capture-attribute-button="toggle-api-key-visibility"
                       >
-                        {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showKey ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
                       </button>
                     </div>
                     <Button
@@ -1100,9 +1112,10 @@ const AccountSettings = () => {
                       disabled={!apiKey.trim() || loading || validating}
                       variant="outline"
                       className="bg-gray-700 hover:bg-gray-600 border-gray-600"
+                      data-ph-capture-attribute-button="validate-api-key"
                     >
                       {validating ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                       ) : (
                         'Validate'
                       )}
@@ -1142,15 +1155,16 @@ const AccountSettings = () => {
                     onClick={saveKey}
                     disabled={!apiKey.trim() || loading || validating}
                     className="bg-orange-600 hover:bg-orange-700 flex-1"
+                    data-ph-capture-attribute-button="save-api-key"
                   >
                     {loading ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />
                         Saving...
                       </>
                     ) : (
                       <>
-                        <Check className="w-4 h-4 mr-2" />
+                        <Check className="w-4 h-4 mr-2" aria-hidden="true" />
                         Save API key
                       </>
                     )}
@@ -1162,8 +1176,10 @@ const AccountSettings = () => {
                       disabled={loading}
                       variant="destructive"
                       className="bg-red-900 hover:bg-red-800"
+                      aria-label="Delete API key"
+                      data-ph-capture-attribute-button="delete-api-key"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4" aria-hidden="true" />
                     </Button>
                   )}
                 </div>
@@ -1176,6 +1192,7 @@ const AccountSettings = () => {
             <CardHeader
               className="cursor-pointer select-none"
               onClick={() => toggleCard('practiceData')}
+              data-ph-capture-attribute-toggle="settings-practice-data-card"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -1262,6 +1279,7 @@ const AccountSettings = () => {
             <CardHeader
               className="cursor-pointer select-none"
               onClick={() => toggleCard('changePassword')}
+              data-ph-capture-attribute-toggle="settings-change-password-card"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -1416,6 +1434,7 @@ const AccountSettings = () => {
             <CardHeader
               className="cursor-pointer select-none"
               onClick={() => toggleCard('analytics')}
+              data-ph-capture-attribute-toggle="settings-analytics-card"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -1482,6 +1501,7 @@ const AccountSettings = () => {
             <CardHeader
               className="cursor-pointer select-none"
               onClick={() => toggleCard('guidedTour')}
+              data-ph-capture-attribute-toggle="settings-guided-tour-card"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -1502,8 +1522,9 @@ const AccountSettings = () => {
                 <Button
                   onClick={restartTour}
                   className="bg-orange-600 hover:bg-orange-700 w-full"
+                  data-ph-capture-attribute-button="restart-guided-tour"
                 >
-                  <Play className="w-4 h-4 mr-2" />
+                  <Play className="w-4 h-4 mr-2" aria-hidden="true" />
                   Restart tour
                 </Button>
               </CardContent>
@@ -1515,6 +1536,7 @@ const AccountSettings = () => {
             <CardHeader
               className="cursor-pointer select-none"
               onClick={() => toggleCard('dangerZone')}
+              data-ph-capture-attribute-toggle="settings-danger-zone-card"
             >
               <div className="flex items-center justify-between">
                 <div>

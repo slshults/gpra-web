@@ -62,8 +62,8 @@ const SortableItem = React.memo(({ item, itemDetails, handleOpenChordCharts }) =
       }`}
     >
       <div className="flex items-center">
-        <div {...attributes} {...listeners}>
-          <GripVertical className="h-5 w-5 text-gray-500 mr-4 cursor-move" />
+        <div {...attributes} {...listeners} aria-label="Drag to reorder item" data-ph-capture-attribute-drag="routine-item-drag-handle">
+          <GripVertical className="h-5 w-5 text-gray-500 mr-4 cursor-move" aria-hidden="true" />
         </div>
         <span className="text-lg">{itemDetails?.['C'] || `Item ${item.routineEntry?.['B'] || item['B']}`}</span>
       </div>
@@ -77,12 +77,13 @@ const SortableItem = React.memo(({ item, itemDetails, handleOpenChordCharts }) =
           )}
           className="text-blue-400 hover:text-blue-300 hover:bg-gray-700 h-8 w-8"
           title="Click to add or edit chord charts"
+          data-ph-capture-attribute-button="routine-item-chord-charts"
         >
-          <ChordIcon className="h-5 w-5" />
+          <ChordIcon className="h-5 w-5" aria-hidden="true" />
           <span className="sr-only">Chord charts</span>
         </Button>
         {(item.routineEntry?.['D'] || item['D']) === 'TRUE' && (
-          <CheckCircle2 className="h-5 w-5 text-green-500" />
+          <CheckCircle2 className="h-5 w-5 text-green-500" aria-hidden="true" />
         )}
       </div>
     </div>
@@ -115,8 +116,8 @@ const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, ha
       } rounded-lg`}
     >
       <div className="flex items-center">
-        <div {...attributes} {...listeners}>
-          <GripVertical className="h-5 w-5 text-gray-500 mr-4 cursor-move" />
+        <div {...attributes} {...listeners} aria-label="Drag to reorder routine" data-ph-capture-attribute-drag="routine-drag-handle">
+          <GripVertical className="h-5 w-5 text-gray-500 mr-4 cursor-move" aria-hidden="true" />
         </div>
         <span>{routine.name}</span>
       </div>
@@ -127,6 +128,7 @@ const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, ha
           onClick={() => handleActivateRoutine(routine.ID)}
           className="text-green-500 hover:text-green-400"
           title="Make this the active routine"
+          data-ph-capture-attribute-button="activate-routine"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           <span className="sr-only">Activate routine</span>
@@ -137,6 +139,7 @@ const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, ha
           onClick={() => handleEditClick(routine)}
           className="text-blue-500 hover:text-blue-400"
           title="Edit routine"
+          data-ph-capture-attribute-button="edit-routine"
         >
           <Pencil className="h-4 w-4" aria-hidden="true" />
           <span className="sr-only">Edit routine</span>
@@ -147,6 +150,7 @@ const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, ha
           className="text-red-500 hover:text-red-400"
           onClick={() => handleDeleteClick(routine.ID)}
           title="Delete this routine"
+          data-ph-capture-attribute-button="delete-routine"
         >
           <X className="h-4 w-4" aria-hidden="true" />
           <span className="sr-only">Delete routine</span>
@@ -827,6 +831,7 @@ const RoutinesPage = () => {
                       onClick={handleCreateRoutine}
                       className="bg-blue-600 hover:bg-blue-700"
                       disabled={!newRoutineName.trim()}
+                      data-ph-capture-attribute-button="add-new-routine"
                     >
                       <Plus className="h-5 w-5 mr-2" aria-hidden="true" />
                       Add

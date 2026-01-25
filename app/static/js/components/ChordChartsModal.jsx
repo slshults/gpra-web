@@ -278,6 +278,8 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
         <button
           className="absolute top-1 right-1 bg-gray-700 text-gray-300 rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity z-10"
           onClick={handleMenuClick}
+          aria-label="Chord chart menu"
+          data-ph-capture-attribute-button="chord-chart-menu"
         >
           ⋮
         </button>
@@ -314,24 +316,28 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
           <button
             onClick={handleEditClick}
             className="w-full text-left px-4 py-2 text-gray-200 hover:bg-gray-600 rounded-t-lg flex items-center"
+            data-ph-capture-attribute-button="modal-edit-chord"
           >
             ✏️ Edit chord
           </button>
           <button
             onClick={handleInsertAfterClick}
             className="w-full text-left px-4 py-2 text-gray-200 hover:bg-gray-600 flex items-center"
+            data-ph-capture-attribute-button="modal-insert-chord-after"
           >
             ➕ Insert chord after
           </button>
           <button
             onClick={handleLineBreakClick}
             className="w-full text-left px-4 py-2 text-gray-200 hover:bg-gray-600 flex items-center"
+            data-ph-capture-attribute-button="modal-toggle-line-break"
           >
             {chart.hasLineBreakAfter ? '↩️ Remove line break' : '↵ Add line break after'}
           </button>
           <button
             onClick={handleDeleteClick}
             className="w-full text-left px-4 py-2 text-red-400 hover:bg-gray-600 rounded-b-lg flex items-center"
+            data-ph-capture-attribute-button="modal-delete-chord"
           >
             🗑️ Delete chord
           </button>

@@ -66,8 +66,8 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts }) 
       }`}
     >
       <div className="flex items-center min-w-0 flex-1">
-        <div {...attributes} {...listeners} className="flex-shrink-0">
-          <GripVertical className="h-6 w-6 text-gray-500 mr-2 sm:mr-4 cursor-move" />
+        <div {...attributes} {...listeners} className="flex-shrink-0" aria-label="Drag to reorder item" data-ph-capture-attribute-drag="item-drag-handle">
+          <GripVertical className="h-6 w-6 text-gray-500 mr-2 sm:mr-4 cursor-move" aria-hidden="true" />
         </div>
         <span className="text-base sm:text-xl">{item['C']}</span>
       </div>
@@ -78,6 +78,7 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts }) 
           onClick={() => onEdit(item)}
           className="hover:bg-gray-700"
           title="Edit item"
+          data-ph-capture-attribute-button="edit-item"
         >
           <Pencil className="h-5 w-5" aria-hidden="true" />
           <span className="sr-only">Edit item</span>
@@ -88,6 +89,7 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts }) 
           onClick={() => onOpenChordCharts(item['B'], item['C'])}
           className="text-blue-400 hover:text-blue-300 hover:bg-gray-700"
           title="Add or edit chord charts"
+          data-ph-capture-attribute-button="open-chord-charts-modal"
         >
           <ChordIcon className="h-5 w-5" aria-hidden="true" />
           <span className="sr-only">Chord charts</span>
@@ -98,6 +100,7 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts }) 
           onClick={handleDelete}
           className="text-red-500 hover:text-red-400 hover:bg-gray-700"
           title="Delete this item and remove it from all routines"
+          data-ph-capture-attribute-button="delete-item"
         >
           <Trash2 className="h-5 w-5" aria-hidden="true" />
           <span className="sr-only">Delete item</span>
@@ -244,6 +247,7 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
                 setEditingItem(null);
                 setIsEditOpen(true);
               }}
+              data-ph-capture-attribute-button="add-new-item"
             >
               <Plus className="mr-2 h-5 w-5" aria-hidden="true" />
               Add item

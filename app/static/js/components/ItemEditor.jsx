@@ -264,6 +264,8 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
                         handleFormChange('E', mins + (newSecs / 60));
                       }}
                       className="flex-1 px-1 text-gray-400 hover:text-white hover:bg-gray-700 text-xs leading-none"
+                      aria-label="Increase seconds by 15"
+                      data-ph-capture-attribute-button="duration-seconds-up"
                     >
                       ▲
                     </button>
@@ -276,6 +278,8 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
                         handleFormChange('E', mins + (newSecs / 60));
                       }}
                       className="flex-1 px-1 text-gray-400 hover:text-white hover:bg-gray-700 text-xs leading-none border-t border-gray-700"
+                      aria-label="Decrease seconds by 15"
+                      data-ph-capture-attribute-button="duration-seconds-down"
                     >
                       ▼
                     </button>
@@ -324,6 +328,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
                   variant={!showNotesPreview ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setShowNotesPreview(false)}
+                  data-ph-capture-attribute-button="notes-edit-mode"
                 >
                   Edit
                 </Button>
@@ -332,6 +337,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
                   variant={showNotesPreview ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setShowNotesPreview(true)}
+                  data-ph-capture-attribute-button="notes-preview-mode"
                 >
                   Preview
                 </Button>
@@ -360,6 +366,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
               variant="outline"
               onClick={() => onOpenChange(false)}
               className="text-gray-300 hover:text-white"
+              data-ph-capture-attribute-button="item-editor-cancel"
             >
               Cancel
             </Button>
@@ -367,6 +374,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
               type="submit"
               className="bg-blue-600 hover:bg-blue-700"
               disabled={!isDirty}
+              data-ph-capture-attribute-button="item-editor-save"
             >
               Save
             </Button>

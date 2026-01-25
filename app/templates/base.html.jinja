@@ -63,7 +63,7 @@
     {% block scripts %}{% endblock %}
 
     <!-- Theme Toggle (very small, de-emphasized) -->
-    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode" data-ph-capture-attribute-button="theme-toggle">
         <img id="light-mode-toggle"
              src="{{ url_for('static', filename='images/lightmodetoggle.png') }}"
              alt="Switch to Light Mode"

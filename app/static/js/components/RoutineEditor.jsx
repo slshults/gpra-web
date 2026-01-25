@@ -39,8 +39,10 @@ const AvailableItem = React.memo(({ item, onAdd }) => (
       size="sm"
       onClick={() => onAdd(item)}
       className="text-blue-500 hover:text-blue-400"
+      aria-label="Add item to routine"
+      data-ph-capture-attribute-button="routine-add-item"
     >
-      <Plus className="h-4 w-4" />
+      <Plus className="h-4 w-4" aria-hidden="true" />
     </Button>
   </div>
 ));
@@ -71,8 +73,8 @@ const SortableRoutineItem = React.memo(({ item, onRemove }) => {
       } rounded-lg`}
     >
       <div className="flex items-center">
-        <div {...attributes} {...listeners}>
-          <GripVertical className="h-5 w-5 text-gray-500 mr-4 cursor-move" />
+        <div {...attributes} {...listeners} aria-label="Drag to reorder item in routine" data-ph-capture-attribute-drag="routine-editor-drag-handle">
+          <GripVertical className="h-5 w-5 text-gray-500 mr-4 cursor-move" aria-hidden="true" />
         </div>
         <span className="text-lg">{item.itemDetails?.['C'] || 'Loading...'}</span>
       </div>
@@ -81,8 +83,10 @@ const SortableRoutineItem = React.memo(({ item, onRemove }) => {
         size="sm"
         onClick={() => onRemove(item.routineEntry?.['A'] || item['A'])}
         className="text-red-500 hover:text-red-400"
+        aria-label="Remove item from routine"
+        data-ph-capture-attribute-button="routine-remove-item"
       >
-        <X className="h-4 w-4" />
+        <X className="h-4 w-4" aria-hidden="true" />
       </Button>
     </div>
   );

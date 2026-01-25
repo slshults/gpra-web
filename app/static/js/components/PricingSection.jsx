@@ -348,6 +348,7 @@ const PricingSection = ({ currentTier = 'free' }) => {
               <CardHeader
                 className="cursor-pointer select-none"
                 onClick={() => toggleTier(tier.id)}
+                data-ph-capture-attribute-toggle={`pricing-tier-${tier.id}`}
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -430,6 +431,7 @@ const PricingSection = ({ currentTier = 'free' }) => {
                         ? 'bg-orange-600 hover:bg-orange-700'
                         : 'bg-gray-700 hover:bg-gray-600 border border-gray-600'
                     }`}
+                    data-ph-capture-attribute-button={index > currentTierIndex ? `upgrade-to-${tier.id}` : `downgrade-to-${tier.id}`}
                   >
                     {isLoadingThis ? (
                       <>
@@ -452,6 +454,7 @@ const PricingSection = ({ currentTier = 'free' }) => {
           <CardHeader
             className="cursor-pointer select-none"
             onClick={() => toggleTier('rollyourown')}
+            data-ph-capture-attribute-toggle="pricing-tier-rollyourown"
           >
             <div className="flex items-center justify-between">
               <div>
@@ -500,6 +503,7 @@ const PricingSection = ({ currentTier = 'free' }) => {
             <Button
               onClick={() => window.open('https://github.com/slshults/guitar-practice-routine-app_postgresql/blob/main/README.md', '_blank')}
               className="w-full bg-gray-700 hover:bg-gray-600 border border-gray-600"
+              data-ph-capture-attribute-button="github-roll-your-own"
             >
               Get it from GitHub
             </Button>
@@ -525,15 +529,16 @@ const PricingSection = ({ currentTier = 'free' }) => {
                 onClick={handleManageSubscription}
                 disabled={loading === 'portal'}
                 className="bg-orange-600 hover:bg-orange-700"
+                data-ph-capture-attribute-button="stripe-billing-portal"
               >
                 {loading === 'portal' ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />
                     Loading...
                   </>
                 ) : (
                   <>
-                    <CreditCard className="w-4 h-4 mr-2" />
+                    <CreditCard className="w-4 h-4 mr-2" aria-hidden="true" />
                     Stripe billing portal
                   </>
                 )}
