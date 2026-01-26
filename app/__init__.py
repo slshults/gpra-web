@@ -107,7 +107,7 @@ app.config['SESSION_REDIS'] = redis.from_url(
 app.logger.info("Using Redis sessions (fixes OAuth CSRF timing issues)")
 
 app.config['SESSION_PERMANENT'] = True  # Persist sessions across browser restarts
-app.config['SESSION_USE_SIGNER'] = True
+app.config['SESSION_USE_SIGNER'] = False  # Disabled: server-side sessions don't need signing (cookie only holds random ID, not data)
 
 # Monkey-patch Flask-Session to use our custom serializer
 # Strategy: Wrap the original __init__ and replace serializer immediately after creation
@@ -172,6 +172,15 @@ def set_session_cookie_domain():
     else:
         # localhost, 127.0.0.1, or unknown domain - use default (same-origin)
         app.config['SESSION_COOKIE_DOMAIN'] = None
+
+@app.before_request
+def debug_session_cookie():
+    """Log session cookie details for debugging."""
+    if os.getenv('DEBUG_SESSION'):
+        cookie = request.cookies.get(app.config.get('SESSION_COOKIE_NAME', 'session'))
+        app.logger.info(f'Session debug: cookie_present={bool(cookie)}, '
+                       f'cookie_first_20={cookie[:20] if cookie else None}..., '
+                       f'host={request.host}, referrer={request.referrer}')
 
 @app.before_request
 def redirect_non_admin_from_admin():
