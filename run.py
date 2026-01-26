@@ -5,9 +5,14 @@ import secrets
 
 load_dotenv()
 
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-app.secret_key = secrets.token_hex(16)
+# Use SECRET_KEY from .env for consistent token generation/validation
+# Only fall back to random key if .env doesn't have one
+if not os.getenv('SECRET_KEY'):
+    app.secret_key = secrets.token_hex(16)
+# Note: SECRET_KEY from .env is already loaded in app/__init__.py
+
 app.config['OAUTH2_REDIRECT_URI'] = 'http://localhost:5000/oauth2callback'
 
 if __name__ == '__main__':

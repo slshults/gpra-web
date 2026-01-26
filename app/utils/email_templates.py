@@ -256,6 +256,72 @@ def deletion_canceled_email(
     return send_mailgun_email(to_email, subject, html_body)
 
 
+def inactivity_notification_email(
+    to_email: str,
+    username: str,
+    unsubscribe_token: str
+) -> bool:
+    """
+    Send 90-day inactivity notification to paying subscribers.
+
+    Args:
+        to_email: User's email address
+        username: User's username
+        unsubscribe_token: JWT token for one-click unsubscribe
+    """
+    subject = "You're paying for GPRA but you're not using it"
+
+    # Build unsubscribe URL
+    unsubscribe_url = f"https://guitarpracticeroutine.com/api/unsubscribe/inactivity/{unsubscribe_token}"
+    account_settings_url = "https://guitarpracticeroutine.com/#Account"
+
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background-color: #ea580c; color: white; padding: 20px; text-align: center; }}
+            .content {{ padding: 20px; background-color: #f9fafb; }}
+            .footer {{ padding: 20px; text-align: center; font-size: 12px; color: #666; }}
+            .button {{ display: inline-block; padding: 12px 24px; background-color: #ea580c; color: white; text-decoration: none; border-radius: 5px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Friendly heads up</h1>
+            </div>
+            <div class="content">
+                <p>Hey{' ' + username if username else ''},</p>
+
+                <p>This is an automated email. It's sent if you haven't used GPRA in over 90 days, but you're still subscribed and paying for it.</p>
+
+                <p>I'm guessing you forgot about it, so, <a href="{account_settings_url}">click here to log in and pause or cancel your subscription</a>. Scroll to the bottom, and expand the "Danger zone" at the bottom of the left column for pause and cancel options. (If that link doesn't take you to the Account / Settings page, then click the gear icon in the top right corner of the page.)</p>
+
+                <p>Or, if you want to keep paying without using it, perhaps as a way of encouraging yourself to get back to practicing regularly, then: Thanks, that's really generous of you, and I really appreciate it!</p>
+
+                <p style="margin-top: 30px;">
+                    Rock on <span style="font-size: 1.2em;">&#129304;</span>,<br>
+                    ~Steven<br>
+                    Guitar Practice Routine App
+                </p>
+            </div>
+            <div class="footer">
+                <p>Guitar Practice Routine App</p>
+                <p style="margin-top: 20px; font-size: 11px;">
+                    <a href="{unsubscribe_url}" style="color: #666;">Stop receiving these inactivity reminder emails</a>
+                </p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    return send_mailgun_email(to_email, subject, html_body)
+
+
 def final_deletion_scheduled_email(
     to_email: str,
     username: str,

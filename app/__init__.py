@@ -381,4 +381,58 @@ import atexit
 from app.utils.posthog_client import shutdown as posthog_shutdown
 atexit.register(posthog_shutdown)
 
+# Track user activity for 90-day inactivity email feature
+# Throttled to once per day to minimize DB writes
+@app.before_request
+def track_user_activity():
+    """
+    Update last_activity timestamp for authenticated users with subscriptions.
+    Throttled to once per day to minimize database writes.
+    """
+    from flask_login import current_user
+    from datetime import datetime, timezone, timedelta
+
+    # Only track for authenticated users
+    if not current_user.is_authenticated:
+        return None
+
+    # Skip for static files and API health checks
+    if request.path.startswith('/static') or request.path == '/api/health':
+        return None
+
+    try:
+        from app.models import Subscription
+        from app.database import SessionLocal
+
+        db = SessionLocal()
+        try:
+            subscription = db.query(Subscription).filter_by(user_id=current_user.id).first()
+
+            # Only track for users with subscription records
+            if not subscription:
+                return None
+
+            now = datetime.now(timezone.utc)
+
+            # Throttle: only update if last_activity is None or older than 24 hours
+            if subscription.last_activity is None:
+                subscription.last_activity = now
+                db.commit()
+            else:
+                # Ensure last_activity is timezone-aware for comparison
+                last = subscription.last_activity
+                if last.tzinfo is None:
+                    last = last.replace(tzinfo=timezone.utc)
+
+                if now - last > timedelta(hours=24):
+                    subscription.last_activity = now
+                    db.commit()
+        finally:
+            db.close()
+    except Exception as e:
+        # Don't let activity tracking failures break the request
+        app.logger.warning(f'Failed to track user activity: {e}')
+
+    return None
+
 from app import routes_v2 as routes

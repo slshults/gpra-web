@@ -119,6 +119,66 @@ def about_page():
     """About page - accessible to everyone"""
     return render_template('about.html.jinja', posthog_key=posthog_key)
 
+@app.route('/unsubscribe/inactivity/<token>')
+def unsubscribe_inactivity(token):
+    """
+    Unsubscribe from inactivity reminder emails via signed token.
+
+    No login required - token contains user_id and is cryptographically signed.
+    Users receive these links in inactivity emails (90-day no-activity reminders).
+    """
+    from app.unsubscribe_tokens import validate_unsubscribe_token
+    from itsdangerous import SignatureExpired, BadSignature
+
+    try:
+        # Validate and decode the token
+        payload = validate_unsubscribe_token(token)
+        user_id = payload['user_id']
+
+        # Update the user's subscription to opt them out
+        with DatabaseTransaction() as tx:
+            result = tx.execute(text("""
+                UPDATE subscriptions
+                SET inactivity_emails_opted_out = TRUE,
+                    updated_at = NOW()
+                WHERE user_id = :user_id
+                RETURNING user_id
+            """), {"user_id": user_id})
+
+            row = result.fetchone()
+            if not row:
+                app.logger.warning(f"Unsubscribe attempt for non-existent subscription: user_id={user_id}")
+                return render_template('unsubscribe.html.jinja',
+                                       success=False,
+                                       error='not_found',
+                                       posthog_key=posthog_key)
+
+        app.logger.info(f"User {user_id} unsubscribed from inactivity emails")
+        return render_template('unsubscribe.html.jinja',
+                               success=True,
+                               posthog_key=posthog_key)
+
+    except SignatureExpired:
+        app.logger.warning(f"Expired unsubscribe token: {token[:20]}...")
+        return render_template('unsubscribe.html.jinja',
+                               success=False,
+                               error='expired',
+                               posthog_key=posthog_key)
+
+    except BadSignature:
+        app.logger.warning(f"Invalid unsubscribe token: {token[:20]}...")
+        return render_template('unsubscribe.html.jinja',
+                               success=False,
+                               error='invalid',
+                               posthog_key=posthog_key)
+
+    except Exception as e:
+        app.logger.error(f"Unsubscribe error: {e}")
+        return render_template('unsubscribe.html.jinja',
+                               success=False,
+                               error='unknown',
+                               posthog_key=posthog_key)
+
 # Items API - Updated to use data layer
 @app.route('/api/items', methods=['GET', 'POST'])
 def items():
@@ -6234,3 +6294,135 @@ def stripe_webhook():
         return billing.handle_stripe_webhook(db)
     finally:
         db.close()
+
+
+@app.route('/api/unsubscribe/inactivity/<token>', methods=['GET'])
+def unsubscribe_inactivity_emails(token):
+    """
+    Handle one-click unsubscribe from inactivity reminder emails.
+
+    This endpoint allows users to opt out of 90-day inactivity emails
+    without needing to log in. The token is cryptographically signed
+    and tied to a specific user.
+
+    Returns a simple HTML page confirming the unsubscribe action.
+    """
+    from itsdangerous import SignatureExpired, BadSignature
+    from app.unsubscribe_tokens import validate_unsubscribe_token
+
+    html_template = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>GPRA - Unsubscribe</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                background-color: #111827;
+                color: #f3f4f6;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                margin: 0;
+            }}
+            .container {{
+                background-color: #1f2937;
+                padding: 40px;
+                border-radius: 8px;
+                text-align: center;
+                max-width: 500px;
+            }}
+            h1 {{
+                color: #ea580c;
+                margin-bottom: 20px;
+            }}
+            p {{
+                color: #d1d5db;
+                line-height: 1.6;
+            }}
+            .success {{
+                color: #16a34a;
+            }}
+            .error {{
+                color: #dc2626;
+            }}
+            a {{
+                color: #ea580c;
+                text-decoration: none;
+            }}
+            a:hover {{
+                text-decoration: underline;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            {content}
+        </div>
+    </body>
+    </html>
+    """
+
+    try:
+        # Validate the token
+        payload = validate_unsubscribe_token(token)
+        user_id = payload['user_id']
+
+        # Update the subscription to opt out of inactivity emails
+        with DatabaseTransaction() as tx:
+            tx.execute(text("""
+                UPDATE subscriptions
+                SET inactivity_emails_opted_out = TRUE
+                WHERE user_id = :user_id
+            """), {"user_id": user_id})
+            tx.commit()
+
+        app.logger.info(f"User {user_id} unsubscribed from inactivity emails")
+
+        content = """
+            <h1>Unsubscribed</h1>
+            <p class="success">You've been successfully unsubscribed from inactivity reminder emails.</p>
+            <p>You will no longer receive emails about unused subscriptions.</p>
+            <p style="margin-top: 30px;">
+                <a href="https://guitarpracticeroutine.com/">Go to GPRA</a>
+            </p>
+        """
+
+        return html_template.format(content=content), 200
+
+    except SignatureExpired:
+        app.logger.warning(f"Expired unsubscribe token used")
+        content = """
+            <h1>Link Expired</h1>
+            <p class="error">This unsubscribe link has expired.</p>
+            <p>Please log in to your account to manage your email preferences, or contact support.</p>
+            <p style="margin-top: 30px;">
+                <a href="https://guitarpracticeroutine.com/#Account">Go to Account Settings</a>
+            </p>
+        """
+        return html_template.format(content=content), 400
+
+    except BadSignature:
+        app.logger.warning(f"Invalid unsubscribe token used")
+        content = """
+            <h1>Invalid Link</h1>
+            <p class="error">This unsubscribe link is invalid.</p>
+            <p>Please log in to your account to manage your email preferences, or contact support.</p>
+            <p style="margin-top: 30px;">
+                <a href="https://guitarpracticeroutine.com/#Account">Go to Account Settings</a>
+            </p>
+        """
+        return html_template.format(content=content), 400
+
+    except Exception as e:
+        app.logger.error(f"Error processing unsubscribe: {e}")
+        content = """
+            <h1>Something Went Wrong</h1>
+            <p class="error">We couldn't process your unsubscribe request.</p>
+            <p>Please try again later or contact support.</p>
+            <p style="margin-top: 30px;">
+                <a href="https://guitarpracticeroutine.com/#Account">Go to Account Settings</a>
+            </p>
+        """
+        return html_template.format(content=content), 500

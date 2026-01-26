@@ -240,6 +240,12 @@ class Subscription(Base):
     is_complimentary = Column(Boolean, default=False, nullable=False)  # True for free-forever accounts (beta testers, friends, contributors)
     complimentary_reason = Column(String(255), nullable=True)  # Reason for complimentary access (e.g., "Beta tester", "Friend", "Contributor")
 
+    # Inactivity email tracking (90-day re-engagement feature)
+    last_activity = Column(DateTime(timezone=True), nullable=True)  # When user last had activity (page view)
+    last_inactivity_email_sent = Column(DateTime(timezone=True), nullable=True)  # When we last sent an inactivity email
+    inactivity_emails_opted_out = Column(Boolean, default=False, nullable=False)  # User opted out of these emails
+    stripe_period_end = Column(DateTime(timezone=True), nullable=True)  # Cached billing period end from Stripe
+
     __table_args__ = (
         Index('idx_subscriptions_user_id', 'user_id'),
         Index('idx_subscriptions_status', 'status'),

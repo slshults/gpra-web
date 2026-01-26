@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unsubscribed - Guitar Practice Routine App</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🎸</text></svg>">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+    <script>
+        // Apply theme immediately to prevent flash (light-mode system)
+        (function() {
+            if (localStorage.getItem('lightMode') === 'true') {
+                document.body.classList.add('light-mode');
+                document.documentElement.classList.remove('dark');
+            }
+        })();
+    </script>
+    <!-- PostHog Analytics -->
+    {% if posthog_key %}
+    <script>
+        // GDPR-Compliant PostHog Loading
+        (function() {
+            var cookieConsent = localStorage.getItem('cookieConsent');
+            if (cookieConsent === 'all') {
+                !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture identify".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+                posthog.init('{{ posthog_key }}', {
+                    api_host: 'https://tacet.guitarpracticeroutine.com',
+                    person_profiles: 'identified_only',
+                    capture_pageview: true
+                });
+            } else {
+                window.posthog = {
+                    capture: function() {},
+                    identify: function() {},
+                    displaySurvey: null,
+                    getSurveys: function(cb) { cb([]); },
+                    onSurveysLoaded: function(cb) { cb(); }
+                };
+            }
+        })();
+    </script>
+    {% endif %}
+    <style>
+        /* Theme toggle positioning */
+        .theme-toggle {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        .theme-toggle:hover {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-900">
+    <!-- App Title Banner -->
+    <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <a href="/" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                <span class="text-3xl">🎸</span>
+                <span class="text-xl font-semibold text-white">Guitar Practice Routine App</span>
+            </a>
+            <nav class="flex gap-4 text-sm">
+                <a href="/about" class="text-gray-400 hover:text-white transition-colors">About</a>
+                <a href="/faq" class="text-gray-400 hover:text-white transition-colors">FAQ</a>
+                <a href="/terms" class="text-gray-400 hover:text-white transition-colors">Terms</a>
+                <a href="/privacy" class="text-gray-400 hover:text-white transition-colors">Privacy</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        {% if success %}
+        <!-- Success Message -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+            <div class="text-5xl mb-4">✅</div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">You've been unsubscribed</h1>
+            <p class="text-gray-700 dark:text-gray-300 mb-6">
+                You will no longer receive inactivity reminder emails from Guitar Practice Routine App.
+            </p>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-8">
+                If you'd like to manage other account settings, you can log in below.
+            </p>
+            <a href="/login"
+               class="inline-block px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
+                Log in to GPRA
+            </a>
+        </div>
+        {% elif error == 'expired' %}
+        <!-- Token Expired -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+            <div class="text-5xl mb-4">⏰</div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Link expired</h1>
+            <p class="text-gray-700 dark:text-gray-300 mb-6">
+                This unsubscribe link has expired. Please log in to manage your email preferences.
+            </p>
+            <a href="/login"
+               class="inline-block px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
+                Log in to GPRA
+            </a>
+        </div>
+        {% elif error == 'invalid' %}
+        <!-- Invalid Token -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+            <div class="text-5xl mb-4">❌</div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Invalid link</h1>
+            <p class="text-gray-700 dark:text-gray-300 mb-6">
+                This unsubscribe link is invalid. Please check the link in your email or log in to manage your preferences.
+            </p>
+            <a href="/login"
+               class="inline-block px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
+                Log in to GPRA
+            </a>
+        </div>
+        {% elif error == 'not_found' %}
+        <!-- User Not Found -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+            <div class="text-5xl mb-4">🔍</div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Account not found</h1>
+            <p class="text-gray-700 dark:text-gray-300 mb-6">
+                We couldn't find an account associated with this link. The account may have been deleted.
+            </p>
+            <a href="/"
+               class="inline-block px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
+                Go to GPRA
+            </a>
+        </div>
+        {% else %}
+        <!-- Generic Error -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+            <div class="text-5xl mb-4">⚠️</div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Something went wrong</h1>
+            <p class="text-gray-700 dark:text-gray-300 mb-6">
+                We couldn't process your unsubscribe request. Please try again or log in to manage your preferences.
+            </p>
+            <a href="/login"
+               class="inline-block px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
+                Log in to GPRA
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- Footer Links -->
+        <div class="text-center text-sm text-gray-600 dark:text-gray-400 py-8 border-t border-gray-200 dark:border-gray-700 mt-8">
+            <a href="/" class="hover:underline">Back to GPRA</a>
+            ·
+            <a href="/about" class="hover:underline">About</a>
+            ·
+            <a href="/faq" class="hover:underline">FAQ</a>
+            ·
+            <a href="/terms" class="hover:underline">Terms</a>
+            ·
+            <a href="/privacy" class="hover:underline">Privacy</a>
+        </div>
+    </div>
+
+    <!-- Theme Toggle -->
+    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+        <img id="light-mode-toggle"
+             src="{{ url_for('static', filename='images/lightmodetoggle.png') }}"
+             alt="Switch to Light Mode"
+             style="height: 20px; width: 40px; display: block;">
+        <img id="dark-mode-toggle"
+             src="{{ url_for('static', filename='images/darkmodetoggle.png') }}"
+             alt="Switch to Dark Mode"
+             style="height: 20px; width: 40px; display: none;">
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+</body>
+</html>
