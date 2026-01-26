@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unsubscribed - Guitar Practice Routine App</title>
+    <title>Resubscribed - Guitar Practice Routine App</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🎸</text></svg>">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
@@ -79,9 +79,9 @@
         <!-- Success Message -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
             <div class="text-5xl mb-4">✅</div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">You've been unsubscribed</h1>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">You've been resubscribed</h1>
             <p class="text-gray-700 dark:text-gray-300 mb-6">
-                You will no longer receive inactivity reminder emails from Guitar Practice Routine App.
+                You will now receive inactivity reminder emails from Guitar Practice Routine App.
             </p>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-8">
                 If you'd like to manage other account settings, you can log in below.
@@ -90,11 +90,6 @@
                class="inline-block px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
                 Log in to GPRA
             </a>
-            {% if token %}
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-6">
-                Didn't mean to unsubscribe? <a href="/resubscribe/inactivity/{{ token }}" class="text-orange-600 hover:text-orange-500 hover:underline">Click here to resubscribe.</a>
-            </p>
-            {% endif %}
         </div>
         {% elif error == 'expired' %}
         <!-- Token Expired -->
@@ -102,7 +97,7 @@
             <div class="text-5xl mb-4">⏰</div>
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Link expired</h1>
             <p class="text-gray-700 dark:text-gray-300 mb-6">
-                This unsubscribe link has expired. Please log in to manage your email preferences.
+                This resubscribe link has expired. Please log in to manage your email preferences.
             </p>
             <a href="/login"
                class="inline-block px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
@@ -115,7 +110,7 @@
             <div class="text-5xl mb-4">❌</div>
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Invalid link</h1>
             <p class="text-gray-700 dark:text-gray-300 mb-6">
-                This unsubscribe link is invalid. Please check the link in your email or log in to manage your preferences.
+                This resubscribe link is invalid. Please check the link in your email or log in to manage your preferences.
             </p>
             <a href="/login"
                class="inline-block px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
@@ -141,7 +136,7 @@
             <div class="text-5xl mb-4">⚠️</div>
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Something went wrong</h1>
             <p class="text-gray-700 dark:text-gray-300 mb-6">
-                We couldn't process your unsubscribe request. Please try again or log in to manage your preferences.
+                We couldn't process your resubscribe request. Please try again or log in to manage your preferences.
             </p>
             <a href="/login"
                class="inline-block px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">

@@ -5,10 +5,28 @@ import { trackPageVisit } from '../utils/analytics';
 const NavigationContext = createContext(undefined);
 
 export const NavigationProvider = ({ children }) => {
-  // Initialize from URL hash or default to 'Practice'
+  // Initialize from URL hash, or from sessionStorage (for OAuth redirects), or default to 'Practice'
   const getInitialPage = () => {
-    const hash = window.location.hash.slice(1).split('?')[0]; // Remove the # and any query params
+    // First check URL hash
+    let hash = window.location.hash.slice(1).split('?')[0]; // Remove the # and any query params
     const validPages = ['Practice', 'Routines', 'Items', 'Account'];
+
+    // If no valid hash in URL, check sessionStorage for saved hash from before login redirect
+    // This handles the case where user was redirected to login from a deep link (e.g., /#Account)
+    if (!validPages.includes(hash)) {
+      const savedHash = sessionStorage.getItem('gpra_login_redirect_hash');
+      if (savedHash) {
+        sessionStorage.removeItem('gpra_login_redirect_hash');
+        // Extract just the page name from the saved hash (e.g., "#Account" -> "Account")
+        const savedPage = savedHash.replace('#', '').split('?')[0];
+        if (validPages.includes(savedPage)) {
+          // Update the URL to include the hash (for bookmarking and browser history)
+          window.history.replaceState(null, '', `/${savedHash}`);
+          return savedPage;
+        }
+      }
+    }
+
     return validPages.includes(hash) ? hash : 'Practice';
   };
 

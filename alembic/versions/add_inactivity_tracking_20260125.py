@@ -15,7 +15,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_inactivity_tracking_20260125'
-down_revision = 'add_rate_limiting_20251122230447'
+down_revision = 'e7f8g9h0i1j2'
 branch_labels = None
 depends_on = None
 

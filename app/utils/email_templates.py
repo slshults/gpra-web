@@ -291,7 +291,7 @@ def inactivity_notification_email(
     <body>
         <div class="container">
             <div class="header">
-                <h1>Friendly heads up</h1>
+                <h1>Did you know you're still paying me monthly?</h1>
             </div>
             <div class="content">
                 <p>Hey{' ' + username if username else ''},</p>

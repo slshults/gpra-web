@@ -105,6 +105,7 @@ def check_inactive_subscribers():
             JOIN ab_user u ON s.user_id = u.id
             WHERE s.tier != 'free'
                 AND s.status = 'active'
+                AND COALESCE(s.complimentary_account, FALSE) = FALSE
                 AND COALESCE(s.inactivity_emails_opted_out, FALSE) = FALSE
                 AND (s.last_activity IS NULL OR s.last_activity < :ninety_days_ago)
                 AND (

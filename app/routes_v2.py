@@ -28,12 +28,14 @@ def index():
     Main app route - requires authentication.
 
     If user is not logged in, redirect to custom login page.
+    Uses a client-side redirect to preserve URL hash fragments (e.g., /#Account).
     """
     # Check if user is authenticated via Flask-AppBuilder
     if not current_user.is_authenticated:
-        app.logger.info("User not authenticated, redirecting to login")
-        # Redirect to custom React login page
-        return redirect('/login')
+        app.logger.info("User not authenticated, redirecting to login via client-side redirect")
+        # Use client-side redirect to preserve URL hash (hash is not sent to server)
+        # The login_redirect template saves the hash to sessionStorage before redirecting
+        return render_template('login_redirect.html.jinja')
 
     app.logger.info(f"Authenticated user accessing main app: {current_user.username}")
 
@@ -156,6 +158,7 @@ def unsubscribe_inactivity(token):
         app.logger.info(f"User {user_id} unsubscribed from inactivity emails")
         return render_template('unsubscribe.html.jinja',
                                success=True,
+                               token=token,
                                posthog_key=posthog_key)
 
     except SignatureExpired:
@@ -175,6 +178,65 @@ def unsubscribe_inactivity(token):
     except Exception as e:
         app.logger.error(f"Unsubscribe error: {e}")
         return render_template('unsubscribe.html.jinja',
+                               success=False,
+                               error='unknown',
+                               posthog_key=posthog_key)
+
+@app.route('/resubscribe/inactivity/<token>')
+def resubscribe_inactivity(token):
+    """
+    Resubscribe to inactivity reminder emails via signed token.
+
+    No login required - uses the same token format as unsubscribe.
+    This allows users who accidentally unsubscribed to easily resubscribe.
+    """
+    from app.unsubscribe_tokens import validate_unsubscribe_token
+    from itsdangerous import SignatureExpired, BadSignature
+
+    try:
+        # Validate and decode the token
+        payload = validate_unsubscribe_token(token)
+        user_id = payload['user_id']
+
+        # Update the user's subscription to opt them back in
+        with DatabaseTransaction() as tx:
+            result = tx.execute(text("""
+                UPDATE subscriptions
+                SET inactivity_emails_opted_out = FALSE
+                WHERE user_id = :user_id
+                RETURNING id
+            """), {"user_id": user_id})
+
+            row = result.fetchone()
+            if not row:
+                app.logger.warning(f"Resubscribe attempt for non-existent subscription: user_id={user_id}")
+                return render_template('resubscribe.html.jinja',
+                                       success=False,
+                                       error='not_found',
+                                       posthog_key=posthog_key)
+
+        app.logger.info(f"User {user_id} resubscribed to inactivity emails")
+        return render_template('resubscribe.html.jinja',
+                               success=True,
+                               posthog_key=posthog_key)
+
+    except SignatureExpired:
+        app.logger.warning(f"Expired resubscribe token: {token[:20]}...")
+        return render_template('resubscribe.html.jinja',
+                               success=False,
+                               error='expired',
+                               posthog_key=posthog_key)
+
+    except BadSignature:
+        app.logger.warning(f"Invalid resubscribe token: {token[:20]}...")
+        return render_template('resubscribe.html.jinja',
+                               success=False,
+                               error='invalid',
+                               posthog_key=posthog_key)
+
+    except Exception as e:
+        app.logger.error(f"Resubscribe error: {e}")
+        return render_template('resubscribe.html.jinja',
                                success=False,
                                error='unknown',
                                posthog_key=posthog_key)

@@ -110,8 +110,16 @@ const LoginPage = () => {
           console.error('Failed to identify user with PostHog:', err);
         }
 
-        // Redirect to main app on success
-        window.location.href = '/';
+        // Check for saved hash from before login redirect (e.g., user was trying to access /#Account)
+        const savedHash = sessionStorage.getItem('gpra_login_redirect_hash');
+        if (savedHash) {
+          sessionStorage.removeItem('gpra_login_redirect_hash');
+          // Redirect to main app with the preserved hash
+          window.location.href = '/' + savedHash;
+        } else {
+          // Redirect to main app on success
+          window.location.href = '/';
+        }
       } else {
         setError(data.error || 'Invalid email or password');
       }

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting to Login - Guitar Practice Routine App</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🎸</text></svg>">
+    <style>
+        body {
+            background-color: #111827;
+            color: #9ca3af;
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .message {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="message">
+        <p>Redirecting to login...</p>
+    </div>
+    <script>
+        // Preserve the URL hash (e.g., #Account) across the login redirect
+        // Since hash fragments are not sent to the server, we save them client-side
+        (function() {
+            var hash = window.location.hash;
+            if (hash && hash !== '#') {
+                // Save the hash to sessionStorage so LoginPage can use it after login
+                sessionStorage.setItem('gpra_login_redirect_hash', hash);
+            }
+            // Redirect to login page
+            window.location.href = '/login';
+        })();
+    </script>
+    <noscript>
+        <meta http-equiv="refresh" content="0;url=/login">
+        <p>Please <a href="/login">click here</a> to log in.</p>
+    </noscript>
+</body>
+</html>
