@@ -3,14 +3,19 @@ import { Button } from '@ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@ui/card';
 import { Loader2, Check, CreditCard, ChevronRight, ChevronDown } from 'lucide-react';
 import SubscriptionModal from './SubscriptionModal';
+import UpgradeConfirmationModal from './UpgradeConfirmationModal';
 
-const PricingSection = ({ currentTier = 'free' }) => {
+const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
   const [loading, setLoading] = useState(null);
   const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState({ title: '', message: '' });
   const [unpluggedMode, setUnpluggedMode] = useState(false);
   const [actualTier, setActualTier] = useState('free'); // Track actual tier (before unplugged override)
+
+  // Upgrade confirmation modal state
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeTarget, setUpgradeTarget] = useState(null); // { tierId, tierName }
 
   // Collapsed state for tier cards - persist to sessionStorage
   const [collapsedTiers, setCollapsedTiers] = useState(() => {
@@ -166,24 +171,78 @@ const PricingSection = ({ currentTier = 'free' }) => {
   const handleUpgrade = async (tierId) => {
     if (tierId === 'free') return;
 
+    // Check if user already has an ACTIVE subscription (not on free tier and not unplugged)
+    // Use actualTier instead of currentTier to handle unplugged mode correctly
+    const hasActiveSubscription = actualTier !== 'free' && !unpluggedMode;
+
+    // Tier ordering for upgrade/downgrade detection
+    const tierOrder = ['free', 'basic', 'thegoods', 'moregoods', 'themost'];
+    const currentTierIndex = tierOrder.indexOf(actualTier);
+    const targetTierIndex = tierOrder.indexOf(tierId);
+    const isUpgrade = targetTierIndex > currentTierIndex;
+
+    // For ACTIVE subscribers UPGRADING: show confirmation modal with proration preview
+    // Downgrades skip the modal and go directly to update endpoint (which has its own confirmation)
+    if (hasActiveSubscription && isUpgrade) {
+      const tier = tiers.find(t => t.id === tierId);
+      setUpgradeTarget({
+        tierId,
+        tierName: tier?.name || tierId,
+      });
+      setUpgradeModalOpen(true);
+      return;
+    }
+
+    // For downgrades, go directly to the update-subscription endpoint
+    if (hasActiveSubscription && !isUpgrade) {
+      setLoading(tierId);
+      setError(null);
+
+      try {
+        const response = await fetch('/api/billing/update-subscription', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tier: tierId,
+            billing_period: 'monthly',
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          setError(data.error || 'Failed to update subscription');
+          setLoading(null);
+          return;
+        }
+
+        // Show success modal with downgrade message
+        if (data.details) {
+          const content = getSubscriptionUpdateMessage(data.details);
+          setModalContent(content);
+          setModalOpen(true);
+        }
+        setLoading(null);
+      } catch (err) {
+        setModalContent({
+          title: 'Error',
+          message: `Error: ${err.message || 'Error updating subscription'}`
+        });
+        setModalOpen(true);
+        setLoading(null);
+      }
+      return;
+    }
+
+    // For new customers or unplugged users: use Stripe Checkout directly
     setLoading(tierId);
     setError(null);
 
     try {
-      // Check if user already has a subscription (not on free tier)
-      // Use actualTier instead of currentTier to handle unplugged mode correctly
-      // Unplugged users have actualTier !== 'free' but show as free
-      const hasSubscription = actualTier !== 'free';
-
-      // If user is unplugged (canceled/paused), they need a NEW checkout session
-      // Cannot use update-subscription API on a canceled subscription
-      const endpoint = (hasSubscription && !unpluggedMode)
-        ? '/api/billing/update-subscription'  // Existing ACTIVE customers - update in place
-        : '/api/billing/create-checkout-session';  // New customers OR unplugged users - use checkout
-
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/billing/create-checkout-session', {
         method: 'POST',
-        credentials: 'include',  // Include cookies for authentication
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tier: tierId,
@@ -194,30 +253,35 @@ const PricingSection = ({ currentTier = 'free' }) => {
       const data = await response.json();
 
       if (!response.ok) {
+        // Special case: backend tells us to use update endpoint instead
+        // This prevents double-billing if frontend state was stale
+        if (data.use_update_endpoint) {
+          console.log('Backend redirecting to upgrade confirmation modal');
+          const tier = tiers.find(t => t.id === tierId);
+          setUpgradeTarget({
+            tierId,
+            tierName: tier?.name || tierId,
+          });
+          setUpgradeModalOpen(true);
+          setLoading(null);
+          return;
+        }
+
         setError(data.error || 'Failed to process request');
         setLoading(null);
         return;
       }
 
-      // Check if we got back a checkout URL (new checkout) or update confirmation
+      // Redirect to Stripe Checkout
       if (data.url) {
-        // New checkout session OR unplugged user reactivating - redirect to Stripe
         window.location.href = data.url;
-      } else if (data.details) {
-        // Subscription updated in-place, show custom modal
-        const modalContent = getSubscriptionUpdateMessage(data.details || {});
-        setModalContent(modalContent);
-        setModalOpen(true);
-        setLoading(null);
       } else {
-        // Unexpected response format
         setError('Unexpected response from server');
         setLoading(null);
       }
     } catch (err) {
-      // Use modal for errors too
       setModalContent({
-        title: '❌ Error',
+        title: 'Error',
         message: `Error: ${err.message || 'Error connecting to payment system'}`
       });
       setModalOpen(true);
@@ -225,10 +289,41 @@ const PricingSection = ({ currentTier = 'free' }) => {
     }
   };
 
-  const handleModalClose = () => {
+  // Handle successful upgrade from confirmation modal
+  const handleUpgradeConfirm = (data) => {
+    setUpgradeModalOpen(false);
+    setUpgradeTarget(null);
+
+    if (data.details) {
+      const content = getSubscriptionUpdateMessage(data.details);
+      setModalContent(content);
+      setModalOpen(true);
+    }
+  };
+
+  // Handle upgrade modal close (cancel)
+  const handleUpgradeModalClose = () => {
+    setUpgradeModalOpen(false);
+    setUpgradeTarget(null);
+  };
+
+  const handleModalClose = async () => {
     setModalOpen(false);
-    // Reload page to refresh subscription status
-    window.location.reload();
+    // Refresh subscription status via callback (avoids full page reload)
+    if (onSubscriptionChange) {
+      await onSubscriptionChange();
+    }
+    // Also refresh local unplugged/actualTier state
+    try {
+      const response = await fetch('/api/auth/status');
+      if (response.ok) {
+        const data = await response.json();
+        setUnpluggedMode(data.unplugged_mode || false);
+        setActualTier(data.actual_tier || 'free');
+      }
+    } catch (error) {
+      console.error('Error refreshing subscription status:', error);
+    }
   };
 
   const handleManageSubscription = async () => {
@@ -554,6 +649,17 @@ const PricingSection = ({ currentTier = 'free' }) => {
         onClose={handleModalClose}
         title={modalContent.title}
         message={modalContent.message}
+      />
+
+      {/* Upgrade Confirmation Modal (shows proration preview) */}
+      <UpgradeConfirmationModal
+        isOpen={upgradeModalOpen}
+        onClose={handleUpgradeModalClose}
+        onConfirm={handleUpgradeConfirm}
+        targetTier={upgradeTarget?.tierId}
+        targetTierName={upgradeTarget?.tierName}
+        billingPeriod="monthly"
+        currentTier={currentTier}
       />
     </div>
   );

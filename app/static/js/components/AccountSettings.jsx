@@ -1789,7 +1789,7 @@ const AccountSettings = () => {
         {/* Right Column - Subscription */}
         <div id="subscription-card" className={`space-y-6 md:block ${mobileView === 'subscription' ? '' : 'hidden'}`}>
           {/* Each tier card is now collapsible within PricingSection */}
-          <PricingSection currentTier={userProfile.tier} />
+          <PricingSection currentTier={userProfile.tier} onSubscriptionChange={fetchUserProfile} />
         </div>
       </div>
     </div>

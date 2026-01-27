@@ -5351,6 +5351,28 @@ def update_subscription_route():
         db.close()
 
 
+@app.route('/api/billing/preview-upgrade', methods=['POST'])
+def preview_upgrade_route():
+    """Preview proration for a subscription upgrade/downgrade"""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return billing.preview_upgrade(db)
+    finally:
+        db.close()
+
+
+@app.route('/api/billing/validate-promo-code', methods=['POST'])
+def validate_promo_code_route():
+    """Validate a promotion code and return discount information"""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return billing.validate_promo_code(db)
+    finally:
+        db.close()
+
+
 @app.route('/api/billing/resume-subscription', methods=['POST'])
 def resume_subscription_route():
     """Resume lapsed subscription by updating payment method"""

@@ -105,13 +105,19 @@ def create_checkout_session(db: Session):
         # Stripe handles proration automatically when creating new subscriptions
         # for existing customers with active subscriptions
 
+        # Check if user already has an active Stripe subscription
+        # IMPORTANT: Existing subscribers MUST use update-subscription endpoint, not checkout
+        # Using checkout for existing customers creates a SECOND subscription (double billing!)
+        if subscription and subscription.stripe_subscription_id and subscription.status in ['active', 'trialing']:
+            logger.warning(f"User {user_id} with active {subscription.tier} subscription tried to use checkout for {tier} - redirecting to update endpoint")
+            return jsonify({
+                'error': 'You already have an active subscription. Please use the upgrade/downgrade option instead.',
+                'use_update_endpoint': True  # Signal to frontend to use update-subscription
+            }), 400
+
         # Use existing customer or create new one
         if subscription and subscription.stripe_customer_id:
             checkout_params['customer'] = subscription.stripe_customer_id
-
-            # Log if user already has an active subscription (potential upgrade/change scenario)
-            if subscription.stripe_subscription_id and subscription.status in ['active', 'trialing']:
-                logger.info(f"User {user_id} with existing {subscription.tier} subscription creating checkout for {tier}")
         else:
             checkout_params['customer_email'] = user_email
 
@@ -179,6 +185,7 @@ def update_existing_subscription(db: Session):
         data = request.json
         new_tier = data.get('tier')
         new_billing_period = data.get('billing_period')
+        promotion_code_id = data.get('promotion_code_id')  # Optional promo code
 
         if not new_tier or not new_billing_period:
             return jsonify({'error': 'Missing tier or billing_period'}), 400
@@ -229,19 +236,29 @@ def update_existing_subscription(db: Session):
 
         logger.info(f"Updating subscription for user {user_id} from {subscription.tier}/{subscription.stripe_price_id} to {new_tier}/{new_price_id}")
 
-        # Update the subscription using Stripe's proper update method
-        updated_sub = stripe.Subscription.modify(
-            subscription.stripe_subscription_id,
-            items=[{
+        # Build update parameters
+        update_params = {
+            'items': [{
                 'id': subscription_item_id,
                 'price': new_price_id,
             }],
-            proration_behavior='always_invoice',  # Immediate proration charge/credit
-            metadata={
+            'proration_behavior': 'always_invoice',  # Immediate proration charge/credit
+            'metadata': {
                 'user_id': str(user_id),
                 'tier': new_tier,
                 'billing_period': new_billing_period,
             }
+        }
+
+        # Add promotion code if provided
+        if promotion_code_id:
+            update_params['discounts'] = [{'promotion_code': promotion_code_id}]
+            logger.info(f"Applying promotion code {promotion_code_id} to subscription update for user {user_id}")
+
+        # Update the subscription using Stripe's proper update method
+        updated_sub = stripe.Subscription.modify(
+            subscription.stripe_subscription_id,
+            **update_params
         )
 
         logger.info(f"✓ Successfully updated subscription {updated_sub.id} for user {user_id}")
@@ -394,15 +411,26 @@ def handle_subscription_created(db: Session, stripe_subscription):
     new_subscription_id = stripe_subscription['id']
 
     if old_subscription_id and old_subscription_id != new_subscription_id:
-        # User has an existing subscription and this is a new one (upgrade/downgrade)
+        # SAFETY NET: User has an existing subscription and this is a new one
+        # This should NOT happen normally - upgrades should use Subscription.modify()
+        # If we get here, it means a checkout session was used when it shouldn't have been
         if subscription.status in ['active', 'trialing', 'past_due']:
-            logger.info(f"User {user_id} upgrading/changing subscription from {old_subscription_id} to {new_subscription_id}")
+            logger.warning(f"DOUBLE SUBSCRIPTION DETECTED: User {user_id} has active {old_subscription_id}, received new {new_subscription_id}")
+            logger.warning(f"This indicates checkout was used instead of update-subscription endpoint")
 
             try:
-                # Cancel the old subscription immediately since they have a new one
-                # Using immediate cancellation because they're getting the new tier right away
+                # Cancel the old subscription immediately to prevent double-billing
                 old_stripe_subscription = stripe.Subscription.cancel(old_subscription_id)
-                logger.info(f"Canceled old subscription {old_subscription_id} for user {user_id}, status: {old_stripe_subscription.get('status')}")
+                logger.info(f"DOUBLE SUBSCRIPTION FIX: Canceled old subscription {old_subscription_id} for user {user_id}, status: {old_stripe_subscription.get('status')}")
+
+                # Track this incident for monitoring
+                from app.utils.posthog_client import track_event
+                track_event(user_id, 'double_subscription_prevented', {
+                    'old_subscription_id': old_subscription_id,
+                    'new_subscription_id': new_subscription_id,
+                    'old_tier': subscription.tier,
+                    'new_tier': tier,
+                })
             except InvalidRequestError as e:
                 # Subscription might already be canceled or doesn't exist
                 logger.warning(f"Could not cancel old subscription {old_subscription_id}: {str(e)}")
@@ -757,7 +785,9 @@ def resume_subscription(db: Session):
                 'border_style': 'rounded',
                 'background_color': '#1f2937',  # gray-800 - matches GPRA dark background
                 'button_color': '#ea580c',      # orange-600 - matches GPRA primary buttons
-            }
+            },
+            # Allow users to enter promotion codes on Stripe's checkout page
+            allow_promotion_codes=True,
         )
 
         logger.info(f"Created renewal checkout session for user {user_id}, tier {previous_tier}/{billing_period}")
@@ -926,6 +956,213 @@ def unpause_subscription(db: Session):
         db.rollback()
         logger.error(f"Error unpausing subscription: {str(e)}")
         return jsonify({'error': 'Failed to unpause subscription'}), 500
+
+
+def preview_upgrade(db: Session):
+    """Preview proration for a subscription upgrade/downgrade
+
+    Uses Stripe's invoice preview API to calculate what the customer will be charged
+    when changing to a new tier/billing period.
+    """
+    try:
+        data = request.json
+        new_tier = data.get('tier')
+        new_billing_period = data.get('billing_period', 'monthly')
+        promotion_code_id = data.get('promotion_code_id')  # Optional promo code
+
+        if not new_tier:
+            return jsonify({'error': 'Missing tier'}), 400
+
+        from flask_login import current_user
+        if not current_user or not current_user.is_authenticated:
+            return jsonify({'error': 'Not authenticated'}), 401
+
+        user_id = current_user.id
+
+        # Get current subscription
+        subscription = db.query(Subscription).filter_by(user_id=user_id).first()
+
+        if not subscription or not subscription.stripe_subscription_id:
+            return jsonify({'error': 'No active subscription found'}), 404
+
+        # Validate new tier
+        if new_tier not in SUBSCRIPTION_TIERS or new_tier == 'free':
+            return jsonify({'error': 'Invalid tier'}), 400
+
+        # Get new price ID
+        tier_config = SUBSCRIPTION_TIERS[new_tier]
+        new_price_id = tier_config.get(f'stripe_price_id_{new_billing_period}')
+
+        if not new_price_id:
+            return jsonify({'error': 'Price ID not configured'}), 400
+
+        # Get subscription item ID
+        subscription_item_id = subscription.stripe_subscription_item_id
+        if not subscription_item_id:
+            # Fetch from Stripe if not stored
+            stripe_sub = stripe.Subscription.retrieve(subscription.stripe_subscription_id)
+            subscription_item_id = stripe_sub['items']['data'][0]['id']
+
+        # Use Stripe's invoice preview API to get proration details
+        # This API previews what an invoice would look like without actually creating it
+        import time
+        proration_date = int(time.time())
+
+        preview_params = {
+            'customer': subscription.stripe_customer_id,
+            'subscription': subscription.stripe_subscription_id,
+            'subscription_details': {
+                'items': [{
+                    'id': subscription_item_id,
+                    'price': new_price_id,
+                }],
+                'proration_date': proration_date,
+                'proration_behavior': 'always_invoice',
+            }
+        }
+
+        # Add promotion code to preview if provided
+        if promotion_code_id:
+            preview_params['subscription_details']['discounts'] = [{'promotion_code': promotion_code_id}]
+
+        # Create preview invoice
+        preview_invoice = stripe.Invoice.create_preview(**preview_params)
+
+        # Calculate proration amount (this is what will be charged immediately)
+        proration_amount = preview_invoice.amount_due / 100  # Convert from cents
+
+        # Calculate days remaining in current period
+        if subscription.current_period_end:
+            from datetime import datetime
+            now = datetime.now()
+            period_end = subscription.current_period_end.replace(tzinfo=None) if hasattr(subscription.current_period_end, 'replace') else subscription.current_period_end
+            days_remaining = max(0, (period_end - now).days)
+        else:
+            days_remaining = 0
+
+        # Get the new recurring price
+        new_price = tier_config.get(f'price_{new_billing_period}', 0)
+
+        # Build response
+        response = {
+            'proration_amount': proration_amount,
+            'proration_details': f'Prorated for {days_remaining} days remaining in billing period',
+            'new_price': new_price,
+            'billing_period': new_billing_period,
+            'new_tier': new_tier,
+            'tier_name': tier_config.get('display_name', new_tier),
+        }
+
+        # Include discount info if promo code applied
+        # Note: preview invoices use 'total_discount_amounts' for aggregate discounts
+        # We check for discounts in the line items or total_discount_amounts
+        total_discount = getattr(preview_invoice, 'total_discount_amounts', None)
+        if total_discount and len(total_discount) > 0:
+            # Get discount amount from total_discount_amounts
+            discount_amount = sum(d.get('amount', 0) for d in total_discount) / 100
+            if discount_amount > 0:
+                response['discount'] = {
+                    'type': 'fixed',
+                    'value': discount_amount,
+                    'description': f'${discount_amount:.2f} discount applied'
+                }
+
+        logger.info(f"Preview upgrade for user {user_id}: {subscription.tier} -> {new_tier}, proration: ${proration_amount}")
+
+        return jsonify(response)
+
+    except InvalidRequestError as e:
+        logger.error(f"Invalid request previewing upgrade: {str(e)}")
+        return jsonify({'error': f'Invalid request: {str(e)}'}), 400
+    except StripeError as e:
+        logger.error(f"Stripe error previewing upgrade: {str(e)}")
+        return jsonify({'error': f'Stripe error: {str(e)}'}), 400
+    except Exception as e:
+        logger.error(f"Error previewing upgrade: {str(e)}")
+        return jsonify({'error': 'Failed to preview upgrade'}), 500
+
+
+def validate_promo_code(db: Session):
+    """Validate a promotion code and return discount information
+
+    Checks if a customer-facing promo code is valid and returns the discount details.
+    """
+    try:
+        data = request.json
+        code = data.get('code', '').strip().upper()  # Promo codes are case-insensitive
+
+        if not code:
+            return jsonify({'valid': False, 'error': 'No code provided'}), 400
+
+        from flask_login import current_user
+        if not current_user or not current_user.is_authenticated:
+            return jsonify({'error': 'Not authenticated'}), 401
+
+        # Search for active promotion codes matching the customer-facing code
+        # Stripe's list endpoint allows filtering by code
+        promo_codes = stripe.PromotionCode.list(
+            code=code,
+            active=True,
+            limit=1
+        )
+
+        if not promo_codes.data:
+            return jsonify({
+                'valid': False,
+                'error': 'Invalid or expired promo code'
+            })
+
+        promo_code = promo_codes.data[0]
+        coupon = promo_code.coupon
+
+        # Check if coupon is still valid
+        if not coupon.valid:
+            return jsonify({
+                'valid': False,
+                'error': 'This promo code has expired'
+            })
+
+        # Build discount response
+        if coupon.percent_off:
+            discount_type = 'percent'
+            discount_value = coupon.percent_off
+            description = f'{coupon.percent_off}% off'
+        elif coupon.amount_off:
+            discount_type = 'fixed'
+            discount_value = coupon.amount_off / 100  # Convert from cents
+            description = f'${discount_value} off'
+        else:
+            return jsonify({
+                'valid': False,
+                'error': 'Invalid coupon configuration'
+            })
+
+        # Check duration
+        duration = coupon.duration
+        duration_description = {
+            'forever': 'for all future payments',
+            'once': 'on your first payment',
+            'repeating': f'for {coupon.duration_in_months} months'
+        }.get(duration, '')
+
+        logger.info(f"Validated promo code '{code}' for user {current_user.id}: {description} {duration_description}")
+
+        return jsonify({
+            'valid': True,
+            'promotion_code_id': promo_code.id,
+            'discount_type': discount_type,
+            'discount_value': discount_value,
+            'description': description,
+            'duration': duration,
+            'duration_description': duration_description
+        })
+
+    except StripeError as e:
+        logger.error(f"Stripe error validating promo code: {str(e)}")
+        return jsonify({'valid': False, 'error': 'Failed to validate promo code'}), 400
+    except Exception as e:
+        logger.error(f"Error validating promo code: {str(e)}")
+        return jsonify({'valid': False, 'error': 'Failed to validate promo code'}), 500
 
 
 def get_last_payment(db: Session):
