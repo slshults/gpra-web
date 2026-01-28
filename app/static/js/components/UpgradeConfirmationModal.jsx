@@ -133,6 +133,36 @@ const UpgradeConfirmationModal = ({
     setConfirming(true);
 
     try {
+      // For users without existing subscription, use checkout session instead of update
+      if (prorationData?.no_existing_subscription) {
+        const body = {
+          tier: targetTier,
+          billing_period: billingPeriod,
+        };
+
+        const response = await fetch('/api/billing/create-checkout-session', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          setError(data.error || 'Failed to create checkout session');
+          setConfirming(false);
+          return;
+        }
+
+        // Redirect to Stripe Checkout
+        if (data.url) {
+          window.location.href = data.url;
+        }
+        return;
+      }
+
+      // For existing subscribers, use update-subscription endpoint
       const body = {
         tier: targetTier,
         billing_period: billingPeriod,
@@ -190,7 +220,9 @@ const UpgradeConfirmationModal = ({
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
-          {/* Promo Code Section */}
+          {/* Promo Code Section - only show for existing subscribers */}
+          {/* New subscribers can enter promo codes directly on Stripe Checkout */}
+          {!prorationData?.no_existing_subscription && (
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Have a promo code?
@@ -254,6 +286,14 @@ const UpgradeConfirmationModal = ({
               </div>
             )}
           </div>
+          )}
+
+          {/* Note for new subscribers about promo codes on checkout */}
+          {prorationData?.no_existing_subscription && !loading && (
+            <div className="text-sm text-gray-500 dark:text-gray-400 italic">
+              You can enter a promo code on the checkout page.
+            </div>
+          )}
 
           {/* Proration Preview */}
           <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-3">
@@ -326,10 +366,10 @@ const UpgradeConfirmationModal = ({
             {confirming ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Upgrading...
+                {prorationData?.no_existing_subscription ? 'Redirecting...' : 'Upgrading...'}
               </>
             ) : (
-              'Confirm upgrade'
+              prorationData?.no_existing_subscription ? 'Continue to checkout' : 'Confirm upgrade'
             )}
           </Button>
         </div>
