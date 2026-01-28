@@ -963,6 +963,8 @@ def preview_upgrade(db: Session):
 
     Uses Stripe's invoice preview API to calculate what the customer will be charged
     when changing to a new tier/billing period.
+
+    For FREE users (no active Stripe subscription), returns full price instead of proration.
     """
     try:
         data = request.json
@@ -979,22 +981,46 @@ def preview_upgrade(db: Session):
 
         user_id = current_user.id
 
-        # Get current subscription
-        subscription = db.query(Subscription).filter_by(user_id=user_id).first()
-
-        if not subscription or not subscription.stripe_subscription_id:
-            return jsonify({'error': 'No active subscription found'}), 404
-
-        # Validate new tier
+        # Validate new tier first (needed for both paths)
         if new_tier not in SUBSCRIPTION_TIERS or new_tier == 'free':
             return jsonify({'error': 'Invalid tier'}), 400
 
-        # Get new price ID
+        # Get tier config
         tier_config = SUBSCRIPTION_TIERS[new_tier]
         new_price_id = tier_config.get(f'stripe_price_id_{new_billing_period}')
 
         if not new_price_id:
             return jsonify({'error': 'Price ID not configured'}), 400
+
+        # Get the new recurring price from config
+        new_price = tier_config.get(f'price_{new_billing_period}', 0)
+
+        # Get current subscription
+        subscription = db.query(Subscription).filter_by(user_id=user_id).first()
+
+        # Check if user has an ACTIVE Stripe subscription
+        # Must have: subscription record, stripe_subscription_id, and active status
+        has_active_subscription = (
+            subscription
+            and subscription.stripe_subscription_id
+            and subscription.status in ['active', 'trialing']
+        )
+
+        # Users without active Stripe subscription - return full price, no proration
+        # This includes: FREE users, canceled subscriptions, lapsed users
+        if not has_active_subscription:
+            logger.info(f"Preview upgrade for user {user_id} (no active subscription): full price ${new_price} for {new_tier}")
+            return jsonify({
+                'no_existing_subscription': True,
+                'proration_amount': new_price,  # Full price since no active subscription
+                'proration_details': 'First payment for new subscription',
+                'new_price': new_price,
+                'billing_period': new_billing_period,
+                'new_tier': new_tier,
+                'tier_name': tier_config.get('display_name', new_tier),
+            })
+
+        # For existing subscribers, calculate proration
 
         # Get subscription item ID
         subscription_item_id = subscription.stripe_subscription_item_id
@@ -1022,8 +1048,10 @@ def preview_upgrade(db: Session):
         }
 
         # Add promotion code to preview if provided
+        # IMPORTANT: discounts is a TOP-LEVEL parameter, NOT nested under subscription_details
+        # See: https://docs.stripe.com/api/invoices/create_preview
         if promotion_code_id:
-            preview_params['subscription_details']['discounts'] = [{'promotion_code': promotion_code_id}]
+            preview_params['discounts'] = [{'promotion_code': promotion_code_id}]
 
         # Create preview invoice
         preview_invoice = stripe.Invoice.create_preview(**preview_params)
@@ -1040,10 +1068,7 @@ def preview_upgrade(db: Session):
         else:
             days_remaining = 0
 
-        # Get the new recurring price
-        new_price = tier_config.get(f'price_{new_billing_period}', 0)
-
-        # Build response
+        # Build response (new_price already set above)
         response = {
             'proration_amount': proration_amount,
             'proration_details': f'Prorated for {days_remaining} days remaining in billing period',
@@ -1072,8 +1097,24 @@ def preview_upgrade(db: Session):
         return jsonify(response)
 
     except InvalidRequestError as e:
-        logger.error(f"Invalid request previewing upgrade: {str(e)}")
-        return jsonify({'error': f'Invalid request: {str(e)}'}), 400
+        error_msg = str(e)
+        logger.error(f"Invalid request previewing upgrade: {error_msg}")
+
+        # Handle "No upcoming invoices" - treat as no active subscription
+        # This happens when DB shows active but Stripe subscription is cancelled/expired
+        if 'No upcoming invoices' in error_msg or 'no upcoming invoice' in error_msg.lower():
+            logger.info(f"User {user_id} has no upcoming invoices - treating as new subscription")
+            return jsonify({
+                'no_existing_subscription': True,
+                'proration_amount': new_price,
+                'proration_details': 'First payment for new subscription',
+                'new_price': new_price,
+                'billing_period': new_billing_period,
+                'new_tier': new_tier,
+                'tier_name': tier_config.get('display_name', new_tier),
+            })
+
+        return jsonify({'error': f'Invalid request: {error_msg}'}), 400
     except StripeError as e:
         logger.error(f"Stripe error previewing upgrade: {str(e)}")
         return jsonify({'error': f'Stripe error: {str(e)}'}), 400
@@ -1100,10 +1141,12 @@ def validate_promo_code(db: Session):
 
         # Search for active promotion codes matching the customer-facing code
         # Stripe's list endpoint allows filtering by code
+        # IMPORTANT: Must expand 'data.coupon' to get full coupon object, not just ID
         promo_codes = stripe.PromotionCode.list(
             code=code,
             active=True,
-            limit=1
+            limit=1,
+            expand=['data.coupon']
         )
 
         if not promo_codes.data:
@@ -1113,7 +1156,33 @@ def validate_promo_code(db: Session):
             })
 
         promo_code = promo_codes.data[0]
-        coupon = promo_code.coupon
+
+        # Get the coupon - newer Stripe API uses 'promotion' which contains the coupon
+        # Try 'coupon' first (older API), then 'promotion' (newer API)
+        coupon_data = promo_code.get('coupon')
+        if not coupon_data:
+            # Newer API: coupon might be nested under promotion or accessed differently
+            promotion = promo_code.get('promotion')
+            if promotion:
+                coupon_data = promotion.get('coupon') if hasattr(promotion, 'get') else getattr(promotion, 'coupon', None)
+
+        if isinstance(coupon_data, str):
+            # Coupon wasn't expanded, fetch it separately
+            coupon = stripe.Coupon.retrieve(coupon_data)
+        elif coupon_data:
+            coupon = coupon_data
+        else:
+            # Last resort: the promo code ID might have the coupon linked, fetch via API
+            logger.info(f"Attempting to get coupon via promo code retrieval for {promo_code.id}")
+            full_promo = stripe.PromotionCode.retrieve(promo_code.id, expand=['coupon'])
+            coupon_data = full_promo.get('coupon')
+            if isinstance(coupon_data, str):
+                coupon = stripe.Coupon.retrieve(coupon_data)
+            elif coupon_data:
+                coupon = coupon_data
+            else:
+                logger.error(f"Promo code {code} has no coupon attached after full retrieval")
+                return jsonify({'valid': False, 'error': 'Invalid promo code configuration'})
 
         # Check if coupon is still valid
         if not coupon.valid:
@@ -1161,7 +1230,9 @@ def validate_promo_code(db: Session):
         logger.error(f"Stripe error validating promo code: {str(e)}")
         return jsonify({'valid': False, 'error': 'Failed to validate promo code'}), 400
     except Exception as e:
+        import traceback
         logger.error(f"Error validating promo code: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({'valid': False, 'error': 'Failed to validate promo code'}), 500
 
 
