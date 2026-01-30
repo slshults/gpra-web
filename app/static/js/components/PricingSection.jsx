@@ -659,7 +659,6 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
         targetTier={upgradeTarget?.tierId}
         targetTierName={upgradeTarget?.tierName}
         billingPeriod="monthly"
-        currentTier={currentTier}
       />
     </div>
   );

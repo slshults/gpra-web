@@ -13,6 +13,20 @@ import JSZip from 'jszip';
 const getDateStr = () => new Date().toISOString().split('T')[0];
 
 /**
+ * Trigger browser download from a Blob
+ * @param {Blob} blob - The blob to download
+ * @param {string} filename - The filename for the download
+ */
+const triggerDownload = (blob, filename) => {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  window.URL.revokeObjectURL(url);
+};
+
+/**
  * Load SVGuitar library if not already loaded
  * @returns {Promise<void>}
  */
@@ -168,16 +182,8 @@ export const downloadFile = async (url, defaultFilename) => {
 
   // Try to get filename from Content-Disposition header, fallback to default
   const contentDisposition = response.headers.get('Content-Disposition');
-  if (contentDisposition) {
-    const match = contentDisposition.match(/filename="?([^";\n]+)"?/);
-    if (match) {
-      a.download = match[1];
-    } else {
-      a.download = defaultFilename;
-    }
-  } else {
-    a.download = defaultFilename;
-  }
+  const filenameMatch = contentDisposition?.match(/filename="?([^";\n]+)"?/);
+  a.download = filenameMatch?.[1] ?? defaultFilename;
 
   a.click();
   window.URL.revokeObjectURL(downloadUrl);
@@ -271,12 +277,7 @@ export const downloadAllData = async () => {
 
   // Generate and download the combined ZIP
   const combinedZipBlob = await zip.generateAsync({ type: 'blob' });
-  const downloadUrl = window.URL.createObjectURL(combinedZipBlob);
-  const a = document.createElement('a');
-  a.href = downloadUrl;
-  a.download = `gpra-export-${dateStr}.zip`;
-  a.click();
-  window.URL.revokeObjectURL(downloadUrl);
+  triggerDownload(combinedZipBlob, `gpra-export-${dateStr}.zip`);
 };
 
 /**
@@ -339,14 +340,12 @@ const generateSingleItemPDF = async (item, dateStr) => {
   }
 
   // Group charts by section (API uses 'sectionLabel' not 'section_name')
-  const sections = {};
-  for (const chart of item.charts) {
+  const sections = item.charts.reduce((acc, chart) => {
     const sectionName = chart.sectionLabel || 'General';
-    if (!sections[sectionName]) {
-      sections[sectionName] = [];
-    }
-    sections[sectionName].push(chart);
-  }
+    acc[sectionName] = acc[sectionName] || [];
+    acc[sectionName].push(chart);
+    return acc;
+  }, {});
 
   // Render each section
   for (const [sectionName, charts] of Object.entries(sections)) {
@@ -480,12 +479,7 @@ export const generateChordChartsPDF = async () => {
 
   // Generate and download the ZIP
   const zipBlob = await zip.generateAsync({ type: 'blob' });
-  const downloadUrl = window.URL.createObjectURL(zipBlob);
-  const a = document.createElement('a');
-  a.href = downloadUrl;
-  a.download = `chord-charts-${dateStr}.zip`;
-  a.click();
-  window.URL.revokeObjectURL(downloadUrl);
+  triggerDownload(zipBlob, `chord-charts-${dateStr}.zip`);
 };
 
 // Default export for convenience

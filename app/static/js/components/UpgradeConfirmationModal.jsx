@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -22,7 +22,6 @@ const UpgradeConfirmationModal = ({
   targetTier,
   targetTierName,
   billingPeriod = 'monthly',
-  currentTier,
 }) => {
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
@@ -202,9 +201,17 @@ const UpgradeConfirmationModal = ({
     }
   };
 
-  if (!isOpen) return null;
-
   const displayTierName = targetTierName || targetTier;
+  const isNewSubscriber = prorationData?.no_existing_subscription;
+  const billingPeriodLabel = billingPeriod === 'yearly' ? 'year' : 'month';
+
+  // Determine confirm button text based on state
+  const getConfirmButtonText = () => {
+    if (confirming) {
+      return isNewSubscriber ? 'Redirecting...' : 'Upgrading...';
+    }
+    return isNewSubscriber ? 'Continue to checkout' : 'Confirm upgrade';
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -222,7 +229,7 @@ const UpgradeConfirmationModal = ({
         <div className="space-y-4 mt-4">
           {/* Promo Code Section - only show for existing subscribers */}
           {/* New subscribers can enter promo codes directly on Stripe Checkout */}
-          {!prorationData?.no_existing_subscription && (
+          {!isNewSubscriber && (
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Have a promo code?
@@ -289,7 +296,7 @@ const UpgradeConfirmationModal = ({
           )}
 
           {/* Note for new subscribers about promo codes on checkout */}
-          {prorationData?.no_existing_subscription && !loading && (
+          {isNewSubscriber && !loading && (
             <div className="text-sm text-gray-500 dark:text-gray-400 italic">
               You can enter a promo code on the checkout page.
             </div>
@@ -305,7 +312,7 @@ const UpgradeConfirmationModal = ({
                 </span>
               </div>
             ) : error ? (
-              <div className="text-red-600 dark:text-red-400 text-center py-2">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3 text-sm text-red-600 dark:text-red-400">
                 {error}
               </div>
             ) : prorationData ? (
@@ -333,20 +340,13 @@ const UpgradeConfirmationModal = ({
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-600 dark:text-gray-400">
-                      Then ${prorationData.new_price}/{billingPeriod === 'yearly' ? 'year' : 'month'}
+                      Then ${prorationData.new_price}/{billingPeriodLabel}
                     </span>
                   </div>
                 </div>
               </>
             ) : null}
           </div>
-
-          {/* Error message */}
-          {error && !loading && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3 text-sm text-red-600 dark:text-red-400">
-              {error}
-            </div>
-          )}
         </div>
 
         {/* Action buttons */}
@@ -363,14 +363,8 @@ const UpgradeConfirmationModal = ({
             disabled={loading || confirming || !!error}
             className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-semibold"
           >
-            {confirming ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                {prorationData?.no_existing_subscription ? 'Redirecting...' : 'Upgrading...'}
-              </>
-            ) : (
-              prorationData?.no_existing_subscription ? 'Continue to checkout' : 'Confirm upgrade'
-            )}
+            {confirming && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {getConfirmButtonText()}
           </Button>
         </div>
       </DialogContent>
