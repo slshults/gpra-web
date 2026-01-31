@@ -31,7 +31,7 @@ dependencies = [
     "itsdangerous",
     "stripe",
     "flask-appbuilder",
-    "posthog",
+    "posthog>=7.8.0",
     "youtube_transcript_api",
     "fpdf2"
 ]
