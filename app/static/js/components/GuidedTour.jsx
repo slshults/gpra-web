@@ -2,6 +2,22 @@ import { useEffect } from 'react';
 import { driver } from 'driver.js';
 import { useNavigation } from '@contexts/NavigationContext';
 
+// Check if we're on mobile at tour start (uses matchMedia for DevTools compatibility)
+const isMobileView = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
+
+// Helper to get the right image path based on device
+const getTourImage = (desktopGif, mobilePng, desktopSize, mobileAlt) => {
+  const mobile = isMobileView();
+  if (mobile) {
+    // No images on mobile - text only for better UX
+    return '';
+  } else if (desktopGif) {
+    // Desktop: fixed size GIF
+    return `<div style="text-align: center;"><img src="/static/images/tour/${desktopGif}" style="width: ${desktopSize.width}px; height: ${desktopSize.height}px; border-radius: 4px;" alt="${mobileAlt || 'Tour step'}"></div>`;
+  }
+  return '';
+};
+
 const GuidedTour = () => {
   const { setActivePage } = useNavigation();
 
@@ -74,12 +90,13 @@ const GuidedTour = () => {
       stagePadding: 15,
       stageRadius: 8,
       allowClose: false,
+      smoothScroll: true,
       steps: [
         {
           element: '[data-tour="app-title"]',
           popover: {
             title: 'Welcome to Guitar Practice Routine App!',
-            description: 'You\'ll be tempted to skip through this tour without reading it, but since you\'re new here you\'ll get a lot more from the app (a lot more quickly) if you take the tour.<br> Click `Next` to get going... 🎸<br><br>Sidenote: The app works on mobile, but it\'s best on desktop/laptop ',
+            description: 'You\'ll be tempted to skip through this tour without reading it, but since you\'re new here you\'ll get a lot more from the app (a lot more quickly) if you take the tour.<br><br> Click `Next` to get going... 🎸<br><br><strong>Sidenote:</strong> The app works on mobile, but it\'s best on desktop/laptop ',
             popoverClass: 'gpra-tour-popover gpra-tour-welcome',
             side: 'bottom',
             align: 'start'
@@ -121,7 +138,7 @@ const GuidedTour = () => {
           },
           popover: {
             title: 'Step 1: Creating practice items',
-            description: 'Use the items page to create and manage items.<br>Items can be songs, exercises, reminders, etc.<br><br><div style="text-align: center;"><img src="/static/images/tour/CreateItem.gif" style="width: 600px; height: 579px; border-radius: 4px;" alt="Creating a practice item"></div>',
+            description: `Use the items page to create and manage items.<br>Items can be songs, exercises, reminders, etc.<br>${getTourImage('CreateItem.gif', 'mobile-items-add.png', { width: 600, height: 579 }, 'Creating a practice item')}`,
             side: 'bottom',
             align: 'start',
             onNextClick: () => {
@@ -172,7 +189,7 @@ const GuidedTour = () => {
           },
           popover: {
             title: 'Step 2: Creating routines',
-            description: 'Routines are for organizing your practice items into structured sessions.<br>Enter a name for a new routine, then click the `+ Add` button.<br><br><div style="text-align: center;"><img src="/static/images/tour/CreateRoutine.gif" style="width: 600px; height: 495px; border-radius: 4px;" alt="Creating a routine"></div>',
+            description: `Routines are for organizing your practice items into structured sessions.<br><br>Enter a name for a new routine, then click the \`+ Add\` button.<br><br>${getTourImage('CreateRoutine.gif', 'mobile-routines-create.png', { width: 600, height: 495 }, 'Creating a routine')}`,
             side: 'bottom',
             align: 'start',
             onPrevClick: () => {
@@ -203,9 +220,15 @@ const GuidedTour = () => {
         },
         {
           element: '[data-tour="edit-routine-icon"]',
+          onHighlightStarted: () => {
+            // Scroll to top on mobile so the edit icon is visible
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            // Small delay to let scroll complete before highlight positions
+            return new Promise((resolve) => setTimeout(resolve, 150));
+          },
           popover: {
             title: 'Step 3: Adding items to routines',
-            description: 'To add items to routines, click the ✏️ edit icon.<br>Drag n\' drop to reorder.<br><br><div style="text-align: center;"><img src="/static/images/tour/AddItemsToRoutine.gif" style="width: 600px; height: 435px; border-radius: 4px;" alt="Adding items to routine"></div>',
+            description: `To add items to routines, click the ✏️ edit icon.<br><br>Drag n' drop to reorder!<br><br>${getTourImage('AddItemsToRoutine.gif', 'mobile-routine-edit.png', { width: 600, height: 435 }, 'Adding items to routine')}`,
             side: 'left',
             align: 'start',
             onNextClick: () => {
@@ -267,11 +290,24 @@ const GuidedTour = () => {
         },
         {
           element: '[data-tour="chord-charts-section"]',
+          onHighlighted: (element) => {
+            // After Driver.js positions, scroll so element appears BELOW the popover
+            // The popover is CSS-positioned at top: 10%, so we scroll the element
+            // to appear in the lower half of the viewport
+            setTimeout(() => {
+              const rect = element.getBoundingClientRect();
+              const viewportHeight = window.innerHeight;
+              // Target: element at ~55% from top of viewport (below the popover)
+              const targetY = viewportHeight * 0.55;
+              const scrollY = window.scrollY + rect.top - targetY;
+              window.scrollTo({ top: Math.max(0, scrollY), behavior: 'smooth' });
+            }, 150);
+          },
           popover: {
             title: 'Step 5: Chord charts',
             description: 'You can view and manage chord charts from the `Practice`, `Routines`, and `Items` pages. You can create charts manually, or use the autocreate feature to build charts from PDFs, images, YouTube lesson videos, or type the names of the song sections and chords.',
             side: 'top',
-            align: 'start',
+            align: 'center',
             popoverClass: 'gpra-tour-popover gpra-tour-chord-charts',
             onPrevClick: () => {
               // Navigate back to Practice tab highlight when going backwards
@@ -308,10 +344,16 @@ const GuidedTour = () => {
         },
         {
           element: '[data-tour="api-key-input"]',
+          onHighlighted: (element) => {
+            // After Driver.js positions, scroll to show element with title above it
+            setTimeout(() => {
+              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+          },
           popover: {
             title: 'Step 6: Adding your API key',
             description: 'To use the autocreate feature on free and basic tiers, add your Anthropic API key on the account page. Then Claude can build chord charts for you.',
-            side: 'top',
+            side: 'bottom',
             align: 'start',
             popoverClass: 'gpra-tour-popover gpra-tour-api-key',
             onPrevClick: () => {

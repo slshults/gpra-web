@@ -121,17 +121,27 @@
 /* Position welcome modal at top of screen and center horizontally */
 .gpra-tour-welcome.driver-popover {
   top: 10% !important;
+  bottom: auto !important; /* Prevent stretching to bottom */
   left: 50% !important;
   transform: translateX(-50%) translateY(0) !important;
   margin: 0 auto !important;
 }
 
+/* Ensure welcome step has enough height for content with extra line breaks */
+@media (min-width: 768px) {
+  .gpra-tour-welcome.driver-popover {
+    min-height: 380px !important;
+  }
+}
+
 /* Position chord charts modal at top-center of screen */
 .gpra-tour-chord-charts.driver-popover {
   top: 10% !important;
+  bottom: auto !important; /* Prevent stretching to bottom */
   left: 50% !important;
   transform: translateX(-50%) translateY(0) !important;
   margin: 0 auto !important;
+  min-height: 200px !important; /* Ensure enough height for content and buttons */
 }
 
 /* Position API key modal above input field without blocking it */
@@ -165,5 +175,64 @@
 body:has(.gpra-tour-welcome) .driver-stage {
   opacity: 0 !important;
   pointer-events: none !important;
+}
+
+/* Mobile responsive styles (below Tailwind's sm: breakpoint) */
+@media (max-width: 639px) {
+  /* Force ALL tour popovers to respect viewport bounds on mobile */
+  .gpra-tour-popover.driver-popover {
+    position: fixed !important;
+    left: 16px !important;
+    right: 16px !important;
+    max-width: calc(100vw - 32px) !important;
+    min-width: auto !important;
+    width: auto !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Responsive images on mobile */
+  .gpra-tour-popover img {
+    max-width: 100% !important;
+    height: auto !important;
+    width: auto !important;
+  }
+
+  /* Scrollable content area for long popovers */
+  .gpra-tour-popover .driver-popover-description {
+    max-height: 50vh !important;
+    overflow-y: auto !important;
+    font-size: 0.9rem !important;
+  }
+
+  /* Ensure navigation buttons are always visible and accessible */
+  .gpra-tour-popover .driver-popover-footer {
+    position: sticky;
+    bottom: 0;
+    background: #1f2937; /* gray-800 to match popover bg */
+    padding-top: 8px;
+    margin-top: 12px;
+    z-index: 1;
+  }
+
+  /* Smaller title on mobile */
+  .gpra-tour-popover .driver-popover-title {
+    font-size: 1.1rem !important;
+  }
+
+  /* Welcome step: center on screen, not attached to element */
+  .gpra-tour-welcome.driver-popover {
+    top: 10% !important;
+    bottom: auto !important;
+    transform: none !important;
+  }
+
+  /* Chord charts step: position at top with enough height */
+  .gpra-tour-chord-charts.driver-popover {
+    top: 10% !important;
+    bottom: auto !important;
+    transform: none !important;
+    min-height: 180px !important; /* Ensure content + buttons fit */
+  }
 }
 
