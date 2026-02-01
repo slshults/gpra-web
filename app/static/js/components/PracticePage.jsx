@@ -24,7 +24,7 @@ import { NoteEditor, renderMarkdown } from './NoteEditor';
 import { ChordChartEditor } from './ChordChartEditor';
 import ApiErrorModal, { resetRateLimitBackoff } from './ApiErrorModal';
 import AutocreateSuccessModal from './AutocreateSuccessModal';
-import { serverDebug, serverInfo } from '../utils/logging';
+import { serverDebug, serverInfo, debugLog } from '../utils/logging';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -355,7 +355,7 @@ const extractBaseSongName = (title) => {
 const findSimilarSongs = (sourceTitle, allItems, sourceItemId) => {
   const baseName = extractBaseSongName(sourceTitle);
   const normalizedBaseName = normalizeText(baseName);
-  console.log('DEBUG: findSimilarSongs - sourceTitle:', sourceTitle, '-> baseName:', baseName, '-> normalized:', normalizedBaseName);
+  debugLog('CopyCharts', 'findSimilarSongs - sourceTitle:', sourceTitle, '-> baseName:', baseName, '-> normalized:', normalizedBaseName);
   
   return allItems.filter(item => {
     // Skip the source item itself
@@ -374,9 +374,9 @@ const findSimilarSongs = (sourceTitle, allItems, sourceItemId) => {
     
     // Debug logging for potential matches
     if (itemTitle.toLowerCase().includes('feelin') || itemTitle.toLowerCase().includes('alright')) {
-      console.log('DEBUG: Checking item:', itemTitle, '-> itemBaseName:', itemBaseName, '-> normalized:', normalizedItemBaseName, '-> matches:', matches);
-      console.log('  normalizedBaseName:', normalizedBaseName);
-      console.log('  normalizedItemBaseName:', normalizedItemBaseName);
+      debugLog('CopyCharts', 'Checking item:', itemTitle, '-> itemBaseName:', itemBaseName, '-> normalized:', normalizedItemBaseName, '-> matches:', matches);
+      debugLog('CopyCharts', '  normalizedBaseName:', normalizedBaseName);
+      debugLog('CopyCharts', '  normalizedItemBaseName:', normalizedItemBaseName);
     }
     
     return matches;
@@ -513,7 +513,7 @@ export const PracticePage = () => {
   const getChordSections = (itemId) => {
     const charts = chordCharts[itemId] || [];
     
-    console.log(`[DEBUG] getChordSections for item ${itemId}:`, charts);
+    debugLog('ChordCharts', `getChordSections for item ${itemId}:`, charts);
     
     if (charts.length === 0) {
       return [];
@@ -527,8 +527,8 @@ export const PracticePage = () => {
       const sectionLabel = chart.sectionLabel || 'Verse';
       const sectionRepeatCount = chart.sectionRepeatCount || '';
       
-      console.log(`[DEBUG] Processing chord ${chart.id} (${chart.title}) for section ${sectionId}`, {
-        chordSectionId: chart.sectionId, 
+      debugLog('ChordCharts', `Processing chord ${chart.id} (${chart.title}) for section ${sectionId}`, {
+        chordSectionId: chart.sectionId,
         chordSectionLabel: chart.sectionLabel,
         fallbackUsed: !chart.sectionId
       });
@@ -597,7 +597,7 @@ export const PracticePage = () => {
 
   // Function to add a new section
   const addNewSection = (itemId, label = 'New Section') => {
-    console.log('Adding new section for item:', itemId, 'with label:', label);
+    debugLog('Section', 'Adding new section for item:', itemId, 'with label:', label);
     
     const newSection = {
       id: `section-${Date.now()}`,
@@ -611,7 +611,7 @@ export const PracticePage = () => {
         ...prev,
         [itemId]: [...(prev[itemId] || []), newSection]
       };
-      console.log('Updated chordSections:', updated);
+      debugLog('Section', 'Updated chordSections:', updated);
       return updated;
     });
   };
@@ -620,7 +620,7 @@ export const PracticePage = () => {
   // Debounced version of updateSection for real-time typing
   const debouncedUpdateSection = useCallback(
     debounce(async (itemId, sectionId, updates) => {
-      console.log('Debounced section update:', sectionId, updates);
+      debugLog('Section', 'Debounced section update:', sectionId, updates);
       
       try {
         // Fetch fresh chord charts from the backend to avoid stale state issues
@@ -633,9 +633,9 @@ export const PracticePage = () => {
         // DataLayer now returns proper format directly
         const transformedFreshCharts = freshCharts;
         
-        console.log(`[DEBUG] Fresh charts for item ${itemId}:`, transformedFreshCharts.map(c => ({
-          id: c.id, 
-          title: c.title, 
+        debugLog('ChordCharts', `Fresh charts for item ${itemId}:`, transformedFreshCharts.map(c => ({
+          id: c.id,
+          title: c.title,
           sectionId: c.sectionId || 'default-section'
         })));
         
@@ -645,11 +645,11 @@ export const PracticePage = () => {
         );
         
         if (chartsToUpdate.length === 0) {
-          console.log(`No chord charts to update for section: ${sectionId}. This might be a new section without any chord charts yet.`);
+          debugLog('Section', `No chord charts to update for section: ${sectionId}. This might be a new section without any chord charts yet.`);
           return;
         }
         
-        console.log(`Updating ${chartsToUpdate.length} chord charts for section ${sectionId}:`, chartsToUpdate.map(c => c.id));
+        debugLog('Section', `Updating ${chartsToUpdate.length} chord charts for section ${sectionId}:`, chartsToUpdate.map(c => c.id));
         
         // Update each chord chart in the backend
         const updatePromises = chartsToUpdate.map(chart => {
@@ -661,7 +661,7 @@ export const PracticePage = () => {
             updateData.sectionRepeatCount = updates.repeatCount;
           }
           
-          console.log(`Updating chord chart ${chart.id} with:`, updateData);
+          debugLog('Section', `Updating chord chart ${chart.id} with:`, updateData);
           
           return fetch(`/api/chord-charts/${chart.id}`, {
             method: 'PUT',
@@ -676,7 +676,7 @@ export const PracticePage = () => {
         });
         
         await Promise.all(updatePromises);
-        console.log(`Successfully persisted ${chartsToUpdate.length} chord charts for section ${sectionId}`);
+        debugLog('Section', `Successfully persisted ${chartsToUpdate.length} chord charts for section ${sectionId}`);
         
       } catch (error) {
         console.error('Error persisting section updates:', error);
@@ -724,7 +724,7 @@ export const PracticePage = () => {
     // Prevent double-clicking/double-triggering
     const sectionKey = `${itemId}-${sectionId}`;
     if (deletingSection.has(sectionKey)) {
-      console.log(`Delete already in progress for section ${sectionId}`);
+      debugLog('Section', `Delete already in progress for section ${sectionId}`);
       return;
     }
 
@@ -737,7 +737,7 @@ export const PracticePage = () => {
       );
       
       if (chartsToDelete.length === 0) {
-        console.log(`No chord charts to delete in section ${sectionId}`);
+        debugLog('Section', `No chord charts to delete in section ${sectionId}`);
         // Just remove the empty section from local state
         setChordSections(prev => ({
           ...prev,
@@ -747,8 +747,8 @@ export const PracticePage = () => {
       }
       
       const chordIds = chartsToDelete.map(chart => chart.id);
-      console.log(`Batch deleting ${chartsToDelete.length} chord charts from section ${sectionId}:`, chordIds);
-      console.log(`DEBUG: Sending item_id=${itemId} to batch-delete endpoint`);
+      debugLog('Section', `Batch deleting ${chartsToDelete.length} chord charts from section ${sectionId}:`, chordIds);
+      debugLog('Section', `Sending item_id=${itemId} to batch-delete endpoint`);
 
       // Use batch delete endpoint
       const response = await fetch('/api/chord-charts/batch-delete', {
@@ -774,11 +774,11 @@ export const PracticePage = () => {
       }
 
       const result = await response.json();
-      console.log('Batch delete result:', result);
+      debugLog('Section', 'Batch delete result:', result);
 
       // Handle partial successes
       if (result.deleted && result.deleted.length > 0) {
-        console.log(`Successfully deleted ${result.deleted.length} chord charts`);
+        debugLog('Section', `Successfully deleted ${result.deleted.length} chord charts`);
       }
       
       if (result.not_found && result.not_found.length > 0) {
@@ -827,13 +827,13 @@ export const PracticePage = () => {
   // Lazy-load chord charts only when chord section is expanded
   // Batch load chord charts for all items in the routine
   const loadAllChordCharts = useCallback(async () => {
-    console.log('[DEBUG BATCH] loadAllChordCharts called');
+    debugLog('ChordCharts', 'loadAllChordCharts called');
     if (!routine || !routine.items) return;
     
     // Get all item IDs that need chord charts loaded
     const allItemIds = routine.items.map(item => item['B']);
     const itemIds = allItemIds.filter(itemId => !chordCharts[itemId]); // Only load if not already loaded
-    console.log('[DEBUG BATCH] All routine items:', allItemIds, 'Items needing loading:', itemIds, 'Current chordCharts keys:', Object.keys(chordCharts));
+    debugLog('ChordCharts', 'All routine items:', allItemIds, 'Items needing loading:', itemIds, 'Current chordCharts keys:', Object.keys(chordCharts));
     
     if (itemIds.length === 0) return;
     
@@ -899,7 +899,7 @@ export const PracticePage = () => {
   
   // Batch load chord charts when routine changes
   useEffect(() => {
-    console.log('[DEBUG EFFECT] useEffect triggered for routine/loadAllChordCharts');
+    debugLog('ChordCharts', 'useEffect triggered for routine/loadAllChordCharts');
     if (routine && routine.items) {
       loadAllChordCharts();
       // Track active routine when practice page is visited
@@ -1025,7 +1025,7 @@ export const PracticePage = () => {
           [itemReferenceId]: Array.from(sectionMap.values())
         }));
         
-        console.log('[DEBUG] Loaded chord charts for item:', itemReferenceId, charts.length);
+        debugLog('ChordCharts', 'Loaded chord charts for item:', itemReferenceId, charts.length);
       }
     } catch (error) {
       console.error('Error loading chord charts for item:', itemReferenceId, error);
@@ -1106,7 +1106,7 @@ export const PracticePage = () => {
                 timerSound.current.buffer = audioBuffer.current;
                 timerSound.current.connect(gainNode.current);
                 timerSound.current.start();
-                console.log('[AUDIO] Timer completion sound played');
+                debugLog('AUDIO', 'Timer completion sound played');
               }
             }
           }
@@ -1115,7 +1115,7 @@ export const PracticePage = () => {
       });
     }, 1000);
 
-    console.log('Timer effect: Active timers:', Array.from(activeTimers));
+    debugLog('Timer', 'Active timers:', Array.from(activeTimers));
     return () => {
       clearInterval(interval);
       // Clean up audio if it's playing
@@ -1186,7 +1186,7 @@ export const PracticePage = () => {
           // Handle empty search after normalization
           if (!normalizedSearch) return true;
           
-          console.log(`DEBUG SEARCH: "${copySearchTerm}" -> "${normalizedSearch}" searching in "${title}" -> "${normalizedTitle}" -> match: ${normalizedTitle.includes(normalizedSearch)}`);
+          debugLog('Search', `"${copySearchTerm}" -> "${normalizedSearch}" searching in "${title}" -> "${normalizedTitle}" -> match: ${normalizedTitle.includes(normalizedSearch)}`);
           
           return normalizedTitle.includes(normalizedSearch);
         }
@@ -1359,7 +1359,7 @@ export const PracticePage = () => {
 
   // Initialize timer for an item
   const initTimer = useCallback((itemId, duration) => {
-    console.log(`Initializing timer for item ${itemId} with duration ${duration} minutes`);
+    debugLog('Timer', `Initializing timer for item ${itemId} with duration ${duration} minutes`);
     setTimers(prev => {
       if (!prev[itemId]) {
         return {
@@ -1408,7 +1408,7 @@ export const PracticePage = () => {
     if (enableSound && audioContext.current && audioContext.current.state === 'suspended') {
       try {
         await audioContext.current.resume();
-        console.log('[AUDIO] AudioContext resumed after user interaction');
+        debugLog('AUDIO', 'AudioContext resumed after user interaction');
       } catch (error) {
         console.error('[AUDIO] Failed to resume AudioContext:', error);
       }
@@ -1421,7 +1421,7 @@ export const PracticePage = () => {
 
     // Only initialize timer if it doesn't exist
     if (!timers[itemId]) {
-      console.log(`Timer ${itemId} not found, initializing...`);
+      debugLog('Timer', `Timer ${itemId} not found, initializing...`);
       const itemDetails = getItemDetails(routineItem['B']);
       const duration = itemDetails?.['E'] || 5;
       initTimer(itemId, duration);
@@ -1432,7 +1432,7 @@ export const PracticePage = () => {
       const next = new Set(prev);
       const itemDetails = getItemDetails(routineItem['B']);
       const itemName = itemDetails?.['C'] || `Item ${itemId}`;
-      console.log(`Activating timer ${itemId}`);
+      debugLog('Timer', `Activating timer ${itemId}`);
       next.add(itemId);
       trackPracticeEvent('started_timer', itemName);
       return next;
@@ -1489,7 +1489,7 @@ export const PracticePage = () => {
           const next = new Set(prev);
           const itemDetails = getItemDetails(routineItem['B']);
           const itemName = itemDetails?.['C'] || `Item ${itemId}`;
-          console.log(`Deactivating timer ${itemId}`);
+          debugLog('Timer', `Deactivating timer ${itemId}`);
           next.delete(itemId);
 
           const initialDuration = (itemDetails?.['E'] || 5) * 60;
@@ -1507,9 +1507,9 @@ export const PracticePage = () => {
         if (audioContext.current && audioContext.current.state === 'suspended') {
           try {
             await audioContext.current.resume();
-            console.log('[AUDIO] AudioContext state after resume:', audioContext.current.state);
+            debugLog('AUDIO', 'AudioContext state after resume:', audioContext.current.state);
           } catch (error) {
-            console.log('[AUDIO] Resume failed:', error);
+            debugLog('AUDIO', 'Resume failed:', error);
           }
         }
 
@@ -1522,7 +1522,7 @@ export const PracticePage = () => {
           await startTimerWithPreference(itemId, true);
         } else {
           // First timer start this session - show info modal
-          console.log('[AUDIO] First timer start this session, showing sound info modal');
+          debugLog('AUDIO', 'First timer start this session, showing sound info modal');
           setPendingTimerItemId(itemId);
           setShowSoundPromptModal(true);
         }
@@ -1616,7 +1616,7 @@ export const PracticePage = () => {
     if (audioContext.current && audioContext.current.state === 'suspended') {
       try {
         await audioContext.current.resume();
-        console.log('[AUDIO] AudioContext resumed after user interaction');
+        debugLog('AUDIO', 'AudioContext resumed after user interaction');
       } catch (error) {
         console.error('[AUDIO] Failed to resume AudioContext:', error);
       }
@@ -1815,7 +1815,7 @@ export const PracticePage = () => {
       const method = isUpdate ? 'PUT' : 'POST';
       
       serverDebug(`${isUpdate ? 'Updating' : 'Creating'} chord chart`, { method, url });
-      console.log('[DEBUG LINE BREAKS] Sending to server:', { title: chartDataWithSection.title, hasLineBreakAfter: chartDataWithSection.hasLineBreakAfter });
+      debugLog('LineBreaks', 'Sending to server:', { title: chartDataWithSection.title, hasLineBreakAfter: chartDataWithSection.hasLineBreakAfter });
 
       const response = await fetch(url, {
         method: method,
@@ -1831,10 +1831,10 @@ export const PracticePage = () => {
 
       const savedChart = await response.json();
       serverInfo('Chord chart saved successfully', { savedChart });
-      console.log('[DEBUG LINE BREAKS] Server returned:', { id: savedChart.id, title: savedChart.title, hasLineBreakAfter: savedChart.hasLineBreakAfter });
+      debugLog('LineBreaks', 'Server returned:', { id: savedChart.id, title: savedChart.title, hasLineBreakAfter: savedChart.hasLineBreakAfter });
 
       // DEBUG: Detailed logging of saved chord data format
-      console.log('DEBUG: Saved chord detailed breakdown:', {
+      debugLog('ChordCharts', 'Saved chord detailed breakdown:', {
         id: savedChart.id,
         title: savedChart.title,
         fingers: savedChart.fingers,
@@ -1867,7 +1867,7 @@ export const PracticePage = () => {
             const match = parseInt(chart.id) === editingId;
             if (match) {
               serverDebug('Found matching chord to update', { chart: chart.id, editingId });
-              console.log('DEBUG: State update - replacing old chart:', {
+              debugLog('ChordCharts', 'State update - replacing old chart:', {
                 oldChart: chart,
                 newChart: savedChart,
                 fingersOld: chart.fingers,
@@ -1952,7 +1952,7 @@ export const PracticePage = () => {
             }));
           }
           
-          console.log('[DEBUG LINE BREAKS] setChordSections update:', itemId, 'updated sections with hasLineBreakAfter values:',
+          debugLog('LineBreaks', 'setChordSections update:', itemId, 'updated sections with hasLineBreakAfter values:',
             updatedSections.flatMap(s => s.chords).map(c => ({id: c.id, title: c.title, hasLineBreakAfter: c.hasLineBreakAfter})));
 
           return {
@@ -2083,7 +2083,7 @@ export const PracticePage = () => {
 
   const handleDeleteChordChart = async (itemId, chordId) => {
     try {
-      console.log('Deleting chord chart:', chordId, 'for item:', itemId);
+      debugLog('ChordCharts', 'Deleting chord chart:', chordId, 'for item:', itemId);
       
       const response = await fetch(`/api/items/${itemId}/chord-charts/${chordId}`, {
         method: 'DELETE',
@@ -2099,7 +2099,7 @@ export const PracticePage = () => {
         throw new Error(`Failed to delete chord chart: ${response.statusText}`);
       }
 
-      console.log('Chord chart deleted successfully');
+      debugLog('ChordCharts', 'Chord chart deleted successfully');
 
       // Track chord chart deletion
       const routineItem = routine.items.find(item => item['B'] === itemId);
@@ -2169,7 +2169,7 @@ export const PracticePage = () => {
   };
 
   const handleEditChordChart = (itemId, chordId, chartData) => {
-    console.log('Edit chord chart:', chordId, 'for item:', itemId, 'with data:', chartData);
+    debugLog('ChordCharts', 'Edit chord chart:', chordId, 'for item:', itemId, 'with data:', chartData);
 
     // Store context for scrolling back after edit
     setScrollBackContext({
@@ -2202,7 +2202,7 @@ export const PracticePage = () => {
   };
 
   const handleInsertChordAfter = (itemId, afterChordId, afterChartData) => {
-    console.log('Insert chord after:', afterChordId, 'for item:', itemId, 'with data:', afterChartData);
+    debugLog('ChordCharts', 'Insert chord after:', afterChordId, 'for item:', itemId, 'with data:', afterChartData);
 
     // Store context for scrolling back after insert (use the afterChordId to scroll back to)
     setScrollBackContext({
@@ -2245,10 +2245,10 @@ export const PracticePage = () => {
 
   // Print chord charts functionality
   const handlePrintChords = (itemId) => {
-    console.log('Print button clicked for item:', itemId);
+    debugLog('Print', 'Print button clicked for item:', itemId);
     // Add print class to chord chart container
     const chordContainer = document.querySelector(`[data-item-id="${itemId}"].chord-charts-container`);
-    console.log('Found container:', chordContainer);
+    debugLog('Print', 'Found container:', chordContainer);
     if (chordContainer) {
       chordContainer.classList.add('chord-chart-print-area');
       window.print();
@@ -2264,7 +2264,7 @@ export const PracticePage = () => {
 
   // Chord chart copy functionality
   const handleOpenCopyModal = async (itemId) => {
-    console.log('Opening copy modal for item:', itemId);
+    debugLog('CopyCharts', 'Opening copy modal for item:', itemId);
     setCopySourceItemId(itemId);
 
     // Get source item details for fuzzy matching
@@ -2274,13 +2274,13 @@ export const PracticePage = () => {
 
     // Find similar songs first
     const similarSongs = findSimilarSongs(sourceTitle, allItems, itemId);
-    console.log('Source:', sourceTitle);
-    console.log('Found similar songs:', similarSongs.map(s => s['C']));
+    debugLog('CopyCharts', 'Source:', sourceTitle);
+    debugLog('CopyCharts', 'Found similar songs:', similarSongs.map(s => s['C']));
 
     // TARGETED APPROACH: Only load chord charts for source + similar songs (not all items)
     // This matches the efficient approach from the working sheets version
     const itemsToLoad = [itemId, ...similarSongs.map(s => s['B'])]; // Use ItemIDs (Column B)
-    console.log('Loading chord charts for relevant items:', itemsToLoad.length, 'items');
+    debugLog('CopyCharts', 'Loading chord charts for relevant items:', itemsToLoad.length, 'items');
 
     for (const id of itemsToLoad) {
       try {
@@ -2288,7 +2288,7 @@ export const PracticePage = () => {
         if (response.ok) {
           const charts = await response.json();
           setChordCharts(prev => ({ ...prev, [id]: charts }));
-          console.log(`Loaded ${charts.length} charts for item ${id}`);
+          debugLog('CopyCharts', `Loaded ${charts.length} charts for item ${id}`);
         }
       } catch (error) {
         console.error(`Error loading chord charts for item ${id}:`, error);
@@ -2331,15 +2331,15 @@ export const PracticePage = () => {
   };
 
   const handleConfirmCopy = async () => {
-    console.log('handleConfirmCopy called', { copySourceItemId, selectedTargetItems: Array.from(selectedTargetItems) });
+    debugLog('CopyCharts', 'handleConfirmCopy called', { copySourceItemId, selectedTargetItems: Array.from(selectedTargetItems) });
     if (!copySourceItemId || selectedTargetItems.size === 0) {
-      console.log('Early return: missing source or targets');
+      debugLog('CopyCharts', 'Early return: missing source or targets');
       return;
     }
 
     // If there are overwrites and we haven't confirmed yet, show confirmation
     if (itemsWithExistingCharts.size > 0 && !showOverwriteConfirmation) {
-      console.log('Showing overwrite confirmation, items with existing charts:', itemsWithExistingCharts.size);
+      debugLog('CopyCharts', 'Showing overwrite confirmation, items with existing charts:', itemsWithExistingCharts.size);
       setShowOverwriteConfirmation(true);
       return;
     }
@@ -2365,7 +2365,7 @@ export const PracticePage = () => {
       }
 
       const result = await response.json();
-      console.log('Chord charts copied successfully:', result);
+      debugLog('CopyCharts', 'Chord charts copied successfully:', result);
 
       // Set copy progress to complete to show success message
       setCopyProgress('complete');
@@ -2377,7 +2377,7 @@ export const PracticePage = () => {
         return targetItem?.['B'];
       }).filter(Boolean);
       const affectedItems = [copySourceItemId, ...targetItemIds];
-      console.log('[DEBUG COPY] About to refresh chord charts for affected items:', affectedItems);
+      debugLog('CopyCharts', 'About to refresh chord charts for affected items:', affectedItems);
       for (const itemId of affectedItems) {
         try {
           const response = await fetch(`/api/items/${itemId}/chord-charts`);
@@ -2385,7 +2385,7 @@ export const PracticePage = () => {
             const charts = await response.json();
 
             // Update chord charts state like autocreate does
-            console.log('[DEBUG COPY] Updating chordCharts state for item', itemId, 'with', charts.length, 'charts');
+            debugLog('CopyCharts', 'Updating chordCharts state for item', itemId, 'with', charts.length, 'charts');
             setChordCharts(prev => ({
               ...prev,
               [itemId]: charts
@@ -2425,7 +2425,7 @@ export const PracticePage = () => {
                 return aFirstOrder - bFirstOrder;
               });
 
-              console.log('[DEBUG COPY] Updating chordSections state for item', itemId, 'with', sections.length, 'sections');
+              debugLog('CopyCharts', 'Updating chordSections state for item', itemId, 'with', sections.length, 'sections');
               setChordSections(prev => ({
                 ...prev,
                 [itemId]: sections
@@ -2446,21 +2446,21 @@ export const PracticePage = () => {
 
   // Overwrite confirmation handlers
   const handleOverwriteConfirmed = () => {
-    console.log('Overwrite confirmed, proceeding with copy');
+    debugLog('CopyCharts', 'Overwrite confirmed, proceeding with copy');
     setShowOverwriteConfirmation(false);
     // Continue with the copy by calling handleConfirmCopy again
     handleConfirmCopy();
   };
 
   const handleOverwriteCancelled = () => {
-    console.log('Overwrite cancelled, returning to item selection');
+    debugLog('CopyCharts', 'Overwrite cancelled, returning to item selection');
     setShowOverwriteConfirmation(false);
     // Stay in the modal, return to item selection
   };
 
   // Copy from modal functions (simplified to match working copy TO modal)
   const handleOpenCopyFromModal = (itemId) => {
-    console.log('Opening copy from modal for item:', itemId);
+    debugLog('CopyCharts', 'Opening copy from modal for item:', itemId);
     setCopyFromTargetItemId(itemId);
     setShowCopyFromModal(true);
     setCopyFromSearchTerm('');
@@ -2476,9 +2476,9 @@ export const PracticePage = () => {
   };
 
   const handleConfirmCopyFrom = async () => {
-    console.log('handleConfirmCopyFrom called', { selectedSourceItem, copyFromTargetItemId });
+    debugLog('CopyCharts', 'handleConfirmCopyFrom called', { selectedSourceItem, copyFromTargetItemId });
     if (!selectedSourceItem || !copyFromTargetItemId) {
-      console.log('Early return: missing source or target');
+      debugLog('CopyCharts', 'Early return: missing source or target');
       return;
     }
 
@@ -2499,7 +2499,7 @@ export const PracticePage = () => {
       }
 
       const result = await response.json();
-      console.log('Chord charts copied successfully:', result);
+      debugLog('CopyCharts', 'Chord charts copied successfully:', result);
 
       // Force refresh chord charts for target item
       const response2 = await fetch(`/api/items/${copyFromTargetItemId}/chord-charts`);
@@ -2711,7 +2711,7 @@ export const PracticePage = () => {
     const youtubeUrl = youtubeUrls[itemId]?.trim();
     const manualChords = manualChordInput[itemId]?.trim();
 
-    console.log(`[AUTOCREATE] handleProcessFiles called for item ${itemId}, files:`, files.length, 'youtubeUrl:', youtubeUrl, 'manualChords:', manualChords);
+    debugLog('AUTOCREATE', `handleProcessFiles called for item ${itemId}, files:`, files.length, 'youtubeUrl:', youtubeUrl, 'manualChords:', manualChords);
 
     // Handle YouTube URL if provided
     if (youtubeUrl) {
@@ -2739,7 +2739,7 @@ export const PracticePage = () => {
   };
 
   const handleManualChordInput = async (itemId, chordInput) => {
-    console.log(`[AUTOCREATE] Processing manual chord input for item ${itemId}:`, chordInput);
+    debugLog('AUTOCREATE', `Processing manual chord input for item ${itemId}:`, chordInput);
 
     setAutocreateProgress(prev => ({
       ...prev,
@@ -2756,7 +2756,7 @@ export const PracticePage = () => {
       formData.append('itemId', itemId);
       formData.append('userChoice', 'chord_names'); // Indicate this is chord names input
 
-      console.log(`[AUTOCREATE] Sending manual input to autocreate endpoint`);
+      debugLog('AUTOCREATE', `Sending manual input to autocreate endpoint`);
 
       const response = await fetch('/api/autocreate-chord-charts', {
         method: 'POST',
@@ -2786,7 +2786,7 @@ export const PracticePage = () => {
       }
 
       const result = await response.json();
-      console.log(`[AUTOCREATE] Manual input processed successfully:`, result);
+      debugLog('AUTOCREATE', `Manual input processed successfully:`, result);
 
       // Reset rate limit backoff on success
       resetRateLimitBackoff();
@@ -2846,7 +2846,7 @@ export const PracticePage = () => {
 
 
   const handleYouTubeUrl = async (itemId, youtubeUrl) => {
-    console.log(`[YOUTUBE] Processing YouTube URL for item ${itemId}:`, youtubeUrl);
+    debugLog('YOUTUBE', `Processing YouTube URL for item ${itemId}:`, youtubeUrl);
 
     // Sanitize and validate YouTube URL format
     const sanitizedUrl = youtubeUrl.trim().replace(/[<>"']/g, '');
@@ -2865,7 +2865,7 @@ export const PracticePage = () => {
 
     try {
       // First, check if transcript is available and fetch it
-      console.log('[YOUTUBE] Fetching transcript from YouTube API');
+      debugLog('YOUTUBE', 'Fetching transcript from YouTube API');
       const transcriptResponse = await fetch('/api/youtube/check-transcript', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2886,7 +2886,7 @@ export const PracticePage = () => {
         return;
       }
 
-      console.log(`[YOUTUBE] Transcript fetched successfully, length: ${transcriptData.transcript.length} characters`);
+      debugLog('YOUTUBE', `Transcript fetched successfully, length: ${transcriptData.transcript.length} characters`);
 
       // Now process the transcript using the existing function
       await processYouTubeTranscript(itemId, transcriptData.transcript);
@@ -2962,7 +2962,7 @@ export const PracticePage = () => {
       }
 
       const result = await response.json();
-      console.log('[YOUTUBE] Chord charts created successfully:', result);
+      debugLog('YOUTUBE', 'Chord charts created successfully:', result);
 
       // Reset rate limit backoff on success
       resetRateLimitBackoff();
@@ -3098,13 +3098,13 @@ export const PracticePage = () => {
     
     const { itemId, files } = mixedContentData;
     
-    console.log(`[AUTOCREATE] handleMixedContentChoice called with contentType: ${contentType}, itemId: ${itemId}, files:`, files.length);
+    debugLog('AUTOCREATE', `handleMixedContentChoice called with contentType: ${contentType}, itemId: ${itemId}, files:`, files.length);
     
     try {
       setAutocreateProgress(prev => ({ ...prev, [itemId]: 'processing' }));
       setShowMixedContentModal(false);
       
-      console.log(`[AUTOCREATE] Starting processing for ${contentType} with ${files.length} files`);
+      debugLog('AUTOCREATE', `Starting processing for ${contentType} with ${files.length} files`);
       
       // Create FormData and add user choice
       const formData = new FormData();
@@ -3122,14 +3122,14 @@ export const PracticePage = () => {
       formData.append('itemId', itemId);
       formData.append('userChoice', contentType); // Add user's choice
       
-      console.log(`[AUTOCREATE] Sending API request to /api/autocreate-chord-charts`);
+      debugLog('AUTOCREATE', 'Sending API request to /api/autocreate-chord-charts');
       
       const response = await fetch('/api/autocreate-chord-charts', {
         method: 'POST',
         body: formData
       });
 
-      console.log(`[AUTOCREATE] API response status: ${response.status} ${response.statusText}`);
+      debugLog('AUTOCREATE', `API response status: ${response.status} ${response.statusText}`);
 
       if (!response.ok) {
         let errorMessage = 'Failed to process files';
@@ -3154,10 +3154,10 @@ export const PracticePage = () => {
       
       const result = await response.json();
       
-      console.log(`[AUTOCREATE] API response data:`, result);
+      debugLog('AUTOCREATE', 'API response data:', result);
       
       if (result.success) {
-        console.log(`[AUTOCREATE] Processing successful, setting state to complete`);
+        debugLog('AUTOCREATE', 'Processing successful, setting state to complete');
         // Reset rate limit backoff on success
         resetRateLimitBackoff();
         setAutocreateProgress(prev => ({ ...prev, [itemId]: 'complete' }));
@@ -3444,7 +3444,7 @@ export const PracticePage = () => {
       if (processingTimer) clearTimeout(processingTimer);
 
       if (error.name === 'AbortError') {
-        console.log('Autocreate request was cancelled');
+        debugLog('AUTOCREATE', 'Request was cancelled');
         return;
       }
 
@@ -3706,7 +3706,7 @@ export const PracticePage = () => {
                           const finalSections = sectionsFromState || sectionsFromCharts || [];
 
                           // Debug: Log the sections data during render to verify state updates
-                          console.log('[DEBUG LINE BREAKS] Rendering sections for item', itemReferenceId,
+                          debugLog('LineBreaks', 'Rendering sections for item', itemReferenceId,
                             'from state:', !!sectionsFromState,
                             'chords:', finalSections.flatMap(s => s.chords).map(c => ({id: c.id, title: c.title, hasLineBreakAfter: c.hasLineBreakAfter})));
                           
@@ -3721,7 +3721,7 @@ export const PracticePage = () => {
                                 type="text"
                                 value={section.label}
                                 onChange={(e) => {
-                                  console.log('Updating section label:', section.id, e.target.value);
+                                  debugLog('Section', 'Updating section label:', section.id, e.target.value);
                                   updateSectionLocal(itemReferenceId, section.id, { label: e.target.value });
                                 }}
                                 className="bg-gray-900 text-white px-2 py-1 rounded text-sm font-semibold border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -3783,7 +3783,7 @@ export const PracticePage = () => {
                                   const chordRows = [];
                                   let currentRow = [];
 
-                                  console.log('[DEBUG LINE BREAKS] Processing section:', section.id, 'chords:', section.chords.map(c => ({id: c.id, title: c.title, hasLineBreakAfter: c.hasLineBreakAfter})));
+                                  debugLog('LineBreaks', 'Processing section:', section.id, 'chords:', section.chords.map(c => ({id: c.id, title: c.title, hasLineBreakAfter: c.hasLineBreakAfter})));
 
                                   section.chords.forEach((chart, index) => {
                                     currentRow.push(chart);
@@ -3794,13 +3794,13 @@ export const PracticePage = () => {
                                     // 3. This is the last chord
                                     const shouldBreak = chart.hasLineBreakAfter || currentRow.length >= 5 || index === section.chords.length - 1;
                                     if (shouldBreak) {
-                                      console.log('[DEBUG LINE BREAKS] Creating row with', currentRow.length, 'chords. Reason:', chart.hasLineBreakAfter ? 'hasLineBreakAfter' : currentRow.length >= 5 ? 'max 5' : 'last chord');
+                                      debugLog('LineBreaks', 'Creating row with', currentRow.length, 'chords. Reason:', chart.hasLineBreakAfter ? 'hasLineBreakAfter' : currentRow.length >= 5 ? 'max 5' : 'last chord');
                                       chordRows.push([...currentRow]);
                                       currentRow = [];
                                     }
                                   });
 
-                                  console.log('[DEBUG LINE BREAKS] Final row structure:', chordRows.map((row, i) => `Row ${i}: ${row.map(c => c.title).join(', ')}`));
+                                  debugLog('LineBreaks', 'Final row structure:', chordRows.map((row, i) => `Row ${i}: ${row.map(c => c.title).join(', ')}`));
 
                                   return chordRows.map((row, rowIndex) => (
                                     <div

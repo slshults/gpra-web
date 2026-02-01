@@ -11,6 +11,13 @@
 // TODO: Replace with actual survey ID from PostHog dashboard
 const FEEDBACK_SURVEY_ID = '019b8c09-f649-0000-bb6e-f74eb6e0d0ac';
 
+// Development-only console logging (checks Flask debug mode via window.GPRA_DEBUG)
+function debugLog(prefix, ...args) {
+  if (typeof window !== 'undefined' && window.GPRA_DEBUG === true) {
+    console.log(`[${prefix}]`, ...args);
+  }
+}
+
 /**
  * Triggers the PostHog feedback survey
  * Uses displaySurvey() which is the recommended method for programmatic display
@@ -24,23 +31,23 @@ function triggerFeedbackSurvey(event) {
     event.preventDefault();
   }
 
-  console.log('[FeedbackSurvey] Button clicked, checking PostHog availability...');
+  debugLog('FeedbackSurvey', 'Button clicked, checking PostHog availability...');
 
   // Check if PostHog is available and user has consented to analytics
   // Note: typeof is the only safe way to check undeclared variables
   const posthogExists = typeof posthog !== 'undefined';
-  console.log('[FeedbackSurvey] posthog exists:', posthogExists);
+  debugLog('FeedbackSurvey', 'posthog exists:', posthogExists);
 
   if (posthogExists) {
-    console.log('[FeedbackSurvey] posthog.displaySurvey:', typeof posthog.displaySurvey);
-    console.log('[FeedbackSurvey] posthog.__loaded:', posthog.__loaded);
+    debugLog('FeedbackSurvey', 'posthog.displaySurvey:', typeof posthog.displaySurvey);
+    debugLog('FeedbackSurvey', 'posthog.__loaded:', posthog.__loaded);
   }
 
   if (!posthogExists || !posthog.displaySurvey) {
     // PostHog not loaded (user opted out of analytics) or surveys not available
     // Fall back to a simple alert with contact info
-    console.log('[FeedbackSurvey] PostHog not available or displaySurvey missing, showing fallback');
-    console.log('[FeedbackSurvey] Cookie consent:', localStorage.getItem('cookieConsent'));
+    debugLog('FeedbackSurvey', 'PostHog not available or displaySurvey missing, showing fallback');
+    debugLog('FeedbackSurvey', 'Cookie consent:', localStorage.getItem('cookieConsent'));
     showFallbackContactInfo();
     return;
   }
@@ -52,19 +59,19 @@ function triggerFeedbackSurvey(event) {
     return;
   }
 
-  console.log('[FeedbackSurvey] Survey ID:', FEEDBACK_SURVEY_ID);
+  debugLog('FeedbackSurvey', 'Survey ID:', FEEDBACK_SURVEY_ID);
 
   // Use onSurveysLoaded to ensure surveys are initialized before displaying
   // This is important because surveys may not be immediately available on page load
   if (posthog.onSurveysLoaded) {
-    console.log('[FeedbackSurvey] Waiting for surveys to load...');
+    debugLog('FeedbackSurvey', 'Waiting for surveys to load...');
     posthog.onSurveysLoaded(function() {
-      console.log('[FeedbackSurvey] Surveys loaded callback fired');
+      debugLog('FeedbackSurvey', 'Surveys loaded callback fired');
       displayTheSurvey();
     });
   } else {
     // If onSurveysLoaded is not available, try displaying directly
-    console.log('[FeedbackSurvey] onSurveysLoaded not available, trying direct display');
+    debugLog('FeedbackSurvey', 'onSurveysLoaded not available, trying direct display');
     displayTheSurvey();
   }
 }
@@ -91,7 +98,7 @@ function startSurveyObserver() {
             : node.querySelector && node.querySelector('[class*="PostHogSurvey"]');
 
           if (surveyEl) {
-            console.log('[FeedbackSurvey] MutationObserver detected survey element');
+            debugLog('FeedbackSurvey', 'MutationObserver detected survey element');
             // PostHog may need a moment to attach shadowRoot
             attemptStyleInjection(surveyEl);
           }
@@ -105,14 +112,14 @@ function startSurveyObserver() {
     subtree: true
   });
 
-  console.log('[FeedbackSurvey] MutationObserver started');
+  debugLog('FeedbackSurvey', 'MutationObserver started');
 }
 
 function stopSurveyObserver() {
   if (surveyObserver) {
     surveyObserver.disconnect();
     surveyObserver = null;
-    console.log('[FeedbackSurvey] MutationObserver stopped');
+    debugLog('FeedbackSurvey', 'MutationObserver stopped');
   }
 }
 
@@ -130,7 +137,7 @@ function attemptStyleInjection(surveyEl, retryCount = 0) {
       attemptStyleInjection(surveyEl, retryCount + 1);
     });
   } else {
-    console.log('[FeedbackSurvey] shadowRoot not available after retries');
+    debugLog('FeedbackSurvey', 'shadowRoot not available after retries');
   }
 }
 
@@ -141,7 +148,7 @@ function attemptStyleInjection(surveyEl, retryCount = 0) {
 function injectSurveyStyles(shadowRoot) {
   // Check if we've already injected styles
   if (shadowRoot.querySelector('#gpra-survey-styles')) {
-    console.log('[FeedbackSurvey] Styles already injected');
+    debugLog('FeedbackSurvey', 'Styles already injected');
     return;
   }
 
@@ -159,7 +166,7 @@ function injectSurveyStyles(shadowRoot) {
     }
   `;
   shadowRoot.appendChild(styleEl);
-  console.log('[FeedbackSurvey] Injected GPRA styles into shadow DOM');
+  debugLog('FeedbackSurvey', 'Injected GPRA styles into shadow DOM');
 }
 
 /**
@@ -168,14 +175,14 @@ function injectSurveyStyles(shadowRoot) {
  */
 function displayTheSurvey() {
   try {
-    console.log('[FeedbackSurvey] Attempting to display survey...');
+    debugLog('FeedbackSurvey', 'Attempting to display survey...');
 
     // Clean up any existing survey DOM element (workaround for PostHog bug where
     // survey won't show again after being closed)
     // See: https://github.com/PostHog/posthog-js/issues/2586
     const existingSurvey = document.querySelector('.PostHogSurvey-' + FEEDBACK_SURVEY_ID);
     if (existingSurvey) {
-      console.log('[FeedbackSurvey] Removing existing survey DOM element');
+      debugLog('FeedbackSurvey', 'Removing existing survey DOM element');
       existingSurvey.remove();
     }
 
@@ -183,13 +190,13 @@ function displayTheSurvey() {
     if (posthog.getSurveys) {
       // Force reload to get fresh survey data
       posthog.getSurveys(function(surveys) {
-        console.log('[FeedbackSurvey] All surveys from getSurveys:', surveys);
+        debugLog('FeedbackSurvey', 'All surveys from getSurveys:', surveys);
         const ourSurvey = surveys.find(s => s.id === FEEDBACK_SURVEY_ID);
         if (ourSurvey) {
-          console.log('[FeedbackSurvey] Found our survey:', ourSurvey.name, 'type:', ourSurvey.type);
+          debugLog('FeedbackSurvey', 'Found our survey:', ourSurvey.name, 'type:', ourSurvey.type);
         } else {
           console.warn('[FeedbackSurvey] Our survey ID not found in getSurveys');
-          console.log('[FeedbackSurvey] Survey IDs available:', surveys.map(s => s.id));
+          debugLog('FeedbackSurvey', 'Survey IDs available:', surveys.map(s => s.id));
         }
       }, true); // forceReload = true
     }
@@ -197,10 +204,10 @@ function displayTheSurvey() {
     // Also check active matching surveys
     if (posthog.getActiveMatchingSurveys) {
       posthog.getActiveMatchingSurveys(function(surveys) {
-        console.log('[FeedbackSurvey] Active matching surveys:', surveys);
+        debugLog('FeedbackSurvey', 'Active matching surveys:', surveys);
         const ourSurvey = surveys.find(s => s.id === FEEDBACK_SURVEY_ID);
         if (ourSurvey) {
-          console.log('[FeedbackSurvey] Our survey is active and matching');
+          debugLog('FeedbackSurvey', 'Our survey is active and matching');
         } else {
           console.warn('[FeedbackSurvey] Our survey not in active matching surveys - may not display');
         }
@@ -223,15 +230,15 @@ function displayTheSurvey() {
       survey_id: FEEDBACK_SURVEY_ID
     });
 
-    console.log('[FeedbackSurvey] displaySurvey called successfully');
+    debugLog('FeedbackSurvey', 'displaySurvey called successfully');
 
     // Fallback: Check if the survey DOM element was created after a short delay
     // MutationObserver should catch it faster, but this is a safety net
     setTimeout(function() {
       const surveyElement = document.querySelector('.PostHogSurvey-' + FEEDBACK_SURVEY_ID);
       const anyPostHogSurvey = document.querySelector('[class*="PostHogSurvey"]');
-      console.log('[FeedbackSurvey] Fallback check - Survey element found:', !!surveyElement);
-      console.log('[FeedbackSurvey] Fallback check - Any PostHog survey element:', !!anyPostHogSurvey);
+      debugLog('FeedbackSurvey', 'Fallback check - Survey element found:', !!surveyElement);
+      debugLog('FeedbackSurvey', 'Fallback check - Any PostHog survey element:', !!anyPostHogSurvey);
       if (!surveyElement && !anyPostHogSurvey) {
         console.warn('[FeedbackSurvey] Survey element not created - displaySurvey may have silently failed');
         stopSurveyObserver(); // Clean up observer if survey never appeared

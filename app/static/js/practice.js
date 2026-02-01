@@ -1,16 +1,23 @@
 // Add this at the very top of the file
+// Development-only console logging (checks Flask debug mode via window.GPRA_DEBUG)
+function debugLog(prefix, ...args) {
+  if (typeof window !== 'undefined' && window.GPRA_DEBUG === true) {
+    console.log(`[${prefix}]`, ...args);
+  }
+}
+
 (() => {
-    console.log('🎸 Practice.js loaded!');
+    debugLog('Practice', 'Practice.js loaded!');
     // Uncomment the next line temporarily for testing
     // alert('Practice.js loaded!');
 })();
 
 // Remove the alert since we're debugging
-console.log('practice.js loaded');
+debugLog('Practice', 'practice.js loaded');
 
 // Update saveNote function to match our API structure
 async function saveNote(itemId, noteText) {
-    console.log('Attempting to save note:', { itemId, noteText });
+    debugLog('Notes', 'Attempting to save note:', { itemId, noteText });
     try {
         const response = await fetch(`/api/items/${itemId}/notes`, {
             method: 'POST',
@@ -26,7 +33,7 @@ async function saveNote(itemId, noteText) {
             throw new Error(`Failed to save note: ${response.status}`);
         }
         const result = await response.json();
-        console.log('Note saved successfully:', result);
+        debugLog('Notes', 'Note saved successfully:', result);
     } catch (error) {
         console.error('Error saving note:', error);
     }
@@ -44,24 +51,24 @@ function handleNoteInput(event, itemId) {
 
 // Update the loadItem function to include notes
 function loadItem(item) {
-    console.log('loadItem called with:', item);
+    debugLog('Practice', 'loadItem called with:', item);
     if (!item) {
-        console.log('Warning: loadItem called with no item');
+        debugLog('Practice', 'Warning: loadItem called with no item');
         return;
     }
     if (!item['A']) {  // Column A is ID
-        console.log('Warning: item has no ID:', item);
+        debugLog('Practice', 'Warning: item has no ID:', item);
         return;
     }
     
-    console.log('Loading item:', item);
+    debugLog('Practice', 'Loading item:', item);
     
     // Add notes handling
     const notesTextarea = document.getElementById(`item-notes-${item['A']}`);  // Column A is ID
     const addNoteBtn = document.getElementById(`add-note-btn-${item['A']}`);  // Column A is ID
     
     if (notesTextarea) {
-        console.log('Found textarea for item:', item['A']);  // Column A is ID
+        debugLog('Practice', 'Found textarea for item:', item['A']);  // Column A is ID
         
         // Fetch current notes from the Items sheet
         fetch(`/api/items/${item['A']}/notes`)  // Column A is ID
@@ -74,7 +81,7 @@ function loadItem(item) {
                 
                 // Add the event listener
                 notesTextarea.addEventListener('input', (event) => {
-                    console.log('Note input event triggered');
+                    debugLog('Notes', 'Note input event triggered');
                     handleNoteInput(event, item['A']);  // Column A is ID
                 });
             })
@@ -85,7 +92,7 @@ function loadItem(item) {
 
     if (addNoteBtn) {
         addNoteBtn.addEventListener('click', () => {
-            console.log('Add note button clicked');
+            debugLog('Notes', 'Add note button clicked');
             addNote(item['A']);  // Column A is ID
         });
     }
@@ -115,7 +122,7 @@ function addNote(itemId) {
 
 // Add this helper function to initialize notes for an item
 function initializeNotes(itemId) {
-    console.log('Initializing notes for item:', itemId);
+    debugLog('Notes', 'Initializing notes for item:', itemId);
     const item = {
         'A': itemId,  // Column A is ID
         'D': document.getElementById(`item-notes-${itemId}`)?.value || ''  // Column D is Notes
@@ -125,14 +132,14 @@ function initializeNotes(itemId) {
 
 // Call this when the DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM loaded, looking for items to initialize');
+    debugLog('Practice', 'DOM loaded, looking for items to initialize');
     // Find any items that need notes initialized
     const notesSections = document.querySelectorAll('.notes-section');
     notesSections.forEach(section => {
         const textarea = section.querySelector('textarea');
         if (textarea) {
             const itemId = textarea.id.replace('item-notes-', '');
-            console.log('Found notes section for item:', itemId);
+            debugLog('Practice', 'Found notes section for item:', itemId);
             initializeNotes(itemId);
         }
     });

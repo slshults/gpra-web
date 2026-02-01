@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@ui/button';
 import { Input } from '@ui/input';
+import { debugLog } from '@utils/logging';
 
 const defaultChartConfig = {
   strings: 6,
@@ -218,7 +219,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
             );
             
             if (chordToEdit) {
-              console.log('Loading chord for editing:', {
+              debugLog('ChordEditor', 'Loading chord for editing:', {
                 id: chordToEdit.id,
                 title: chordToEdit.title,
                 hasLineBreakAfter: chordToEdit.hasLineBreakAfter,
@@ -263,7 +264,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
 
               // Load existing line break status with debug logging
               const lineBreakValue = chordToEdit.hasLineBreakAfter || false;
-              console.log('Setting addLineBreak to:', lineBreakValue, 'from hasLineBreakAfter:', chordToEdit.hasLineBreakAfter);
+              debugLog('ChordEditor', 'Setting addLineBreak to:', lineBreakValue, 'from hasLineBreakAfter:', chordToEdit.hasLineBreakAfter);
               setAddLineBreak(lineBreakValue);
             } else {
             }
@@ -486,9 +487,9 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
     const fretIndex = Math.ceil(fretRatio * numFrets);
     
     // Debug logging to verify click positioning
-    console.log('Click debug:', { 
-      rawX, rawY, x, y, svguitarString, fretIndex, 
-      marginX, marginY, fretRatio, relativeY, fretboardHeight 
+    debugLog('ChordEditor', 'Click debug:', {
+      rawX, rawY, x, y, svguitarString, fretIndex,
+      marginX, marginY, fretRatio, relativeY, fretboardHeight
     });
     
     // SVGuitar expects fret numbers relative to the startingFret position  
@@ -1007,7 +1008,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
                 insertionContext
               };
 
-              console.log('Saving chord with line break data:', {
+              debugLog('ChordEditor', 'Saving chord with line break data:', {
                 title,
                 addLineBreak,
                 startOnNewLine: addLineBreak,

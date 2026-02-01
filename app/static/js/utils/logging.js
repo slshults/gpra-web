@@ -178,3 +178,14 @@ console.warn = function(...args) {
 export const serverDebug = (message, context) => serverLog(message, 'DEBUG', context);
 export const serverInfo = (message, context) => serverLog(message, 'INFO', context);
 export const serverError = (message, context) => serverLog(message, 'ERROR', context);
+
+/**
+ * Development-only console logging.
+ * Use for verbose debug info that shouldn't show in production.
+ * For user-helpful logs (bug reports, extension hints), use regular console.log.
+ */
+export const debugLog = (prefix, ...args) => {
+  if (isDebugMode()) {
+    console.log(`[${prefix}]`, ...args);
+  }
+};

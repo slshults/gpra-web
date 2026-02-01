@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { driver } from 'driver.js';
 import { useNavigation } from '@contexts/NavigationContext';
+import { debugLog } from '@utils/logging';
 
 // Check if we're on mobile at tour start (uses matchMedia for DevTools compatibility)
 const isMobileView = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
@@ -25,16 +26,16 @@ const GuidedTour = () => {
     // Check if tour should be shown
     const checkTourStatus = async () => {
       try {
-        console.log('[TOUR] Checking tour status...');
+        debugLog('TOUR', 'Checking tour status...');
         const response = await fetch('/api/user/preferences/tour-status');
-        console.log('[TOUR] API response status:', response.status);
+        debugLog('TOUR', 'API response status:', response.status);
         if (!response.ok) {
-          console.log('[TOUR] API response not OK, aborting');
+          debugLog('TOUR', 'API response not OK, aborting');
           return;
         }
 
         const data = await response.json();
-        console.log('[TOUR] API data:', data);
+        debugLog('TOUR', 'API data:', data);
 
         // Check if we should show the tour
         // Either from tour status API, URL param, or sessionStorage flag after registration
@@ -42,12 +43,12 @@ const GuidedTour = () => {
         const showTourParam = urlParams.has('show_tour');
         const showTourAfterLogin = sessionStorage.getItem('show_tour_after_login') === 'true';
 
-        console.log('[TOUR] showTourParam:', showTourParam);
-        console.log('[TOUR] showTourAfterLogin:', showTourAfterLogin);
-        console.log('[TOUR] data.show_tour:', data.show_tour);
+        debugLog('TOUR', 'showTourParam:', showTourParam);
+        debugLog('TOUR', 'showTourAfterLogin:', showTourAfterLogin);
+        debugLog('TOUR', 'data.show_tour:', data.show_tour);
 
         if (data.show_tour || showTourParam || showTourAfterLogin) {
-          console.log('[TOUR] Starting tour!');
+          debugLog('TOUR', 'Starting tour!');
           // Clear sessionStorage flag
           if (showTourAfterLogin) {
             sessionStorage.removeItem('show_tour_after_login');

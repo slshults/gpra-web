@@ -5,6 +5,7 @@ import { Label } from '@ui/label';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
 import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { debugLog } from '@utils/logging';
 
 const RECAPTCHA_SITE_KEY = '6LcjIvQrAAAAAM4psu6wJT3NlL8RIwH4tNiiAJ6C';
 
@@ -71,7 +72,7 @@ const RegisterPage = () => {
         setRecaptchaWidgetId(widgetId);
       } catch (e) {
         // Widget may already be rendered
-        console.log('reCAPTCHA widget already rendered');
+        debugLog('reCAPTCHA', 'widget already rendered');
       }
     }
   }, [recaptchaReady, recaptchaWidgetId]);
@@ -109,7 +110,7 @@ const RegisterPage = () => {
       try {
         window.grecaptcha.enterprise.reset(recaptchaWidgetId);
       } catch (e) {
-        console.log('Could not reset reCAPTCHA widget');
+        debugLog('reCAPTCHA', 'Could not reset widget');
       }
     }
   };

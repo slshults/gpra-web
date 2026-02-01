@@ -36,7 +36,7 @@ const extractBaseSongName = (title) => {
 const findSimilarSongs = (sourceTitle, allItems, sourceItemId) => {
   const baseName = extractBaseSongName(sourceTitle);
   const normalizedBaseName = normalizeText(baseName);
-  console.log('DEBUG: findSimilarSongs - sourceTitle:', sourceTitle, '-> baseName:', baseName, '-> normalized:', normalizedBaseName);
+  debugLog('CopyCharts', 'findSimilarSongs - sourceTitle:', sourceTitle, '-> baseName:', baseName, '-> normalized:', normalizedBaseName);
 
   return allItems.filter(item => {
     // Skip the source item itself
@@ -60,7 +60,7 @@ import { Check, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printe
 import { ChordChartEditor } from './ChordChartEditor';
 import ApiErrorModal, { resetRateLimitBackoff } from './ApiErrorModal';
 import AutocreateSuccessModal from './AutocreateSuccessModal';
-import { serverDebug } from '../utils/logging';
+import { serverDebug, debugLog } from '../utils/logging';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -612,7 +612,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   const debouncedUpdateSection = useMemo(
     () => debounce(async (itemId, sectionId, updates) => {
       try {
-        console.log('Debounced section update:', { itemId, sectionId, updates });
+        debugLog('Section', 'Debounced section update:', { itemId, sectionId, updates });
 
         // Get all charts in this section
         const itemCharts = chordCharts[itemId] || [];
@@ -625,7 +625,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
           return;
         }
 
-        console.log('Updating section charts:', sectionCharts.length);
+        debugLog('Section', 'Updating section charts:', sectionCharts.length);
 
         // Update each chart in the section
         const updatePromises = sectionCharts.map(async (chart) => {
@@ -665,7 +665,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         });
 
         await Promise.all(updatePromises);
-        console.log('All section charts updated successfully');
+        debugLog('Section', 'All section charts updated successfully');
 
       } catch (error) {
         console.error('Error updating section:', error);
@@ -675,7 +675,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   );
 
   const updateSectionLocal = (itemId, sectionId, updates) => {
-    console.log('Local section update:', { itemId, sectionId, updates });
+    debugLog('Section', 'Local section update:', { itemId, sectionId, updates });
 
     // Update local state immediately for responsive UI
     setChordSections(prev => {
@@ -1106,7 +1106,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
     const youtubeUrl = youtubeUrls[itemId]?.trim();
     const manualChords = manualChordInput[itemId]?.trim();
 
-    console.log(`[AUTOCREATE] handleProcessFiles called for item ${itemId}, files:`, files.length, 'youtubeUrl:', youtubeUrl, 'manualChords:', manualChords);
+    debugLog('AUTOCREATE', `handleProcessFiles called for item ${itemId}, files:`, files.length, 'youtubeUrl:', youtubeUrl, 'manualChords:', manualChords);
 
     // Handle YouTube URL if provided
     if (youtubeUrl) {
@@ -1134,7 +1134,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   };
 
   const handleManualChordInput = async (itemId, chordInput) => {
-    console.log(`[AUTOCREATE] Processing manual chord input for item ${itemId}:`, chordInput);
+    debugLog('AUTOCREATE', `Processing manual chord input for item ${itemId}:`, chordInput);
 
     setAutocreateProgress(prev => ({
       ...prev,
@@ -1155,7 +1155,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       formData.append('itemId', itemId);
       formData.append('userChoice', 'chord_names'); // Indicate this is chord names input
 
-      console.log(`[AUTOCREATE] Sending manual input to autocreate endpoint`);
+      debugLog('AUTOCREATE', `Sending manual input to autocreate endpoint`);
 
       const response = await fetch('/api/autocreate-chord-charts', {
         method: 'POST',
@@ -1194,7 +1194,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       }
 
       const result = await response.json();
-      console.log(`[AUTOCREATE] Manual input processed successfully:`, result);
+      debugLog('AUTOCREATE', `Manual input processed successfully:`, result);
 
       // Force refresh UI state - same as other autocreate methods
       const chartResponse = await fetch(`/api/items/${itemId}/chord-charts`);
@@ -1261,20 +1261,20 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   };
 
   const handleYouTubeUrl = async (itemId, youtubeUrl) => {
-    console.log(`[YOUTUBE] Processing YouTube URL for item ${itemId}:`, youtubeUrl);
+    debugLog('YOUTUBE', `Processing YouTube URL for item ${itemId}:`, youtubeUrl);
 
     // Sanitize and validate YouTube URL format
     const sanitizedUrl = youtubeUrl.trim().replace(/[<>"']/g, '');
     const youtubeRegex = /^https?:\/\/(www\.)?(youtube\.com\/watch\?v=[\w-]+|youtu\.be\/[\w-]+)(\?.*|&.*)?$/;
 
     if (!youtubeRegex.test(sanitizedUrl)) {
-      console.log(`[YOUTUBE] URL validation failed for: ${sanitizedUrl}`);
+      debugLog('YOUTUBE', `URL validation failed for: ${sanitizedUrl}`);
       setApiError({ message: 'Please enter a valid YouTube URL (e.g., https://youtube.com/watch?v=...)' });
       setShowApiErrorModal(true);
       return;
     }
 
-    console.log(`[YOUTUBE] URL validation passed, setting progress state`);
+    debugLog('YOUTUBE', `URL validation passed, setting progress state`);
     setAutocreateProgress(prev => ({
       ...prev,
       [itemId]: 'checking_transcript'
@@ -1282,7 +1282,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
     try {
       // First, check if transcript is available and fetch it
-      console.log('[YOUTUBE] Fetching transcript from YouTube API');
+      debugLog('YOUTUBE', 'Fetching transcript from YouTube API');
       const transcriptResponse = await fetch('/api/youtube/check-transcript', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1303,7 +1303,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         return;
       }
 
-      console.log(`[YOUTUBE] Transcript fetched successfully, length: ${transcriptData.transcript.length} characters`);
+      debugLog('YOUTUBE', `Transcript fetched successfully, length: ${transcriptData.transcript.length} characters`);
 
       // Update progress to processing
       setAutocreateProgress(prev => ({
@@ -1320,7 +1320,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       formData.append('itemId', itemId);
       formData.append('userChoice', 'chord_names');
 
-      console.log(`[AUTOCREATE] Sending transcript to autocreate endpoint`);
+      debugLog('AUTOCREATE', `Sending transcript to autocreate endpoint`);
 
       const response = await fetch('/api/autocreate-chord-charts', {
         method: 'POST',
@@ -1359,7 +1359,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       }
 
       const result = await response.json();
-      console.log(`[AUTOCREATE] YouTube transcript processed successfully:`, result);
+      debugLog('AUTOCREATE', `YouTube transcript processed successfully:`, result);
 
       // Force refresh UI state
       const chartResponse = await fetch(`/api/items/${itemId}/chord-charts`);
@@ -1655,12 +1655,12 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
   const handleOpenCopyFromModal = (itemId) => {
     // TODO: Implement copy FROM modal (not included in this update)
-    console.log('Open copy from modal for item:', itemId);
+    debugLog('CopyCharts', 'Open copy from modal for item:', itemId);
   };
 
   // Copy modal: Open copy TO modal (copied from PracticePage)
   const handleOpenCopyModal = async (itemId) => {
-    console.log('Opening copy modal for item:', itemId);
+    debugLog('CopyCharts', 'Opening copy modal for item:', itemId);
     setCopySourceItemId(itemId);
 
     // Get source item details for fuzzy matching
@@ -1669,12 +1669,12 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
     // Find similar songs first
     const similarSongs = findSimilarSongs(sourceTitle, allItems, itemId);
-    console.log('Source:', sourceTitle);
-    console.log('Found similar songs:', similarSongs.map(s => s['C']));
+    debugLog('CopyCharts', 'Source:', sourceTitle);
+    debugLog('CopyCharts', 'Found similar songs:', similarSongs.map(s => s['C']));
 
     // Load chord charts for source + similar songs
     const itemsToLoad = [itemId, ...similarSongs.map(s => s['B'])];
-    console.log('Loading chord charts for relevant items:', itemsToLoad.length, 'items');
+    debugLog('CopyCharts', 'Loading chord charts for relevant items:', itemsToLoad.length, 'items');
 
     for (const id of itemsToLoad) {
       try {
@@ -1682,7 +1682,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         if (response.ok) {
           const charts = await response.json();
           setChordCharts(prev => ({ ...prev, [id]: charts }));
-          console.log(`Loaded ${charts.length} charts for item ${id}`);
+          debugLog('CopyCharts', `Loaded ${charts.length} charts for item ${id}`);
         }
       } catch (error) {
         console.error(`Error loading chord charts for item ${id}:`, error);
@@ -1727,15 +1727,15 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
   // Copy modal: Confirm copy operation (copied from PracticePage)
   const handleConfirmCopy = async () => {
-    console.log('handleConfirmCopy called', { copySourceItemId, selectedTargetItems: Array.from(selectedTargetItems) });
+    debugLog('CopyCharts', 'handleConfirmCopy called', { copySourceItemId, selectedTargetItems: Array.from(selectedTargetItems) });
     if (!copySourceItemId || selectedTargetItems.size === 0) {
-      console.log('Early return: missing source or targets');
+      debugLog('CopyCharts', 'Early return: missing source or targets');
       return;
     }
 
     // If there are overwrites and we haven't confirmed yet, show confirmation
     if (itemsWithExistingCharts.size > 0 && !showOverwriteConfirmation) {
-      console.log('Showing overwrite confirmation, items with existing charts:', itemsWithExistingCharts.size);
+      debugLog('CopyCharts', 'Showing overwrite confirmation, items with existing charts:', itemsWithExistingCharts.size);
       setShowOverwriteConfirmation(true);
       return;
     }
@@ -1760,7 +1760,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       }
 
       const result = await response.json();
-      console.log('Chord charts copied successfully:', result);
+      debugLog('CopyCharts', 'Chord charts copied successfully:', result);
 
       // Set copy progress to complete
       setCopyProgress('complete');
@@ -1771,7 +1771,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         return targetItem?.['B'];
       }).filter(Boolean);
       const affectedItems = [copySourceItemId, ...targetItemIds];
-      console.log('[DEBUG COPY] About to refresh chord charts for affected items:', affectedItems);
+      debugLog('CopyCharts', 'About to refresh chord charts for affected items:', affectedItems);
 
       for (const itemIdToRefresh of affectedItems) {
         try {
@@ -1779,7 +1779,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
           if (refreshResponse.ok) {
             const charts = await refreshResponse.json();
 
-            console.log('[DEBUG COPY] Updating chordCharts state for item', itemIdToRefresh, 'with', charts.length, 'charts');
+            debugLog('CopyCharts', 'Updating chordCharts state for item', itemIdToRefresh, 'with', charts.length, 'charts');
             setChordCharts(prev => ({
               ...prev,
               [itemIdToRefresh]: charts
@@ -1836,7 +1836,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                   type="text"
                   value={section.label}
                   onChange={(e) => {
-                    console.log('Updating section label:', section.id, e.target.value);
+                    debugLog('Section', 'Updating section label:', section.id, e.target.value);
                     updateSectionLocal(itemReferenceId, section.id, { label: e.target.value });
                   }}
                   className="bg-gray-900 text-white px-2 py-1 rounded text-sm font-semibold border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"

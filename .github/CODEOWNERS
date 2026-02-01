@@ -1,0 +1,24 @@
+# CODEOWNERS - Require review from code owners for PRs
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repo
+* @slshults
+
+# Critical: Workflow files and GitHub config require explicit approval
+# (Prevents shai-hulud style attacks via malicious workflow PRs)
+/.github/ @slshults
+/.github/workflows/ @slshults
+/.github/CODEOWNERS @slshults
+
+# Security-sensitive files
+.secrets.baseline @slshults
+.pre-commit-config.yaml @slshults
+
+# Dependency files (supply chain protection)
+pyproject.toml @slshults
+package.json @slshults
+package-lock.json @slshults
+requirements.txt @slshults
+
+# Environment and config
+.env.example @slshults
