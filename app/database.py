@@ -10,11 +10,10 @@ load_dotenv(override=True)
 
 from app.models import Base
 
-# Database URL from environment
-DATABASE_URL = os.getenv(
-    'DATABASE_URL',
-    'postgresql://gpra:***REMOVED***@localhost:5432/gpra_dev'
-)
+# Database URL from environment (required, no fallback)
+DATABASE_URL = os.getenv('DATABASE_URL')
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable must be set")
 
 # Create engine with connection pooling
 engine = create_engine(

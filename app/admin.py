@@ -76,11 +76,14 @@ def init_admin(app: Flask, db_session):
         db_session: SQLAlchemy session factory (SessionLocal from database.py)
     """
     # Configure Flask-AppBuilder
-    app.config['SQLALCHEMY_DATABASE_URI'] = app.config.get('DATABASE_URL',
-        'postgresql://gpra:***REMOVED***@localhost:5432/gpra_dev')
+    # These should already be set from __init__.py, but verify they exist
+    if not app.config.get('DATABASE_URL'):
+        raise ValueError("DATABASE_URL must be configured before init_admin()")
+    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['DATABASE_URL']
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = app.config.get('SECRET_KEY',
-        '***REMOVED***')
+
+    if not app.config.get('SECRET_KEY'):
+        raise ValueError("SECRET_KEY must be configured before init_admin()")
 
     # Flask-AppBuilder requires its own SQLAlchemy instance
     # CRITICAL: Our models.py now imports FAB's Base, so foreign keys to ab_user work

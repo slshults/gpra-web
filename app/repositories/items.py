@@ -1,3 +1,15 @@
+"""
+Item Repository - Data access layer for practice items.
+
+COLUMN MAPPING (legacy from Google Sheets migration):
+    A = Primary Key (DB id)      B = ItemID (frontend uses this)
+    C = Title                    D = Notes
+    E = Duration (minutes)       F = Description
+    G = Order                    H = Tuning
+    I = Songbook path
+
+Frontend documentation: app/static/js/constants/columns.js
+"""
 from typing import List, Optional, Dict, Any
 from sqlalchemy import func, and_
 from app.models import Item, ChordChart

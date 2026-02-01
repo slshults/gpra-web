@@ -24,8 +24,16 @@ if IS_PRODUCTION:
     app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 # Configure Flask app
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '***REMOVED***')
-app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://gpra:***REMOVED***@localhost:5432/gpra_dev')
+# Critical security: These must be set in environment, no fallbacks allowed
+secret_key = os.getenv('SECRET_KEY')
+if not secret_key:
+    raise ValueError("SECRET_KEY environment variable must be set")
+app.config['SECRET_KEY'] = secret_key
+
+database_url = os.getenv('DATABASE_URL')
+if not database_url:
+    raise ValueError("DATABASE_URL environment variable must be set")
+app.config['DATABASE_URL'] = database_url
 
 # Password Reset Configuration
 app.config['PASSWORD_RESET_TOKEN_EXPIRY'] = int(os.getenv('PASSWORD_RESET_TOKEN_EXPIRY', '3600'))

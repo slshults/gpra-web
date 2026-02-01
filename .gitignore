@@ -20,6 +20,13 @@ token.json
 client_secret.json
 credentials.json
 sudoers.d.gpra
+*.pem
+*.key
+.env.production
+.env.local
+.env.*.local
+*.json~
+service-account*.json
 
 # IDE and editor files
 .vscode/
