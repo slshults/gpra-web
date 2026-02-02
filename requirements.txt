@@ -19,7 +19,7 @@ flask-cors==6.0.1
 Flask-Session==0.8.0
 google-auth==2.41.1
 google-auth-httplib2==0.2.0
-google-auth-oauthlib==1.2.2
+google-auth-oauthlib==1.2.4
 greenlet==3.2.4
 gspread==6.2.1
 -e git+https://github.com/slshults/gpra-web.git@bab1fed92857afb1c5c395f01e2d5df43feccca3#egg=guitar_practice_assistant
