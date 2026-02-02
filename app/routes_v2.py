@@ -2,7 +2,7 @@
 Updated routes using the data layer abstraction.
 Drop-in replacement for existing routes.py during migration.
 """
-from flask import render_template, request, jsonify, redirect, session, url_for
+from flask import render_template, request, jsonify, redirect, session, url_for, send_from_directory
 from flask_login import current_user
 from app import app, billing, limiter, csrf
 from app.data_layer import data_layer
@@ -125,6 +125,11 @@ def about_page():
 def pricing_page():
     """Pricing page - accessible to everyone"""
     return render_template('pricing.html.jinja', posthog_key=posthog_key)
+
+@app.route('/ads.txt')
+def ads_txt():
+    """Serve ads.txt for Google AdSense verification"""
+    return send_from_directory(app.static_folder, 'ads.txt', mimetype='text/plain')
 
 @app.route('/unsubscribe/inactivity/<token>')
 def unsubscribe_inactivity(token):

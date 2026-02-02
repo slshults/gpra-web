@@ -5,6 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guitar Practice Routine App</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🎸</text></svg>">
+
+    <!-- Primary Meta Tags -->
+    <meta name="description" content="GPRA helps guitarists organize practice routines, track progress, use focus timers, and create chord charts. For beginners to intermediate players.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://guitarpracticeroutine.com/">
+    <meta property="og:title" content="Guitar Practice Routine App">
+    <meta property="og:description" content="GPRA helps guitarists organize practice routines, track progress, use focus timers, and create chord charts. For beginners to intermediate players.">
+    <meta property="og:image" content="https://guitarpracticeroutine.com/static/images/og-image.png">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Guitar Practice Routine App">
+    <meta name="twitter:description" content="GPRA helps guitarists organize practice routines, track progress, use focus timers, and create chord charts. For beginners to intermediate players.">
+    <meta name="twitter:image" content="https://guitarpracticeroutine.com/static/images/og-image.png">
     <!-- Driver.js CSS (from CDN) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
     <!-- Custom Driver.js theme -->
@@ -17,6 +33,26 @@
     <script>
         window.GPRA_DEBUG = {{ 'true' if debug else 'false' }};
     </script>
+
+    <!-- Google AdSense Auto Ads (free tier only, requires cookie consent) -->
+    {% if ads_enabled and adsense_publisher_id %}
+    <script>
+        // Only load AdSense if cookie consent was given
+        if (localStorage.getItem('cookieConsent') === 'all') {
+            var adsenseScript = document.createElement('script');
+            adsenseScript.async = true;
+            adsenseScript.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_publisher_id }}';
+            adsenseScript.crossOrigin = 'anonymous';
+            document.head.appendChild(adsenseScript);
+        }
+    </script>
+    <style>
+        /* Hide ads on mobile devices for better UX */
+        @media screen and (max-width: 768px) {
+            .adsbygoogle { display: none !important; }
+        }
+    </style>
+    {% endif %}
 
     <!-- PostHog Analytics -->
     {% if posthog_key %}
