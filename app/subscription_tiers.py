@@ -19,9 +19,9 @@ SUBSCRIPTION_TIERS = {
         'routines_limit': 5,
         'autocreate_enabled': False,
         'price_monthly': 3.00,
-        'price_yearly': 27.00,  # 25% savings
-        'stripe_price_id_monthly': 'price_1SOC2mJTZIlESiBEIHJBDZii',
-        'stripe_price_id_yearly': 'price_1SOC3BJTZIlESiBEnRpLW9nQ',
+        'price_yearly': 27.00,  # 25% savings (yearly hidden until app runs 1 year)
+        'stripe_price_id_monthly': 'price_1SwC4CJpH9RIQos2IKPhbuD5',
+        'stripe_price_id_yearly': None,  # Yearly pricing deferred until app runs 1 year
     },
     'thegoods': {
         'name': 'The Goods',
@@ -30,9 +30,9 @@ SUBSCRIPTION_TIERS = {
         'routines_limit': 10,
         'autocreate_enabled': True,  # Autocreate/Claude included starting at $6/mo
         'price_monthly': 6.00,
-        'price_yearly': 54.00,  # 25% savings
-        'stripe_price_id_monthly': 'price_1SOC3eJTZIlESiBEIblnPSdf',
-        'stripe_price_id_yearly': 'price_1SOC3mJTZIlESiBEeKndWeZk',
+        'price_yearly': 54.00,  # 25% savings (yearly hidden until app runs 1 year)
+        'stripe_price_id_monthly': 'price_1SwC5kJpH9RIQos227KwiUvI',
+        'stripe_price_id_yearly': None,  # Yearly pricing deferred until app runs 1 year
     },
     'moregoods': {
         'name': 'More Goods',
@@ -41,9 +41,9 @@ SUBSCRIPTION_TIERS = {
         'routines_limit': 25,
         'autocreate_enabled': True,
         'price_monthly': 12.00,
-        'price_yearly': 100.80,  # 30% savings
-        'stripe_price_id_monthly': 'price_1SOC4NJTZIlESiBElUo2Xx5D',
-        'stripe_price_id_yearly': 'price_1SOC4pJTZIlESiBEBt3Vowp8',
+        'price_yearly': 100.80,  # 30% savings (yearly hidden until app runs 1 year)
+        'stripe_price_id_monthly': 'price_1SwC6tJpH9RIQos2H9jQZtNe',
+        'stripe_price_id_yearly': None,  # Yearly pricing deferred until app runs 1 year
     },
     'themost': {
         'name': 'The Most',
@@ -52,9 +52,9 @@ SUBSCRIPTION_TIERS = {
         'routines_limit': 50,
         'autocreate_enabled': True,
         'price_monthly': 20.00,
-        'price_yearly': 168.00,  # 30% savings
-        'stripe_price_id_monthly': 'price_1SOC5WJTZIlESiBEsfcyxKWa',
-        'stripe_price_id_yearly': 'price_1SOC5fJTZIlESiBEvaMXyyXP',
+        'price_yearly': 168.00,  # 30% savings (yearly hidden until app runs 1 year)
+        'stripe_price_id_monthly': 'price_1SwC8gJpH9RIQos2t1uSZ74o',
+        'stripe_price_id_yearly': None,  # Yearly pricing deferred until app runs 1 year
     },
     'complimentary': {
         'name': 'complimentary',
