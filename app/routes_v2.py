@@ -121,6 +121,11 @@ def about_page():
     """About page - accessible to everyone"""
     return render_template('about.html.jinja', posthog_key=posthog_key)
 
+@app.route('/pricing')
+def pricing_page():
+    """Pricing page - accessible to everyone"""
+    return render_template('pricing.html.jinja', posthog_key=posthog_key)
+
 @app.route('/unsubscribe/inactivity/<token>')
 def unsubscribe_inactivity(token):
     """
