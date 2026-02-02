@@ -137,7 +137,7 @@ const LoginPage = () => {
         {/* App Title */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-orange-500 mb-2" style={{lineHeight: '1.2'}}>
-            <span className="whitespace-nowrap">Guitar Practice</span>
+            🎸 <span className="whitespace-nowrap">Guitar Practice</span>
             {' '}
             <span className="whitespace-nowrap">Routine App</span>
           </h1>

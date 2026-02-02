@@ -35,7 +35,7 @@ def index():
         app.logger.info("User not authenticated, redirecting to login via client-side redirect")
         # Use client-side redirect to preserve URL hash (hash is not sent to server)
         # The login_redirect template saves the hash to sessionStorage before redirecting
-        return render_template('login_redirect.html.jinja')
+        return render_template('landing.html.jinja', posthog_key=posthog_key)
 
     app.logger.info(f"Authenticated user accessing main app: {current_user.username}")
 

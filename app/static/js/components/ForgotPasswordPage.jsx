@@ -94,7 +94,7 @@ const ForgotPasswordPage = () => {
         <div className="w-full max-w-md">
           {/* App Title */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-orange-500 mb-2">Guitar Practice Routine App</h1>
+            <h1 className="text-3xl font-bold text-orange-500 mb-2">🎸 Guitar Practice Routine App</h1>
             <p className="text-gray-400">Sign in with Google</p>
           </div>
 
@@ -140,7 +140,7 @@ const ForgotPasswordPage = () => {
       <div className="w-full max-w-md">
         {/* App Title */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-orange-500 mb-2">Guitar Practice Routine App</h1>
+          <h1 className="text-3xl font-bold text-orange-500 mb-2">🎸 Guitar Practice Routine App</h1>
           <p className="text-gray-400">Reset your password</p>
         </div>
 

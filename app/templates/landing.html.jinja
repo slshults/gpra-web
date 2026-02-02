@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guitar Practice Routine App</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🎸</text></svg>">
+
+    <!-- Primary Meta Tags -->
+    <meta name="description" content="GPRA helps guitarists organize practice routines, track progress, use focus timers, and create chord charts. For beginners to intermediate players.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://guitarpracticeroutine.com/">
+    <meta property="og:title" content="Guitar Practice Routine App">
+    <meta property="og:description" content="GPRA helps guitarists organize practice routines, track progress, use focus timers, and create chord charts. For beginners to intermediate players.">
+    <meta property="og:image" content="https://guitarpracticeroutine.com/static/images/og-image.png">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Guitar Practice Routine App">
+    <meta name="twitter:description" content="GPRA helps guitarists organize practice routines, track progress, use focus timers, and create chord charts. For beginners to intermediate players.">
+    <meta name="twitter:image" content="https://guitarpracticeroutine.com/static/images/og-image.png">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+
+    <style>
+        /* Theme toggle positioning */
+        .theme-toggle {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        .theme-toggle:hover {
+            opacity: 1;
+        }
+        /* Light mode overrides */
+        .light-mode {
+            background-color: #f3f4f6 !important;
+        }
+        .light-mode .text-gray-300 {
+            color: #374151 !important;
+        }
+        .light-mode .text-gray-400 {
+            color: #4b5563 !important;
+        }
+        .light-mode .text-gray-500 {
+            color: #6b7280 !important;
+        }
+        .light-mode .text-gray-600 {
+            color: #4b5563 !important;
+        }
+        .light-mode .bg-gray-800 {
+            background-color: #e5e7eb !important;
+        }
+        .light-mode .bg-gray-800:hover {
+            background-color: #d1d5db !important;
+        }
+        .light-mode .text-gray-200 {
+            color: #1f2937 !important;
+        }
+        .light-mode .border-gray-600 {
+            border-color: #9ca3af !important;
+        }
+        .light-mode .border-gray-700 {
+            border-color: #d1d5db !important;
+        }
+        .light-mode a.hover\:text-gray-400:hover {
+            color: #1f2937 !important;
+        }
+        /* Card background in light mode */
+        .light-mode .bg-gray-800.rounded-lg {
+            background-color: #ffffff !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-900">
+    <script>
+        // Apply theme immediately to prevent flash
+        (function() {
+            if (localStorage.getItem('lightMode') === 'true') {
+                document.body.classList.add('light-mode');
+                document.documentElement.classList.remove('dark');
+            }
+        })();
+    </script>
+
+    <div class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-md">
+            <!-- App Title (above card, like login page) -->
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-orange-500 mb-2">
+                    🎸 Guitar Practice Routine App
+                </h1>
+            </div>
+
+            <!-- Main Content Card -->
+            <div class="bg-gray-800 rounded-lg border border-gray-700 p-8 flex flex-col" style="min-height: 460px;">
+                <!-- Intro Paragraphs (left-aligned) -->
+                <p class="text-gray-300 mb-6 text-left text-lg leading-loose">
+                    A web app for beginning and intermediate guitar players to organize and track guitar practice routines.
+                </p>
+                <p class="text-gray-300 mb-6 text-left text-lg leading-loose">
+                    Create practice items with editable auto-created chord charts, organize them into routines, with a timer on each practice item.
+                </p>
+                <p class="text-gray-300 text-left text-lg leading-loose">
+                    Create a free account to take the tour.<br>(no credit card needed for a free account.)
+                </p>
+
+                <!-- Spacer to push buttons to bottom of card -->
+                <div class="flex-grow"></div>
+
+                <!-- Action Buttons (stacked, matching login button: h-9 py-2) -->
+                <div class="flex flex-col gap-3">
+                    <a href="/login" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md transition-colors text-center">
+                        Login
+                    </a>
+                    <a href="/register" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-medium rounded-md border border-gray-600 transition-colors text-center">
+                        Sign up
+                    </a>
+                </div>
+            </div>
+
+            <!-- Footer Links (inside max-w-md like login page) -->
+            <div class="text-center text-sm text-gray-400 py-4 mt-4">
+                <a href="/about" class="hover:underline hover:text-gray-400">About</a>
+                <span> &middot; </span>
+                <a href="/faq" class="hover:underline hover:text-gray-400">FAQ</a>
+                <span> &middot; </span>
+                <a href="/pricing" class="hover:underline hover:text-gray-400">Pricing</a>
+                <span> &middot; </span>
+                <a href="/terms" class="hover:underline hover:text-gray-400">Terms</a>
+                <span> &middot; </span>
+                <a href="/privacy" class="hover:underline hover:text-gray-400">Privacy</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Theme Toggle -->
+    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+        <img id="light-mode-toggle"
+             src="{{ url_for('static', filename='images/lightmodetoggle.png') }}"
+             alt="Switch to Light Mode"
+             style="height: 20px; width: 40px; display: block;">
+        <img id="dark-mode-toggle"
+             src="{{ url_for('static', filename='images/darkmodetoggle.png') }}"
+             alt="Switch to Dark Mode"
+             style="height: 20px; width: 40px; display: none;">
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+
+    <!-- PostHog Analytics -->
+    {% if posthog_key %}
+    <script>
+        // GDPR-Compliant PostHog Loading
+        (function() {
+            var cookieConsent = localStorage.getItem('cookieConsent');
+            if (cookieConsent === 'all') {
+                !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture identify".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+                posthog.init('{{ posthog_key }}', {
+                    api_host: 'https://tacet.guitarpracticeroutine.com',
+                    person_profiles: 'identified_only',
+                    capture_pageview: true
+                });
+            }
+        })();
+    </script>
+    {% endif %}
+</body>
+</html>
