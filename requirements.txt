@@ -46,7 +46,7 @@ pydantic_core==2.41.1
 pyparsing==3.2.5
 pytesseract==0.3.13
 python-dateutil==2.9.0.post0
-python-dotenv==1.1.1
+python-dotenv==1.2.1
 python-magic==0.4.27
 pytz==2025.2
 redis==7.1.0
