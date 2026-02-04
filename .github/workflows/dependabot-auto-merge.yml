@@ -1,5 +1,6 @@
-# Auto-merge Dependabot PRs for patch and minor updates
-# Major version bumps require manual review
+# Auto-approve and auto-merge Dependabot PRs for posthog-python updates
+# Since we restrict Dependabot to ONLY posthog-python (see dependabot.yml),
+# all semver types (patch, minor, major) are auto-merged.
 # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/automating-dependabot-with-github-actions
 
 name: Dependabot auto-merge
@@ -13,6 +14,7 @@ permissions:
 jobs:
   dependabot:
     runs-on: ubuntu-latest
+    # Only run for dependabot[bot] authored PRs
     if: github.actor == 'dependabot[bot]'
     steps:
       - name: Dependabot metadata
@@ -21,8 +23,29 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Auto-merge patch and minor updates
-        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
+      # Safety check: only auto-merge if the dependency is posthog
+      # This is defense-in-depth alongside the dependabot.yml allow filter
+      - name: Verify dependency is posthog
+        id: verify
+        run: |
+          DEP_NAME="${{ steps.metadata.outputs.dependency-names }}"
+          echo "Dependency: $DEP_NAME"
+          if [[ "$DEP_NAME" == "posthog" ]]; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Unexpected dependency '$DEP_NAME' - skipping auto-merge"
+          fi
+
+      - name: Auto-approve PR
+        if: steps.verify.outputs.allowed == 'true'
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Auto-merge PR
+        if: steps.verify.outputs.allowed == 'true'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
