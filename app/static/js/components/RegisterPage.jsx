@@ -24,11 +24,6 @@ const RegisterPage = () => {
   const [recaptchaReady, setRecaptchaReady] = useState(false);
   const recaptchaRef = useRef(null);
 
-  // Track if user has clicked Terms and Privacy links
-  const [clickedTerms, setClickedTerms] = useState(false);
-  const [clickedPrivacy, setClickedPrivacy] = useState(false);
-  const [showReadFirstModal, setShowReadFirstModal] = useState(false);
-
   // Password requirements validation
   const passwordRequirements = {
     length: password.length >= 14,
@@ -469,15 +464,7 @@ const RegisterPage = () => {
                   type="checkbox"
                   id="terms"
                   checked={agreedToTerms}
-                  onChange={(e) => {
-                    // If trying to check the box without clicking both links, show modal
-                    if (e.target.checked && (!clickedTerms || !clickedPrivacy)) {
-                      setShowReadFirstModal(true);
-                      e.target.checked = false;
-                      return;
-                    }
-                    setAgreedToTerms(e.target.checked);
-                  }}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
                   className="mt-1 h-4 w-4 rounded border-gray-600 bg-gray-900 text-orange-600 focus:ring-orange-500 focus:ring-offset-gray-800"
                   disabled={loading}
                   required
@@ -489,7 +476,6 @@ const RegisterPage = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-orange-500 hover:text-orange-400 underline"
-                    onClick={() => setClickedTerms(true)}
                   >
                     Terms of Service
                   </a>
@@ -499,29 +485,11 @@ const RegisterPage = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-orange-500 hover:text-orange-400 underline"
-                    onClick={() => setClickedPrivacy(true)}
                   >
                     Privacy Policy
                   </a>
                 </label>
               </div>
-
-              {/* Read First Modal */}
-              {showReadFirstModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                  <div className="bg-gray-800 border border-gray-600 rounded-lg p-6 max-w-md mx-4 shadow-xl">
-                    <p className="text-gray-200 mb-4">
-                      Seriously though, please read the terms and privacy policy first. They're written in plain language, not legalese.
-                    </p>
-                    <Button
-                      onClick={() => setShowReadFirstModal(false)}
-                      className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-                    >
-                      OK
-                    </Button>
-                  </div>
-                </div>
-              )}
 
               {/* reCAPTCHA Enterprise Checkbox */}
               <div className="flex justify-center">
