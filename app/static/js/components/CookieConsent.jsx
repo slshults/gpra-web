@@ -160,11 +160,10 @@ const CookieConsent = () => {
           {/* Message */}
           <div className="flex-1 text-sm text-gray-700 dark:text-gray-300 text-center md:text-left">
             <p className="mb-2">
-              <span className="font-semibold text-base">We use cookies to make GPRA better! 🍪</span>
+              <span className="font-semibold text-base">We use cookies to make GPRA better</span>
             </p>
             <p>
-              We use functional cookies (required for login and sessions) and analytics cookies
-              (to help us improve the app). You can choose which cookies you're okay with.{' '}
+              We use functional cookies (required for login and sessions, "Essential only") and PostHog cookies for analytics, contact form, etc. ("Accept all") {' '}
               <a href="/privacy#cookies" className="text-orange-600 dark:text-orange-400 hover:underline">
                 Learn more
               </a>
