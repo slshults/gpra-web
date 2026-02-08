@@ -57,6 +57,23 @@
         })();
     </script>
     {% endif %}
+
+    <!-- Google Analytics 4 (consent-gated) -->
+    <script>
+        (function() {
+            var cookieConsent = localStorage.getItem('cookieConsent');
+            if (cookieConsent === 'all') {
+                var s = document.createElement('script');
+                s.async = true;
+                s.src = 'https://www.googletagmanager.com/gtag/js?id=G-E3FNWSVY1J';
+                document.head.appendChild(s);
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', 'G-E3FNWSVY1J');
+            }
+        })();
+    </script>
     <style>
         /* Theme toggle positioning */
         .theme-toggle {

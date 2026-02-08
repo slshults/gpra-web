@@ -163,7 +163,7 @@ const CookieConsent = () => {
               <span className="font-semibold text-base">We use cookies to make GPRA better</span>
             </p>
             <p>
-              We use functional cookies (required for login and sessions, "Essential only") and PostHog cookies for analytics, contact form, etc. ("Accept all") {' '}
+              We use functional cookies (required for login and sessions, "Essential only") and analytics cookies from PostHog and Google Analytics ("Accept all") {' '}
               <a href="/privacy#cookies" className="text-orange-600 dark:text-orange-400 hover:underline">
                 Learn more
               </a>

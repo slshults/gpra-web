@@ -57,6 +57,23 @@
         })();
     </script>
     {% endif %}
+
+    <!-- Google Analytics 4 (consent-gated) -->
+    <script>
+        (function() {
+            var cookieConsent = localStorage.getItem('cookieConsent');
+            if (cookieConsent === 'all') {
+                var s = document.createElement('script');
+                s.async = true;
+                s.src = 'https://www.googletagmanager.com/gtag/js?id=G-E3FNWSVY1J';
+                document.head.appendChild(s);
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', 'G-E3FNWSVY1J');
+            }
+        })();
+    </script>
     <style>
         /* Theme toggle positioning */
         .theme-toggle {
@@ -226,6 +243,15 @@
 
                 <div class="mb-4">
                     <h3 class="font-semibold text-lg mb-1">
+                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">Google Analytics</a>
+                    </h3>
+                    <p class="ml-6">
+                        Traffic analytics to help me understand how visitors find GPRA and which pages they visit. Only loaded if you accept analytics cookies. You can opt out anytime in <a href="/#Account" class="text-orange-600 dark:text-orange-400 hover:underline">Account/Settings</a>.
+                    </p>
+                </div>
+
+                <div class="mb-4">
+                    <h3 class="font-semibold text-lg mb-1">
                         <a href="https://tidal.com/privacy" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">Tidal OAuth</a>
                     </h3>
                     <p class="ml-6">
@@ -268,6 +294,7 @@
                 <ul class="list-disc pl-6 space-y-2">
                     <li><strong>Session Cookies:</strong> Required for login, keeping you logged in, keeping your account settings, etc. These are "functional cookies" and so they don't require consent.</li>
                     <li><strong>PostHog Cookies:</strong> Tracks how you use GPRA to help me improve it. You can opt out via the <a href="/#Account" class="text-orange-600 dark:text-orange-400 hover:underline">Account/Settings page</a>.</li>
+                    <li><strong>Google Analytics Cookies:</strong> Traffic analytics to help me understand how visitors find and use GPRA. Only loaded if you accept analytics cookies.</li>
                     <li><strong>Dark Mode Preference:</strong> Stored in your browser's localStorage so the app will remember if you're one of those weirdos who prefers light mode. (Yes, my fellow nerds, it's not technically a cookie, but not worthy of its own section in this document either.)</li>
                 </ul>
             </div>
