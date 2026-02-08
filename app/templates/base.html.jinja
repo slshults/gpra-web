@@ -98,7 +98,7 @@
         })();
     </script>
 </head>
-<body class="bg-gray-900 text-gray-100">
+<body class="bg-gray-900 text-gray-100 show-ph-widget">
     {% block content %}{% endblock %}
     {% block scripts %}{% endblock %}
 
@@ -116,7 +116,5 @@
 
     <!-- Theme Toggle JavaScript -->
     <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
-    <!-- PostHog Feedback Survey -->
-    <script src="{{ url_for('static', filename='js/feedback-survey.js') }}"></script>
 </body>
 </html> 

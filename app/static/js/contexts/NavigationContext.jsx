@@ -63,6 +63,40 @@ export const NavigationProvider = ({ children }) => {
     }
   };
 
+  // Show/hide PostHog conversations widget based on active page
+  // Hide on Practice, Routines, Items to avoid cluttering the practice UI
+  // Two-pronged approach: CSS hides widget by default (no flash), JS controls body class + API
+  useEffect(() => {
+    const hideOnPages = ['Practice', 'Routines', 'Items'];
+    const shouldShow = !hideOnPages.includes(activePage);
+
+    // Immediately update body class (CSS handles visibility, no flash)
+    if (shouldShow) {
+      document.body.classList.add('show-ph-widget');
+    } else {
+      document.body.classList.remove('show-ph-widget');
+    }
+
+    // Also call PostHog API as belt-and-suspenders
+    const updateWidget = () => {
+      if (window.posthog?.conversations) {
+        if (shouldShow) {
+          window.posthog.conversations.show();
+        } else {
+          window.posthog.conversations.hide();
+        }
+      }
+    };
+
+    // Try immediately
+    updateWidget();
+
+    // Also retry after a short delay in case PostHog hasn't fully loaded yet
+    const timeoutId = setTimeout(updateWidget, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [activePage]);
+
   // Listen for browser back/forward button
   useEffect(() => {
     const handlePopState = () => {

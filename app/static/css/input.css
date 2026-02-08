@@ -307,3 +307,279 @@ body.light-mode {
   bottom: 14px !important;
   visibility: visible !important;
 }
+
+/* =============================================================
+   PostHog Conversations Widget - visibility control
+   Hidden by default to prevent flash on pages where it's not wanted.
+   JS adds 'show-ph-widget' class to <body> on pages where it should appear.
+   ============================================================= */
+#ph-conversations-widget-container {
+  display: none !important;
+}
+
+body.show-ph-widget #ph-conversations-widget-container {
+  display: block !important;
+}
+
+/* =============================================================
+   PostHog Conversations Widget - GPRA theme overrides
+   All rules need !important since PostHog uses inline styles.
+
+   Widget DOM structure (when open):
+     #ph-conversations-widget-container
+       > DIV (fixed-pos wrapper)
+         > DIV (panel container - has background:white inline)
+           > DIV:first-child (HEADER - has background:rgb(255,170,0) inline)
+           > DIV:nth-child(2) (BODY - has background:rgb(238,237,237) inline)
+             > DIV (title), DIV (description), FORM, ...
+   ============================================================= */
+
+/* Dark mode (default) */
+
+/* Floating chat button - GPRA orange */
+#ph-conversations-widget-container button[aria-label="Open chat"] {
+  background-color: #ea580c !important;
+  color: #ffffff !important;
+  font-family: inherit !important;
+}
+#ph-conversations-widget-container button[aria-label="Open chat"]:hover {
+  background-color: #c2410c !important;
+}
+
+/* Close button */
+#ph-conversations-widget-container button[aria-label="Close"] {
+  color: #f3f4f6 !important;
+}
+
+/* Panel container (the white rounded box) - 3 levels deep:
+   #container > div(fixed wrapper) > div(panel) */
+#ph-conversations-widget-container > div > div {
+  background-color: #0f172a !important;
+}
+
+/* Panel header - 4 levels deep, first child of panel.
+   Overrides PostHog's yellow/gold rgb(255,170,0) with GPRA orange */
+#ph-conversations-widget-container > div > div > div:first-child {
+  background-color: #ea580c !important;
+  color: #ffffff !important;
+  font-family: inherit !important;
+  border-bottom: 1px solid #c2410c !important;
+}
+
+/* Panel body / conversation area - 4 levels deep, second child of panel.
+   Overrides PostHog's light gray rgb(238,237,237) with dark background */
+#ph-conversations-widget-container > div > div > div:nth-child(2) {
+  background-color: #0f172a !important;
+  color: #e2e8f0 !important;
+  font-family: inherit !important;
+}
+
+/* Title and description text divs inside body */
+#ph-conversations-widget-container > div > div > div:nth-child(2) > div {
+  color: #e2e8f0 !important;
+}
+
+/* data-panel attribute selectors (if PostHog adds them) */
+#ph-conversations-widget-container [data-panel="header"] {
+  background-color: #ea580c !important;
+  color: #ffffff !important;
+  font-family: inherit !important;
+  border-bottom: 1px solid #c2410c !important;
+}
+
+#ph-conversations-widget-container [data-panel="body"] {
+  background-color: #0f172a !important;
+  color: #e2e8f0 !important;
+  font-family: inherit !important;
+}
+
+/* Form inputs */
+#ph-conversations-widget-container form input,
+#ph-conversations-widget-container form textarea {
+  background-color: #1e293b !important;
+  color: #f3f4f6 !important;
+  border-color: #334155 !important;
+  font-family: inherit !important;
+}
+#ph-conversations-widget-container form input::placeholder,
+#ph-conversations-widget-container form textarea::placeholder {
+  color: #94a3b8 !important;
+}
+#ph-conversations-widget-container form input:focus,
+#ph-conversations-widget-container form textarea:focus {
+  border-color: #ea580c !important;
+  outline: none !important;
+  box-shadow: 0 0 0 1px #ea580c !important;
+}
+
+/* Form labels */
+#ph-conversations-widget-container form label {
+  color: #cbd5e1 !important;
+  font-family: inherit !important;
+}
+
+/* Submit button - GPRA orange */
+#ph-conversations-widget-container form button[type="submit"] {
+  background-color: #ea580c !important;
+  color: #ffffff !important;
+  font-family: inherit !important;
+}
+#ph-conversations-widget-container form button[type="submit"]:hover {
+  background-color: #c2410c !important;
+}
+
+/* General font inside the widget */
+#ph-conversations-widget-container p,
+#ph-conversations-widget-container span,
+#ph-conversations-widget-container div,
+#ph-conversations-widget-container h1,
+#ph-conversations-widget-container h2,
+#ph-conversations-widget-container h3 {
+  font-family: inherit !important;
+}
+
+/* Force light text colors on all text elements inside widget (dark mode) */
+#ph-conversations-widget-container p,
+#ph-conversations-widget-container span,
+#ph-conversations-widget-container h1,
+#ph-conversations-widget-container h2,
+#ph-conversations-widget-container h3 {
+  color: #e2e8f0 !important;
+}
+
+/* ---- Light mode overrides ---- */
+
+/* Panel container */
+.light-mode #ph-conversations-widget-container > div > div {
+  background-color: #ffffff !important;
+}
+
+/* Header - keep GPRA orange in light mode too */
+.light-mode #ph-conversations-widget-container > div > div > div:first-child,
+.light-mode #ph-conversations-widget-container [data-panel="header"] {
+  background-color: #ea580c !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid #c2410c !important;
+}
+
+/* Body */
+.light-mode #ph-conversations-widget-container > div > div > div:nth-child(2),
+.light-mode #ph-conversations-widget-container [data-panel="body"] {
+  background-color: #ffffff !important;
+  color: #334155 !important;
+}
+
+/* Text inside body in light mode */
+.light-mode #ph-conversations-widget-container > div > div > div:nth-child(2) > div {
+  color: #334155 !important;
+}
+
+/* Close button stays white on orange header */
+.light-mode #ph-conversations-widget-container button[aria-label="Close"] {
+  color: #ffffff !important;
+}
+
+.light-mode #ph-conversations-widget-container form input,
+.light-mode #ph-conversations-widget-container form textarea {
+  background-color: #f8fafc !important;
+  color: #1e293b !important;
+  border-color: #cbd5e1 !important;
+}
+.light-mode #ph-conversations-widget-container form input::placeholder,
+.light-mode #ph-conversations-widget-container form textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+.light-mode #ph-conversations-widget-container form label {
+  color: #475569 !important;
+}
+
+.light-mode #ph-conversations-widget-container p,
+.light-mode #ph-conversations-widget-container span,
+.light-mode #ph-conversations-widget-container div {
+  color: #334155 !important;
+}
+
+/* Keep header text white even in light mode (orange bg needs white text) */
+.light-mode #ph-conversations-widget-container > div > div > div:first-child p,
+.light-mode #ph-conversations-widget-container > div > div > div:first-child span,
+.light-mode #ph-conversations-widget-container > div > div > div:first-child div,
+.light-mode #ph-conversations-widget-container > div > div > div:first-child h1,
+.light-mode #ph-conversations-widget-container > div > div > div:first-child h2,
+.light-mode #ph-conversations-widget-container > div > div > div:first-child h3,
+.light-mode #ph-conversations-widget-container > div > div > div:first-child button {
+  color: #ffffff !important;
+}
+
+/* =============================================================
+   PostHog Conversations Widget - Chat bubble overrides (NUCLEAR)
+   The old approach tried to match specific inline RGB values with
+   attribute selectors, but PostHog changes these values across
+   versions. Instead, we use depth-based selectors: chat message
+   bubbles are deeply nested (5+ div levels), while the header,
+   form inputs, and buttons are at shallower levels or have
+   specific element types we can whitelist back.
+   ============================================================= */
+
+/* ---------- Dark mode (default) ---------- */
+
+/* Force dark backgrounds on ALL deeply nested divs in the chat area.
+   5-level div nesting targets message bubbles specifically. */
+#ph-conversations-widget-container div div div div div {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+/* Ensure ALL text inside deeply nested bubbles is light */
+#ph-conversations-widget-container div div div div div span,
+#ph-conversations-widget-container div div div div div p {
+  color: #e2e8f0 !important;
+}
+
+/* Whitelist: keep the header orange (shallower, more specific selector wins) */
+#ph-conversations-widget-container > div > div > div:first-child {
+  background-color: #ea580c !important;
+  color: #ffffff !important;
+}
+
+/* Whitelist: keep form inputs their own dark shade */
+#ph-conversations-widget-container form input,
+#ph-conversations-widget-container form textarea {
+  background-color: #1e293b !important;
+  color: #f3f4f6 !important;
+  border-color: #334155 !important;
+}
+
+/* Whitelist: keep submit button orange */
+#ph-conversations-widget-container form button[type="submit"] {
+  background-color: #ea580c !important;
+  color: #ffffff !important;
+}
+
+/* ---------- Light mode ---------- */
+
+/* Force light backgrounds on all deeply nested chat divs */
+.light-mode #ph-conversations-widget-container div div div div div {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+}
+
+/* Light text in deeply nested bubbles */
+.light-mode #ph-conversations-widget-container div div div div div span,
+.light-mode #ph-conversations-widget-container div div div div div p {
+  color: #334155 !important;
+}
+
+/* Whitelist: header stays orange in light mode */
+.light-mode #ph-conversations-widget-container > div > div > div:first-child {
+  background-color: #ea580c !important;
+  color: #ffffff !important;
+}
+
+/* Whitelist: form inputs in light mode */
+.light-mode #ph-conversations-widget-container form input,
+.light-mode #ph-conversations-widget-container form textarea {
+  background-color: #f8fafc !important;
+  color: #1e293b !important;
+  border-color: #cbd5e1 !important;
+}

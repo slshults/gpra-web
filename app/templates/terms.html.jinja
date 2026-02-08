@@ -90,7 +90,7 @@
         }
     </style>
 </head>
-<body class="bg-gray-900">
+<body class="bg-gray-900 show-ph-widget">
     <!-- App Title Banner -->
     <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
         <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -127,7 +127,7 @@
                  <br>
             </p>
             <p class="text-gray-700 dark:text-gray-300">
-                These terms outline how you can use this site/app, what you can and can't expect from this app, and what I expect for your use of the app. I've tried to keep this straightforward and basic, but just <a href="#" onclick="triggerFeedbackSurvey(event)" class="text-orange-600 dark:text-orange-400 hover:underline">reach out</a> if you have any questions or concerns.<br><br>
+                These terms outline how you can use this site/app, what you can and can't expect from this app, and what I expect for your use of the app. I've tried to keep this straightforward and basic, but feel free to use the chat widget or <a href="https://github.com/slshults/gpra-web/issues" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">open an issue on GitHub</a> if you have any questions or concerns.<br><br>
             </p>
             <p class="text-gray-700 dark:text-gray-300">
                 Know that I am not a corporation, nor a 'tech bro', nor am I hoping to sell this app for a big payday. I'm just some guy who built his own guitar practice routine app (after not being able to find one I liked) then turned it into a webapp for others to use. I'm mostly just hoping I'll make enough money to pay for the hosting fees. (If I make a little extra money to help pay down credit card debt, that'll be a nice surprise.)
@@ -157,7 +157,7 @@
             <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">2. Account Responsibilities</h2>
             <div class="space-y-4 text-gray-700 dark:text-gray-300">
                 <p>
-                    <strong>Your account is <em>your</em> responsibility</strong>: Keep your password secure. Don't share your account with anyone else. You're responsible for all activity on your account. If you let someone use your account and they screw up your data, that's on you. Likewise, if you let someone use your account and they abuse it, you'll be responsible for any damages they cause. The fees are low. If you're sharing it with a friend because they can't afford an account of their own, <a href="#" onclick="triggerFeedbackSurvey(event)" class="text-orange-600 dark:text-orange-400 hover:underline">reach out</a>. I am willing to give discount codes to your broke bandmates, people between day jobs, students, etc. (Note: I do not give discounts for people claiming their account is related to playing for worship services. Your church doesn't pay taxes, so ask them to reimburse you for your account.)
+                    <strong>Your account is <em>your</em> responsibility</strong>: Keep your password secure. Don't share your account with anyone else. You're responsible for all activity on your account. If you let someone use your account and they screw up your data, that's on you. Likewise, if you let someone use your account and they abuse it, you'll be responsible for any damages they cause. The fees are low. If you're sharing it with a friend because they can't afford an account of their own, get in touch via the chat widget or <a href="https://github.com/slshults/gpra-web/issues" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">GitHub</a>. I am willing to give discount codes to your broke bandmates, people between day jobs, students, etc. (Note: I do not give discounts for people claiming their account is related to playing for worship services. Your church doesn't pay taxes, so ask them to reimburse you for your account.)
                 </p>
                 <p>
                     <strong>Eligibility:</strong> You must be at least 13 years old to use GPRA. If you're under 18, you should have parental permission to use the service. (There's nothing inappropriate for kids here, I just don't want to deal with your angry parents if you spend money on an account without their permission.)
@@ -361,12 +361,8 @@
         <!-- 11. Contact -->
         <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6 mb-8">
             <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">11. Questions or Concerns?</h2>
-            <p class="mt-2">
-                <a href="#"
-                   onclick="triggerFeedbackSurvey(event)"
-                   class="inline-block px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
-                    Reach out
-                </a>
+            <p class="text-gray-700 dark:text-gray-300">
+                Use the chat widget in the top-right corner, or <a href="https://github.com/slshults/gpra-web/issues" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">open an issue on GitHub</a>.
             </p>
         </div>
 
@@ -397,6 +393,5 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/feedback-survey.js') }}"></script>
 </body>
 </html>

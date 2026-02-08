@@ -438,23 +438,17 @@ const FAQPage = () => {
       {/* Contact Section */}
       <div className="mt-8 p-6 bg-gray-800 border border-gray-700 rounded-lg">
         <h2 className="text-lg font-semibold text-gray-100 mb-2">Still have questions?</h2>
-        <p className="text-gray-400 mb-4">
-          If you didn't find what you're looking for, feel free to reach out.
+        <p className="text-gray-400">
+          Use the chat widget in the top-right corner, or{' '}
+          <a
+            href="https://github.com/slshults/gpra-web/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-orange-400 hover:underline"
+          >
+            open an issue on GitHub
+          </a>.
         </p>
-        <a
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            if (typeof window.triggerFeedbackSurvey === 'function') {
-              window.triggerFeedbackSurvey(e);
-            } else {
-              console.warn('[FAQPage] triggerFeedbackSurvey not available');
-            }
-          }}
-          className="inline-block px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors"
-        >
-          Share feedback
-        </a>
       </div>
     </div>
   );
