@@ -180,7 +180,7 @@ const App = () => {
             </a>
             <span>·</span>
             <a href="/faq" className="hover:text-orange-400 transition-colors">
-              FAQ
+              Help
             </a>
             <span>·</span>
             <a href="/terms" className="hover:text-orange-400 transition-colors">
