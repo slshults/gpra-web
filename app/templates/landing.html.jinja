@@ -16,7 +16,7 @@
     <meta property="og:description" content="GPRA helps guitarists organize practice routines, track progress, use focus timers, and create chord charts. For beginners to intermediate players.">
     <meta property="og:image" content="https://guitarpracticeroutine.com/static/images/og-strat.png">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
 
     <style>
@@ -78,7 +78,7 @@
         // Apply theme immediately to prevent flash
         (function() {
             if (localStorage.getItem('lightMode') === 'true') {
-                document.body.classList.add('light-mode');
+                document.documentElement.classList.add('light-mode');
                 document.documentElement.classList.remove('dark');
             }
         })();

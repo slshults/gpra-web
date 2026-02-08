@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Resubscribed - Guitar Practice Routine App</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🎸</text></svg>">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
     <script>
         // Apply theme immediately to prevent flash (light-mode system)
         (function() {
             if (localStorage.getItem('lightMode') === 'true') {
-                document.body.classList.add('light-mode');
+                document.documentElement.classList.add('light-mode');
                 document.documentElement.classList.remove('dark');
             }
         })();

@@ -9,12 +9,12 @@
     "app/static/css/input.css"
   ],
   "ignore": [
-    "app/static/js/main.js",
-    "app/static/js/auth.js",
-    "app/static/js/*.map",
-    "app/static/js/*-*.js",
-    "app/static/css/main.css",
-    "app/static/css/alert.css"
+    "app/static/dist/js/main.js",
+    "app/static/dist/js/auth.js",
+    "app/static/dist/js/*.map",
+    "app/static/dist/js/*-*.js",
+    "app/static/dist/css/main.css",
+    "app/static/dist/css/alert.css"
   ],
   "ext": "js,jsx,css",
   "exec": "vite build"

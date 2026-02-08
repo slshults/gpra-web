@@ -4,10 +4,10 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  base: '/static/',
+  base: '/static/dist/',
   build: {
-    outDir: path.resolve(__dirname, 'app/static'),
-    emptyOutDir: false,
+    outDir: path.resolve(__dirname, 'app/static/dist'),
+    emptyOutDir: true,
     sourcemap: true,
     chunkSizeWarningLimit: 600,
     cssCodeSplit: false,  // Prevent duplicate Tailwind CSS in per-chunk files

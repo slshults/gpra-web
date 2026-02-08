@@ -54,6 +54,7 @@ htmlcov/
 # Vite
 *.timestamp-*
 .vite/
+app/static/dist/
 
 # Logs
 logs/
