@@ -10,6 +10,7 @@ export default defineConfig({
     emptyOutDir: false,
     sourcemap: true,
     chunkSizeWarningLimit: 600,
+    cssCodeSplit: false,  // Prevent duplicate Tailwind CSS in per-chunk files
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'app/static/js/main.jsx'),
@@ -21,7 +22,7 @@ export default defineConfig({
         chunkFileNames: 'js/[name]-[hash].js',
         assetFileNames: (assetInfo) => {
           if (assetInfo.name.endsWith('.css')) {
-            return 'css/[name][extname]';
+            return 'css/main.css';  // All CSS consolidated to main.css
           }
           return '[name][extname]';
         },

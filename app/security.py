@@ -597,14 +597,40 @@ class CustomRegisterUserDBView_OLD(AuthDBView):
             db.rollback()
 
 
+# Add 'impersonate' as a virtual property on FAB's User model that renders an
+# action button. FAB's list template renders {{ item['impersonate'] }} directly,
+# so the property returns Markup HTML for each user row.
+from flask_appbuilder.security.sqla.models import User as _FABUser
+from markupsafe import Markup as _Markup
+
+
+@property
+def _impersonate_prop(self):
+    return _Markup(
+        f'<a href="/admin/impersonate/{self.id}" target="_blank" '
+        f'class="btn btn-sm btn-warning" title="Impersonate {self.username}">'
+        f'<i class="fa fa-user-secret"></i> Impersonate</a>'
+    )
+
+
+if not isinstance(getattr(_FABUser, 'impersonate', None), property):
+    _FABUser.impersonate = _impersonate_prop
+
+
 class CustomUserDBModelView(UserDBModelView):
     """
-    Custom User Model View with delete protection.
+    Custom User Model View with delete protection and admin impersonation.
 
     Prevents:
     - Users from deleting themselves
     - Deletion of the last admin user
+
+    Adds:
+    - 'Impersonate' column with button to impersonate users from the admin list
     """
+
+    # Extend default list_columns with impersonate action column
+    list_columns = ['first_name', 'last_name', 'username', 'email', 'active', 'roles', 'impersonate']
 
     def pre_delete(self, item):
         """

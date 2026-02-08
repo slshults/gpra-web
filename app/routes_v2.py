@@ -1123,6 +1123,17 @@ def auth_status():
         from app.utils.posthog_client import get_posthog_distinct_id
         posthog_distinct_id = get_posthog_distinct_id(current_user.id, current_user.email)
 
+        # Check for active impersonation session
+        is_impersonating = bool(session.get('original_admin_id'))
+        original_admin_username = None
+        if is_impersonating:
+            try:
+                from app import appbuilder
+                admin_user = appbuilder.sm.get_user_by_id(session['original_admin_id'])
+                original_admin_username = admin_user.username if admin_user else None
+            except Exception as e:
+                app.logger.error(f"Failed to look up original admin user: {e}")
+
         return jsonify({
             "authenticated": True,
             "hasSpreadsheetAccess": True,  # Always true for authenticated users
@@ -1142,6 +1153,8 @@ def auth_status():
             "deletion_scheduled_for": deletion_scheduled_for.isoformat() if deletion_scheduled_for else None,
             "deletion_type": deletion_type,
             "prorated_refund_amount": prorated_refund_amount,
+            "impersonating": is_impersonating,
+            "original_admin_username": original_admin_username,
             "mode": "flask-appbuilder"
         })
     else:
@@ -1150,6 +1163,167 @@ def auth_status():
             "hasSpreadsheetAccess": False,
             "mode": "flask-appbuilder"
         })
+
+# Admin impersonation routes
+@app.route('/admin/impersonate/<int:user_id>')
+@limiter.limit("10 per minute")
+def admin_impersonate_start(user_id):
+    """
+    Start admin impersonation - generates a short-lived token and redirects to activation URL.
+
+    Only accessible to authenticated users with the Admin role.
+    Cannot impersonate yourself.
+
+    Args:
+        user_id: Target user's database ID to impersonate
+    """
+    if not current_user.is_authenticated:
+        return redirect('/login')
+
+    # Verify current user has Admin role
+    admin_role_names = [role.name for role in current_user.roles]
+    if 'Admin' not in admin_role_names:
+        app.logger.warning(f"Non-admin user {current_user.username} (id={current_user.id}) attempted impersonation")
+        return jsonify({"error": "Admin access required"}), 403
+
+    # Cannot impersonate yourself
+    if current_user.id == user_id:
+        app.logger.warning(f"Admin {current_user.username} attempted to impersonate themselves")
+        return redirect('/admin/users/list/')
+
+    # Verify target user exists
+    from app import appbuilder
+    target_user = appbuilder.sm.get_user_by_id(user_id)
+    if not target_user:
+        app.logger.warning(f"Admin {current_user.username} tried to impersonate non-existent user_id={user_id}")
+        return jsonify({"error": "User not found"}), 404
+
+    # Generate short-lived impersonation token
+    from app.impersonation import generate_impersonation_token
+    token = generate_impersonation_token(current_user.id, user_id)
+
+    app.logger.info(f"Admin {current_user.username} (id={current_user.id}) initiating impersonation of user {target_user.username} (id={user_id})")
+
+    return redirect(url_for('admin_impersonate_activate', token=token))
+
+
+@app.route('/admin/impersonate/activate/<token>')
+@limiter.limit("10 per minute")
+def admin_impersonate_activate(token):
+    """
+    Activate admin impersonation using a validated token.
+
+    Validates the token, verifies admin still has Admin role, logs in as the target user,
+    and stores impersonation state in the session.
+
+    Args:
+        token: Cryptographically signed impersonation token
+    """
+    from app.impersonation import validate_impersonation_token
+    from itsdangerous import SignatureExpired, BadSignature
+    from flask_login import login_user
+
+    try:
+        payload = validate_impersonation_token(token)
+    except SignatureExpired:
+        app.logger.warning(f"Expired impersonation token used")
+        return redirect('/admin/users/list/')
+    except BadSignature:
+        app.logger.warning(f"Invalid impersonation token used")
+        return redirect('/admin/users/list/')
+
+    admin_user_id = payload['admin_user_id']
+    target_user_id = payload['target_user_id']
+
+    # Verify admin user still has Admin role
+    from app import appbuilder
+    admin_user = appbuilder.sm.get_user_by_id(admin_user_id)
+    if not admin_user:
+        app.logger.warning(f"Admin user_id={admin_user_id} not found during impersonation activation")
+        return redirect('/admin/users/list/')
+
+    admin_role_names = [role.name for role in admin_user.roles]
+    if 'Admin' not in admin_role_names:
+        app.logger.warning(f"User {admin_user.username} (id={admin_user_id}) no longer has Admin role during impersonation")
+        return redirect('/admin/users/list/')
+
+    # Look up target user
+    target_user = appbuilder.sm.get_user_by_id(target_user_id)
+    if not target_user:
+        app.logger.warning(f"Target user_id={target_user_id} not found during impersonation activation")
+        return redirect('/admin/users/list/')
+
+    # Store impersonation state in session before switching users
+    session['original_admin_id'] = admin_user_id
+    session['impersonating_as'] = target_user.username
+
+    # Log in as the target user (remember=False for security)
+    login_user(target_user, remember=False)
+
+    app.logger.info(f"Admin {admin_user.username} (id={admin_user_id}) now impersonating {target_user.username} (id={target_user_id})")
+
+    # Track impersonation event in PostHog
+    from app.utils.posthog_client import track_event
+    track_event(admin_user_id, 'admin_impersonation_started', {
+        'admin_user_id': admin_user_id,
+        'admin_username': admin_user.username,
+        'target_user_id': target_user_id,
+        'target_username': target_user.username
+    })
+
+    return redirect('/')
+
+
+@app.route('/admin/impersonate/stop')
+@limiter.limit("10 per minute")
+def admin_impersonate_stop():
+    """
+    Stop admin impersonation and return to the original admin session.
+
+    Checks for impersonation state in the session, logs back in as the admin user,
+    clears impersonation keys from session, and redirects to admin user list.
+    """
+    if not current_user.is_authenticated:
+        return redirect('/login')
+
+    original_admin_id = session.get('original_admin_id')
+    if not original_admin_id:
+        app.logger.warning(f"Stop impersonation called but no impersonation session found for user {current_user.username}")
+        return redirect('/')
+
+    # Look up the original admin user
+    from app import appbuilder
+    from flask_login import login_user
+
+    admin_user = appbuilder.sm.get_user_by_id(original_admin_id)
+    if not admin_user:
+        app.logger.error(f"Original admin user_id={original_admin_id} not found when stopping impersonation")
+        # Clear impersonation state and redirect to login as safety measure
+        session.pop('original_admin_id', None)
+        session.pop('impersonating_as', None)
+        return redirect('/login')
+
+    impersonated_username = session.get('impersonating_as', 'unknown')
+
+    # Log back in as the admin user
+    login_user(admin_user, remember=False)
+
+    # Clear impersonation keys from session
+    session.pop('original_admin_id', None)
+    session.pop('impersonating_as', None)
+
+    app.logger.info(f"Admin {admin_user.username} (id={original_admin_id}) stopped impersonating {impersonated_username}")
+
+    # Track impersonation stop event in PostHog
+    from app.utils.posthog_client import track_event
+    track_event(original_admin_id, 'admin_impersonation_stopped', {
+        'admin_user_id': original_admin_id,
+        'admin_username': admin_user.username,
+        'impersonated_username': impersonated_username
+    })
+
+    return redirect('/users/list/')
+
 
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():
@@ -4148,11 +4322,11 @@ Thanks so much for being thorough with this, you rock Claude! 🤘🎸🚀"""
                     }
                 })
 
-        # Use Opus 4.5 for visual analysis of chord diagrams (complex visual task)
-        app.logger.info("Using Opus 4.5 for chord chart visual analysis")
+        # Use Opus 4.6 for visual analysis of chord diagrams (complex visual task)
+        app.logger.info("Using Opus 4.6 for chord chart visual analysis")
         llm_start_time = time.time()
         response = client.messages.create(
-            model="claude-opus-4-5-20251101",
+            model="claude-opus-4-6",
             max_tokens=6000,
             messages=[{
                 "role": "user",
@@ -4166,7 +4340,7 @@ Thanks so much for being thorough with this, you rock Claude! 🤘🎸🚀"""
         # Track LLM generation with PostHog Analytics
         from app.utils.llm_analytics import llm_analytics
         llm_analytics.track_generation(
-            model="claude-opus-4-5-20251101",
+            model="claude-opus-4-6",
             input_messages=[{"role": "user", "content": "Chord chart processing and analysis"}],
             output_choices=[{"message": {"content": response_text}}],
             usage={
@@ -4366,9 +4540,9 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
         try:
             import time
             llm_start_time = time.time()
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-5-20251101")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-6")
             response = client.messages.create(
-                model="claude-opus-4-5-20251101",
+                model="claude-opus-4-6",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
                 temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
@@ -4393,7 +4567,7 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                 }
 
             track_llm_generation(
-                model="claude-opus-4-5-20251101",
+                model="claude-opus-4-6",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from YouTube transcript"
@@ -4428,7 +4602,7 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                 llm_latency = 0
 
             track_llm_generation(
-                model="claude-opus-4-5-20251101",
+                model="claude-opus-4-6",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from YouTube transcript"
@@ -4679,9 +4853,9 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
         try:
             import time
             llm_start_time = time.time()
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-5-20251101")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-6")
             response = client.messages.create(
-                model="claude-opus-4-5-20251101",
+                model="claude-opus-4-6",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
                 temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
@@ -4706,7 +4880,7 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                 }
 
             track_llm_generation(
-                model="claude-opus-4-5-20251101",
+                model="claude-opus-4-6",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from lyrics sheet"
@@ -4740,7 +4914,7 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                 llm_latency = 0
 
             track_llm_generation(
-                model="claude-opus-4-5-20251101",
+                model="claude-opus-4-6",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from lyrics sheet"

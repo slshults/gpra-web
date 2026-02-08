@@ -209,6 +209,10 @@ def redirect_non_admin_from_admin():
     if '/login' in request.path or '/logout' in request.path or '/oauth' in request.path:
         return None
 
+    # Allow impersonation stop endpoint (impersonated user won't have Admin role)
+    if request.path == '/admin/impersonate/stop':
+        return None
+
     # Check if user is authenticated
     if not current_user.is_authenticated:
         # Not logged in - redirect to login page

@@ -14,6 +14,7 @@ import LapsedSubscriptionModal from '@components/LapsedSubscriptionModal';
 import UnpluggedAccessModal from '@components/UnpluggedAccessModal';
 import CookieConsent from '@components/CookieConsent';
 import DeletionBanner from '@components/DeletionBanner';
+import ImpersonationBanner from '@components/ImpersonationBanner';
 import { useLightweightItems } from '@hooks/useLightweightItems';
 import { setUserContext } from './utils/analytics';
 
@@ -48,6 +49,8 @@ const PageContent = () => {
   }
 };
 
+const IMPERSONATION_BANNER_HEIGHT = 36; // px - matches py-2 + text-sm single line
+
 const App = () => {
   const headerRef = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(160);
@@ -57,6 +60,9 @@ const App = () => {
   const { activePage, setActivePage } = useNavigation();
   const [showUnpluggedModal, setShowUnpluggedModal] = useState(false);
   const [unpluggedTarget, setUnpluggedTarget] = useState('');
+
+  const isImpersonating = userStatus?.impersonating === true;
+  const bannerOffset = isImpersonating ? IMPERSONATION_BANNER_HEIGHT : 0;
 
   useEffect(() => {
     const updateHeaderHeight = () => {
@@ -131,8 +137,13 @@ const App = () => {
         targetPage={unpluggedTarget}
       />
 
-      {/* Fixed Header */}
-      <div ref={headerRef} className="fixed top-0 left-0 right-0 z-50 bg-gray-900">
+      {/* Impersonation Banner - visible to admins impersonating a user */}
+      {isImpersonating && (
+        <ImpersonationBanner username={userStatus.user} />
+      )}
+
+      {/* Fixed Header - offset down when impersonation banner is showing */}
+      <div ref={headerRef} className="fixed left-0 right-0 z-50 bg-gray-900" style={{top: `${bannerOffset}px`}}>
         <div className="container mx-auto px-4 pt-4 pb-1">
           <h1 className="text-2xl sm:text-4xl font-bold text-orange-500 mb-2" data-tour="app-title">Guitar Practice Routine App</h1>
           <NavMenu
@@ -146,8 +157,8 @@ const App = () => {
         </div>
       </div>
 
-      {/* Scrollable Content with dynamic top padding to account for fixed header */}
-      <div className="pb-4 px-4 container mx-auto" style={{paddingTop: `${headerHeight}px`}}>
+      {/* Scrollable Content with dynamic top padding to account for fixed header + impersonation banner */}
+      <div className="pb-4 px-4 container mx-auto" style={{paddingTop: `${headerHeight + bannerOffset}px`}}>
         {/* Deletion Banner - shows when account deletion is scheduled */}
         {userStatus?.deletion_scheduled_for && (
           <DeletionBanner

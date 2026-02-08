@@ -31,7 +31,7 @@ If you're looking for the free, single-user version to run on your own local mac
 - **Section metadata** stored within chord data for organization
 
 ### Optional auto-creation of chord charts with help from Claude AI
-- **Autocreate chord charts** from lyrics sheets with chord names, existing chord charts, YouTube lesson URLs, or by typing chord names (charts created using Opus 4.5)
+- **Autocreate chord charts** from lyrics sheets with chord names, existing chord charts, YouTube lesson URLs, or by typing chord names (charts created using Opus 4.6)
 - **Three processing paths**: Visual chord diagrams, chord names above lyrics, and tablature notation
 - **It's not all AI** - To reduce consumption, I'm using simple OCR to pull section names and chord names from lyrics sheets with chord names, then sending that to Claude for chord chart creation. (The more challenging visual analysis of uploaded chord charts is handled by Claude though) 
 - **Autocreate is Optional** - Hate AI? Then use free or basic tiers and don't enter an Anthropic API key. Then the app won't use AI at all.
