@@ -439,7 +439,7 @@ const FAQPage = () => {
       <div className="mt-8 p-6 bg-gray-800 border border-gray-700 rounded-lg">
         <h2 className="text-lg font-semibold text-gray-100 mb-2">Still have questions?</h2>
         <p className="text-gray-400">
-          Use the chat widget in the top-right corner, or{' '}
+          Use the chat widget in the bottom-right corner, or{' '}
           <a
             href="https://github.com/slshults/gpra-web/issues"
             target="_blank"

@@ -527,7 +527,7 @@ const RegisterPage = () => {
         <div className="text-center text-sm text-gray-600 py-4 mt-4">
           <a href="/about" className="hover:underline hover:text-gray-400">About</a>
           {' · '}
-          <a href="/faq" className="hover:underline hover:text-gray-400">FAQ</a>
+          <a href="/faq" className="hover:underline hover:text-gray-400">Help</a>
           {' · '}
           <a href="/pricing" className="hover:underline hover:text-gray-400">Pricing</a>
           {' · '}

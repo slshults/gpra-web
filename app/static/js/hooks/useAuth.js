@@ -42,8 +42,15 @@ export const useAuth = () => {
   const handleLogout = () => {
     // Clear the lapsed modal dismissed flag so it shows on next login
     sessionStorage.removeItem('lapsedModalDismissed');
-    // Custom logout endpoint that redirects to /login (trailing slash required by Flask route)
-    window.location.href = '/logout/';
+    // Reset PostHog identity and device ID so events aren't attributed to the previous user
+    if (window.posthog && typeof window.posthog.reset === 'function') {
+      window.posthog.reset(true);
+    }
+    // Allow PostHog's persistence layer to clear before navigating away
+    setTimeout(() => {
+      // Custom logout endpoint that redirects to /login (trailing slash required by Flask route)
+      window.location.href = '/logout/';
+    }, 100);
   };
 
   return {
