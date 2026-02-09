@@ -84,33 +84,37 @@
         })();
     </script>
 
-    <div class="min-h-screen flex items-center justify-center p-4">
-        <div class="w-full max-w-md">
-            <!-- App Title (above card, like login page) -->
-            <div class="text-center mb-8">
-                <h1 class="text-3xl font-bold text-orange-500 mb-2">
-                    🎸 Guitar Practice Routine App
-                </h1>
-            </div>
+    <div class="min-h-screen flex flex-col items-center px-4 py-3">
+        <!-- Hero video section (grows to fill available space) -->
+        <div class="w-full max-w-5xl flex-1 flex items-center justify-center mb-2">
+            <video autoplay muted loop playsinline class="w-full rounded-lg shadow-lg max-h-full object-contain">
+                <source src="{{ url_for('static', filename='images/rapidcut5hero.mp4') }}" type="video/mp4">
+            </video>
+        </div>
 
-            <!-- Main Content Card -->
-            <div class="bg-gray-800 rounded-lg border border-gray-700 p-8 flex flex-col" style="min-height: 460px;">
-                <!-- Intro Paragraphs (left-aligned) -->
-                <p class="text-gray-300 mb-6 text-left text-lg leading-loose">
+        <!-- App title -->
+        <div class="text-center mb-2">
+            <h1 class="text-3xl font-bold text-orange-500 mb-2">
+                🎸 Guitar Practice Routine App
+            </h1>
+        </div>
+
+        <!-- Main content card (compact) -->
+        <div class="w-full max-w-md">
+            <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 flex flex-col">
+                <!-- Intro paragraphs (left-aligned) -->
+                <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
                     A web app for beginning and intermediate guitar players to organize and track guitar practice routines.
                 </p>
-                <p class="text-gray-300 mb-6 text-left text-lg leading-loose">
+                <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
                     Create practice items with editable auto-created chord charts, organize them into routines, with a timer on each practice item.
                 </p>
-                <p class="text-gray-300 text-left text-lg leading-loose">
+                <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
                     Create a free account to take the tour.<br>(no credit card needed for a free account.)
                 </p>
 
-                <!-- Spacer to push buttons to bottom of card -->
-                <div class="flex-grow"></div>
-
-                <!-- Action Buttons (stacked, matching login button: h-9 py-2) -->
-                <div class="flex flex-col gap-3">
+                <!-- Action buttons (stacked, matching login button: h-9 py-2) -->
+                <div class="flex flex-col gap-2 mt-2">
                     <a href="/login" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md transition-colors text-center">
                         Login
                     </a>
@@ -119,19 +123,19 @@
                     </a>
                 </div>
             </div>
+        </div>
 
-            <!-- Footer Links (inside max-w-md like login page) -->
-            <div class="text-center text-sm text-gray-400 py-4 mt-4">
-                <a href="/about" class="hover:underline hover:text-gray-400">About</a>
-                <span> &middot; </span>
-                <a href="/faq" class="hover:underline hover:text-gray-400">Help</a>
-                <span> &middot; </span>
-                <a href="/pricing" class="hover:underline hover:text-gray-400">Pricing</a>
-                <span> &middot; </span>
-                <a href="/terms" class="hover:underline hover:text-gray-400">Terms</a>
-                <span> &middot; </span>
-                <a href="/privacy" class="hover:underline hover:text-gray-400">Privacy</a>
-            </div>
+        <!-- Footer links (outside max-w-md wrapper) -->
+        <div class="text-center text-sm text-gray-400 py-2 mt-1">
+            <a href="/about" class="hover:underline hover:text-gray-400">About</a>
+            <span> &middot; </span>
+            <a href="/faq" class="hover:underline hover:text-gray-400">Help</a>
+            <span> &middot; </span>
+            <a href="/pricing" class="hover:underline hover:text-gray-400">Pricing</a>
+            <span> &middot; </span>
+            <a href="/terms" class="hover:underline hover:text-gray-400">Terms</a>
+            <span> &middot; </span>
+            <a href="/privacy" class="hover:underline hover:text-gray-400">Privacy</a>
         </div>
     </div>
 
