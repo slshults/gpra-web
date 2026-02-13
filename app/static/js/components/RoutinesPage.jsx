@@ -3,7 +3,7 @@ import { useAuth } from '@hooks/useAuth';
 import { Button } from '@ui/button';
 import { Input } from '@ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@ui/card';
-import { Plus, Pencil, X, CheckCircle2, GripVertical } from 'lucide-react';
+import { Plus, Pencil, X, CheckCircle2, GripVertical, Search } from 'lucide-react';
 import { RoutineEditor } from './RoutineEditor';
 import ChordChartsModal from './ChordChartsModal';
 import TierLimitModal from './TierLimitModal';
@@ -35,6 +35,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 // Sortable item component for active routine items
 const SortableItem = React.memo(({ item, itemDetails, handleOpenChordCharts }) => {
@@ -165,6 +173,8 @@ const RoutinesPage = () => {
   const [items, setItems] = useState([]);  // Lazy-loaded when needed
   const [newRoutineName, setNewRoutineName] = useState('');
   const [routines, setRoutines] = useState([]);
+  const [routineSearchQuery, setRoutineSearchQuery] = useState('');
+  const [showNewRoutineModal, setShowNewRoutineModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [routineToDelete, setRoutineToDelete] = useState(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -186,6 +196,9 @@ const RoutinesPage = () => {
     limitAmount: 1,
   });
 
+  // Ref for auto-focusing the new routine name input in the modal
+  const newRoutineInputRef = useRef(null);
+
   // Debounce timer for routine order updates
   const routineOrderDebounceRef = useRef(null);
   const pendingRoutineOrderRef = useRef(null);
@@ -196,6 +209,12 @@ const RoutinesPage = () => {
       .filter(r => !r.active)
       .sort((a, b) => Number(a.order) - Number(b.order)), 
     [routines]);
+
+  const filteredInactiveRoutines = useMemo(() => {
+    if (!routineSearchQuery.trim()) return inactiveRoutines;
+    const query = routineSearchQuery.trim().toLowerCase();
+    return inactiveRoutines.filter(r => r.name.toLowerCase().includes(query));
+  }, [inactiveRoutines, routineSearchQuery]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -378,6 +397,7 @@ const RoutinesPage = () => {
 
       await fetchRoutines();
       setNewRoutineName('');
+      setShowNewRoutineModal(false);
     } catch (error) {
       console.error('Failed to create routine:', error);
       setError(error.message);
@@ -807,59 +827,115 @@ const RoutinesPage = () => {
 
         {/* Inactive Routines Section */}
         <Card className="bg-gray-900 text-gray-100">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Routines</CardTitle>
+            {isAuthenticated && (
+              <div data-tour="new-routine-input">
+                <Button
+                  onClick={() => setShowNewRoutineModal(true)}
+                  className="bg-blue-600 hover:bg-blue-700"
+                  data-ph-capture-attribute-button="add-new-routine"
+                >
+                  <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
+                  New
+                </Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             {isAuthenticated ? (
               <>
-                {/* Routines List */}
+                {/* Search field */}
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Search routines..."
+                    value={routineSearchQuery}
+                    onChange={(e) => setRoutineSearchQuery(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+
+                {/* Routines list */}
                 <div className="space-y-2">
-                  <div className="mb-4 flex space-x-2" data-tour="new-routine-input">
-                    <label htmlFor="new-routine-name-input" className="sr-only">
-                      New routine name
-                    </label>
-                    <Input
-                      id="new-routine-name-input"
-                      placeholder="Enter name for new routine, then click '+ Add'"
-                      value={newRoutineName}
-                      onChange={(e) => setNewRoutineName(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleCreateRoutine()}
-                      className="flex-grow"
-                    />
-                    <Button
-                      onClick={handleCreateRoutine}
-                      className="bg-blue-600 hover:bg-blue-700"
-                      disabled={!newRoutineName.trim()}
-                      data-ph-capture-attribute-button="add-new-routine"
+                  {routineSearchQuery.trim() ? (
+                    // When filtering, show plain list (no drag-and-drop)
+                    <div className="space-y-2">
+                      {filteredInactiveRoutines.filter(routine => routine.ID != null).map((routine) => (
+                        <div
+                          key={routine.ID}
+                          className="flex items-center justify-between p-3 bg-gray-800 rounded-lg"
+                        >
+                          <div className="flex items-center">
+                            <span>{routine.name}</span>
+                          </div>
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleActivateRoutine(routine.ID)}
+                              className="text-green-500 hover:text-green-400"
+                              title="Make this the active routine"
+                              data-ph-capture-attribute-button="activate-routine"
+                            >
+                              <Plus className="h-4 w-4" aria-hidden="true" />
+                              <span className="sr-only">Activate routine</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditClick(routine)}
+                              className="text-blue-500 hover:text-blue-400"
+                              title="Edit routine"
+                              data-ph-capture-attribute-button="edit-routine"
+                            >
+                              <Pencil className="h-4 w-4" aria-hidden="true" />
+                              <span className="sr-only">Edit routine</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-500 hover:text-red-400"
+                              onClick={() => handleDeleteClick(routine.ID)}
+                              title="Delete this routine"
+                              data-ph-capture-attribute-button="delete-routine"
+                            >
+                              <X className="h-4 w-4" aria-hidden="true" />
+                              <span className="sr-only">Delete routine</span>
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {filteredInactiveRoutines.length === 0 && (
+                        <div className="text-gray-500 text-sm text-center py-2">No routines match your search</div>
+                      )}
+                    </div>
+                  ) : (
+                    // When not filtering, show sortable list with drag-and-drop
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEndInactive}
                     >
-                      <Plus className="h-5 w-5 mr-2" aria-hidden="true" />
-                      Add
-                    </Button>
-                  </div>
-                  
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEndInactive}
-                  >
-                    <SortableContext
-                      items={inactiveRoutines.map(routine => routine.ID).filter(id => id != null)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <div className="space-y-2">
-                        {inactiveRoutines.filter(routine => routine.ID != null).map((routine) => (
-                          <SortableInactiveRoutine
-                            key={routine.ID}
-                            routine={routine}
-                            handleActivateRoutine={handleActivateRoutine}
-                            handleEditClick={handleEditClick}
-                            handleDeleteClick={handleDeleteClick}
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
+                      <SortableContext
+                        items={inactiveRoutines.map(routine => routine.ID).filter(id => id != null)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-2">
+                          {inactiveRoutines.filter(routine => routine.ID != null).map((routine) => (
+                            <SortableInactiveRoutine
+                              key={routine.ID}
+                              routine={routine}
+                              handleActivateRoutine={handleActivateRoutine}
+                              handleEditClick={handleEditClick}
+                              handleDeleteClick={handleDeleteClick}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  )}
                 </div>
               </>
             ) : (
@@ -890,6 +966,61 @@ const RoutinesPage = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Create New Routine Modal */}
+        <Dialog
+          open={showNewRoutineModal}
+          onOpenChange={(isOpen) => {
+            setShowNewRoutineModal(isOpen);
+            if (!isOpen) setNewRoutineName('');
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create new routine</DialogTitle>
+              <DialogDescription>
+                Enter a name for your new routine
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <label htmlFor="new-routine-name-input" className="sr-only">
+                New routine name
+              </label>
+              <Input
+                ref={newRoutineInputRef}
+                id="new-routine-name-input"
+                placeholder="Enter routine name..."
+                value={newRoutineName}
+                onChange={(e) => setNewRoutineName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && newRoutineName.trim()) {
+                    handleCreateRoutine();
+                  }
+                }}
+                autoFocus
+                autoComplete="off"
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowNewRoutineModal(false);
+                  setNewRoutineName('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateRoutine}
+                className="bg-blue-600 hover:bg-blue-700"
+                disabled={!newRoutineName.trim()}
+              >
+                Create
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <RoutineEditor
