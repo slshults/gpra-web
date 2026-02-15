@@ -87,24 +87,8 @@
     </style>
 </head>
 <body class="bg-gray-900 show-ph-widget">
-    <!-- App Title Banner -->
-    <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
-        <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-            <a href="/" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                <span class="text-3xl">🎸</span>
-                <span class="text-xl font-semibold text-orange-400">Guitar Practice Routine App</span>
-            </a>
-            <nav class="flex gap-4 text-sm">
-                <a href="/about" class="text-gray-400 hover:text-white transition-colors">About</a>
-                <a href="/faq" class="text-gray-400 hover:text-white transition-colors">Help</a>
-                <a href="/pricing" class="text-gray-400 hover:text-white transition-colors">Pricing</a>
-                <a href="/terms" class="text-gray-400 hover:text-white transition-colors">Terms</a>
-                <a href="/privacy" class="text-orange-400 font-medium">Privacy</a>
-                <a href="/#Account" class="text-gray-400 hover:text-white transition-colors" title="Account settings">⚙️</a>
-                <a href="/logout" class="text-gray-400 hover:text-white transition-colors">Logout</a>
-            </nav>
-        </div>
-    </header>
+    {% set current_page = 'privacy' %}
+    {% include '_standalone_header.html.jinja' %}
 
     <div class="max-w-4xl mx-auto px-4 py-8">
         <!-- Page Header -->
