@@ -3,7 +3,7 @@ export default {
     darkMode: ["class"],
     content: [
       "./app/static/**/*.{js,jsx}",
-      "./app/templates/**/*.html"
+      "./app/templates/**/*.{html,jinja}"
     ],
     theme: {
       container: {

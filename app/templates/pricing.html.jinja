@@ -71,6 +71,14 @@
         })();
     </script>
     <style>
+        /* Responsive pricing: cards on mobile, table on desktop */
+        #pricing-table { display: none; }
+        #pricing-cards { display: block; }
+        @media (min-width: 640px) {
+            #pricing-table { display: block; }
+            #pricing-cards { display: none; }
+        }
+
         /* Theme toggle positioning */
         .theme-toggle {
             position: fixed;
@@ -119,8 +127,117 @@
             </p>
         </div>
 
-        <!-- Pricing Table -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8 overflow-x-auto">
+        <!-- Pricing Cards (mobile only, hidden at 640px+) -->
+        <div class="space-y-4 mb-8" id="pricing-cards">
+            <!-- Free -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
+                <div class="flex justify-between items-baseline mb-3">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Free</h3>
+                    <span class="text-lg font-semibold text-green-600 dark:text-green-400">$0</span>
+                </div>
+                <div class="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Items</span>
+                        <span>15</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Routines</span>
+                        <span>1</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Autocreate</span>
+                        <span>byoClaude (ad supported)</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Basic -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
+                <div class="flex justify-between items-baseline mb-3">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Basic</h3>
+                    <span class="text-lg font-semibold text-gray-900 dark:text-white">$3/month</span>
+                </div>
+                <div class="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Items</span>
+                        <span>80</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Routines</span>
+                        <span>5</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Autocreate</span>
+                        <span>byoClaude</span>
+                    </div>
+                </div>
+            </div>
+            <!-- The Goods -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
+                <div class="flex justify-between items-baseline mb-3">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">The Goods</h3>
+                    <span class="text-lg font-semibold text-gray-900 dark:text-white">$6/month</span>
+                </div>
+                <div class="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Items</span>
+                        <span>200</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Routines</span>
+                        <span>10</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Autocreate</span>
+                        <span>Included</span>
+                    </div>
+                </div>
+            </div>
+            <!-- More Goods -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
+                <div class="flex justify-between items-baseline mb-3">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">More Goods</h3>
+                    <span class="text-lg font-semibold text-gray-900 dark:text-white">$12/month</span>
+                </div>
+                <div class="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Items</span>
+                        <span>600</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Routines</span>
+                        <span>25</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Autocreate</span>
+                        <span>Included</span>
+                    </div>
+                </div>
+            </div>
+            <!-- The Most -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
+                <div class="flex justify-between items-baseline mb-3">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">The Most</h3>
+                    <span class="text-lg font-semibold text-gray-900 dark:text-white">$20/month</span>
+                </div>
+                <div class="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Items</span>
+                        <span>1500</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Routines</span>
+                        <span>50</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500 dark:text-gray-400">Autocreate</span>
+                        <span>Included</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pricing Table (desktop only, shown at 640px+) -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8 overflow-x-auto" id="pricing-table">
             <table class="w-full text-left">
                 <thead>
                     <tr class="border-b border-gray-200 dark:border-gray-700">
