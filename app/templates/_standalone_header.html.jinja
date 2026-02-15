@@ -28,7 +28,7 @@
         </nav>
 
         <!-- Mobile hamburger button (visible on mobile only) -->
-        <button id="mobile-menu-btn" class="text-gray-400 hover:text-white p-2" aria-label="Menu">
+        <button id="mobile-menu-btn" class="text-gray-400 hover:text-white p-2" aria-label="Menu" aria-expanded="false" aria-controls="mobile-menu">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path id="hamburger-icon" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                 <path id="close-icon" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -61,9 +61,21 @@
     var closeIcon = document.getElementById('close-icon');
     if (btn && menu) {
         btn.addEventListener('click', function() {
+            var isOpen = !menu.classList.contains('hidden');
             menu.classList.toggle('hidden');
             hamburgerIcon.classList.toggle('hidden');
             closeIcon.classList.toggle('hidden');
+            btn.setAttribute('aria-expanded', !isOpen);
+        });
+
+        // Close mobile menu if window resizes past the sm breakpoint
+        window.addEventListener('resize', function() {
+            if (window.innerWidth >= 640 && !menu.classList.contains('hidden')) {
+                menu.classList.add('hidden');
+                hamburgerIcon.classList.remove('hidden');
+                closeIcon.classList.add('hidden');
+                btn.setAttribute('aria-expanded', 'false');
+            }
         });
     }
 })();

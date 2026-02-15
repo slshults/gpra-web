@@ -116,10 +116,6 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
     }
   }, [open]);
 
-  // For debugging
-  useEffect(() => {
-  }, [routine]);
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -133,42 +129,29 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
   );
 
   const handleDragEnd = async ({ active, over }) => {
+    if (active.id === over?.id) return;
 
-    if (active.id !== over?.id) {
+    const oldIndex = selectedItems.findIndex(item => (item.routineEntry?.['A'] || item['A']) === active.id);
+    const newIndex = selectedItems.findIndex(item => (item.routineEntry?.['A'] || item['A']) === over.id);
 
-      const oldIndex = selectedItems.findIndex(item => (item.routineEntry?.['A'] || item['A']) === active.id);
-      const newIndex = selectedItems.findIndex(item => (item.routineEntry?.['A'] || item['A']) === over.id);
+    const reordered = arrayMove(selectedItems, oldIndex, newIndex);
 
+    const withNewOrder = reordered.map((item, index) => ({
+      'A': item.routineEntry?.['A'] || item['A'],
+      'C': index.toString()
+    }));
 
-      // Create new array with items in new positions
-      const reordered = arrayMove(selectedItems, oldIndex, newIndex);
+    // Update local state first for immediate UI feedback
+    setSelectedItems(reordered);
 
-      // Update all orders to match new positions
-      const withNewOrder = reordered.map((item, index) => ({
-        'A': item.routineEntry?.['A'] || item['A'],  // ID
-        'C': index.toString()         // New order
-      }));
-
-
-      // Update local state first for immediate UI feedback
-      setSelectedItems(reordered);
-
-      if (routine?.id) {
-        try {
-          await updateRoutineOrder(routine.id, withNewOrder);
-
-          // Notify parent component that routine was changed
-          if (onRoutineChange) {
-            onRoutineChange();
-          }
-        } catch (error) {
-          console.error('Failed to update routine order:', error);
-          // Revert to previous state on error
-          setSelectedItems(selectedItems);
-        }
-      } else {
+    if (routine?.id) {
+      try {
+        await updateRoutineOrder(routine.id, withNewOrder);
+        onRoutineChange?.();
+      } catch (error) {
+        console.error('Failed to update routine order:', error);
+        setSelectedItems(selectedItems);
       }
-    } else {
     }
   };
 
