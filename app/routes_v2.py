@@ -75,7 +75,7 @@ def login_page():
     # If already authenticated, redirect to main app
     if current_user.is_authenticated:
         return redirect('/')
-    return render_template('auth.html.jinja', page='login')
+    return render_template('auth.html.jinja', page='login', posthog_key=posthog_key, debug=app.debug)
 
 @app.route('/register')
 def register_page():
@@ -83,7 +83,7 @@ def register_page():
     # If already authenticated, redirect to main app
     if current_user.is_authenticated:
         return redirect('/')
-    return render_template('auth.html.jinja', page='register')
+    return render_template('auth.html.jinja', page='register', posthog_key=posthog_key, debug=app.debug)
 
 @app.route('/forgot-password')
 def forgot_password_page():
@@ -91,7 +91,7 @@ def forgot_password_page():
     # If already authenticated, redirect to main app
     if current_user.is_authenticated:
         return redirect('/')
-    return render_template('auth.html.jinja', page='forgot-password')
+    return render_template('auth.html.jinja', page='forgot-password', posthog_key=posthog_key, debug=app.debug)
 
 @app.route('/reset-password')
 def reset_password_page():
@@ -99,7 +99,7 @@ def reset_password_page():
     # If already authenticated, redirect to main app
     if current_user.is_authenticated:
         return redirect('/')
-    return render_template('auth.html.jinja', page='reset-password')
+    return render_template('auth.html.jinja', page='reset-password', posthog_key=posthog_key, debug=app.debug)
 
 @app.route('/privacy')
 def privacy_page():
@@ -130,6 +130,16 @@ def pricing_page():
 def ads_txt():
     """Serve ads.txt for Google AdSense verification"""
     return send_from_directory(app.static_folder, 'ads.txt', mimetype='text/plain')
+
+@app.route('/robots.txt')
+def robots_txt():
+    """Serve robots.txt for search engine crawlers"""
+    return send_from_directory(app.static_folder, 'robots.txt', mimetype='text/plain')
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    """Serve sitemap.xml for search engine indexing"""
+    return send_from_directory(app.static_folder, 'sitemap.xml', mimetype='application/xml')
 
 @app.route('/unsubscribe/inactivity/<token>')
 def unsubscribe_inactivity(token):

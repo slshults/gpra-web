@@ -1,0 +1,22 @@
+# robots.txt for Guitar Practice Routine App
+# https://guitarpracticeroutine.com
+
+User-agent: *
+Allow: /
+Allow: /about
+Allow: /faq
+Allow: /pricing
+Allow: /privacy
+Allow: /terms
+Allow: /ads.txt
+
+Disallow: /api/
+Disallow: /admin/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /oauth-signup/
+Disallow: /logout
+
+Sitemap: https://guitarpracticeroutine.com/sitemap.xml

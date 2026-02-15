@@ -196,9 +196,6 @@ const RoutinesPage = () => {
     limitAmount: 1,
   });
 
-  // Ref for auto-focusing the new routine name input in the modal
-  const newRoutineInputRef = useRef(null);
-
   // Debounce timer for routine order updates
   const routineOrderDebounceRef = useRef(null);
   const pendingRoutineOrderRef = useRef(null);
@@ -987,7 +984,6 @@ const RoutinesPage = () => {
                 New routine name
               </label>
               <Input
-                ref={newRoutineInputRef}
                 id="new-routine-name-input"
                 placeholder="Enter routine name..."
                 value={newRoutineName}

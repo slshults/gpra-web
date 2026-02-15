@@ -2738,11 +2738,11 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                     color: '#ffffff',
                     opacity: '1'
                   } : {
-                    backgroundColor: '#5b1f1f',
+                    backgroundColor: '#2563eb',
                     color: '#ffffff',
                     opacity: '1'
                   }}
-                  className="bg-purple-600 hover:bg-purple-700 disabled:cursor-not-allowed"
+                  className="min-w-24 disabled:cursor-not-allowed"
                 >
                   {itemsWithExistingCharts.size > 0
                     ? `Copy and Overwrite ${selectedTargetItems.size} song${selectedTargetItems.size !== 1 ? 's' : ''}`
@@ -2881,11 +2881,11 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                     color: '#ffffff',
                     opacity: '1'
                   } : {
-                    backgroundColor: '#5b1f1f',
+                    backgroundColor: '#2563eb',
                     color: '#ffffff',
                     opacity: '1'
                   }}
-                  className="bg-purple-600 hover:bg-purple-700 disabled:cursor-not-allowed"
+                  className="min-w-24 disabled:cursor-not-allowed"
                 >
                   {(() => {
                     const sourceName = allItems?.find(item => item['A'] === selectedSourceItem)?.['C'] || '';

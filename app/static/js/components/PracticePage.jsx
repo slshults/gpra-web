@@ -4581,11 +4581,11 @@ export const PracticePage = () => {
                       color: '#ffffff',
                       opacity: '1'
                     } : {
-                      backgroundColor: '#5b1f1f',
+                      backgroundColor: '#2563eb',
                       color: '#ffffff',
                       opacity: '1'
                     }}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:cursor-not-allowed"
+                    className="flex-1 disabled:cursor-not-allowed"
                   >
                     {itemsWithExistingCharts.size > 0 
                       ? `Copy and Overwrite ${selectedTargetItems.size} song${selectedTargetItems.size !== 1 ? 's' : ''}`
