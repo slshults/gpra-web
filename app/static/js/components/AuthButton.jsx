@@ -24,11 +24,11 @@ const AuthButton = () => {
                   onClick={() => setActivePage('Account')}
                   variant="ghost"
                   size="sm"
-                  className="text-gray-400 hover:text-gray-200 h-auto py-1"
+                  className="text-gray-400 hover:text-gray-200 h-auto py-2 sm:py-1"
                   aria-label="Account settings"
                   data-ph-capture-attribute-button="account-settings"
                 >
-                  <Settings className="h-4 w-4" />
+                  <Settings className="h-5 w-5 sm:h-4 sm:w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
@@ -40,7 +40,7 @@ const AuthButton = () => {
             onClick={handleLogout}
             variant="ghost"
             size="sm"
-            className="text-gray-400 hover:text-gray-200 h-auto py-1"
+            className="text-gray-400 hover:text-gray-200 h-auto py-2 sm:py-1"
             data-ph-capture-attribute-button="logout"
           >
             logout

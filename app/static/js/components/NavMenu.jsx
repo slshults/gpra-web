@@ -22,14 +22,14 @@ const NavMenu = ({ className, userStatus, onUnpluggedAttempt }) => {
   };
 
   return (
-    <nav className={cn("flex flex-wrap items-center gap-4", className)} aria-label="Main navigation">
-      <div className="flex flex-wrap gap-4">
+    <nav className={cn("flex flex-wrap items-center gap-2 sm:gap-4", className)} aria-label="Main navigation">
+      <div className="flex flex-wrap gap-2 sm:gap-4">
         {navItems.map((item) => (
           <Button
             key={item}
             variant={activePage === item ? "secondary" : "ghost"}
             className={cn(
-              "text-xl py-6 px-8",
+              "text-base py-3 px-4 sm:text-xl sm:py-6 sm:px-8",
               activePage === item ? "bg-secondary hover:bg-secondary/90" : "hover:bg-accent"
             )}
             onClick={() => handleNavClick(item)}
@@ -43,7 +43,7 @@ const NavMenu = ({ className, userStatus, onUnpluggedAttempt }) => {
         <Button
           variant={activePage === 'Account' ? "secondary" : "ghost"}
           className={cn(
-            "text-xl py-6 px-8",
+            "text-base py-3 px-4 sm:text-xl sm:py-6 sm:px-8",
             activePage === 'Account' ? "bg-secondary hover:bg-secondary/90" : "hover:bg-accent",
             "hidden"
           )}
