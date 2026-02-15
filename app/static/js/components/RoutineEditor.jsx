@@ -263,9 +263,9 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
           )}
         </DialogHeader>
 
-        <div className="flex gap-8 h-[60vh]">
+        <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 h-[70vh] sm:h-[60vh] overflow-y-auto sm:overflow-visible">
           {/* Selected Items */}
-          <Card className="w-1/2 bg-gray-900">
+          <Card className="w-full sm:w-1/2 min-h-[35vh] sm:min-h-0 bg-gray-900">
             <CardHeader>
               <CardTitle>Selected items</CardTitle>
               {!routine?.name && (
@@ -303,7 +303,7 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
           </Card>
 
           {/* Available Items */}
-          <Card className="w-1/2 bg-gray-900">
+          <Card className="w-full sm:w-1/2 min-h-[35vh] sm:min-h-0 bg-gray-900">
             <CardHeader>
               <CardTitle>Available items</CardTitle>
               <div className="relative">
