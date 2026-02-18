@@ -90,6 +90,16 @@ const CookieConsent = () => {
         }
       });
     }
+
+    // Send Google Consent Mode v2 update signal
+    if (typeof window.gtag === 'function') {
+      window.gtag('consent', 'update', {
+        'ad_storage': choice === 'all' ? 'granted' : 'denied',
+        'analytics_storage': choice === 'all' ? 'granted' : 'denied',
+        'ad_user_data': choice === 'all' ? 'granted' : 'denied',
+        'ad_personalization': choice === 'all' ? 'granted' : 'denied',
+      });
+    }
   };
 
   const handleAcceptAll = async () => {

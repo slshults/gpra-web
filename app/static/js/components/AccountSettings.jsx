@@ -580,6 +580,16 @@ const AccountSettings = () => {
       }
     }
 
+    // Send Google Consent Mode v2 update signal
+    if (typeof window.gtag === 'function') {
+      window.gtag('consent', 'update', {
+        'ad_storage': newConsent === 'all' ? 'granted' : 'denied',
+        'analytics_storage': newConsent === 'all' ? 'granted' : 'denied',
+        'ad_user_data': newConsent === 'all' ? 'granted' : 'denied',
+        'ad_personalization': newConsent === 'all' ? 'granted' : 'denied',
+      });
+    }
+
     // Reload page to load/unload PostHog SDK
     window.location.reload();
   };

@@ -3549,12 +3549,12 @@ def open_folder():
 # Autocreate helper functions
 
 def detect_file_types_with_sonnet(client, uploaded_files, user_id=None):
-    """Detect file types using Sonnet 4 model (ported from sheets version)"""
+    """Detect file types using Sonnet 4.6 model (ported from sheets version)"""
     import time
     import json
 
     try:
-        app.logger.info("Using Sonnet 4 to detect file types and content")
+        app.logger.info("Using Sonnet 4.6 to detect file types and content")
 
         # Build message content with files for analysis
         prompt_text = """🎸 **FILE TYPE DETECTION FOR GUITAR CONTENT**
@@ -3644,10 +3644,10 @@ Analyze the files below:"""
                     }
                 })
 
-        # Use Sonnet 4.5 for file type detection (simple 3-way classification)
+        # Use Sonnet 4.6 for file type detection (simple 3-way classification)
         llm_start_time = time.time()
         response = client.messages.create(
-            model="claude-sonnet-4-5-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=3000,
             messages=[{
                 "role": "user",
@@ -3659,7 +3659,7 @@ Analyze the files below:"""
         # Track LLM Analytics for file type detection
         from app.utils.llm_analytics import llm_analytics
         llm_analytics.track_generation(
-            model="claude-sonnet-4-5-20250514",
+            model="claude-sonnet-4-6",
             input_messages=[{"role": "user", "content": "File type detection for guitar content"}],
             output_choices=[{"message": {"content": response.content[0].text}}],
             usage={
@@ -3740,13 +3740,12 @@ def analyze_files_with_claude(client, uploaded_files, item_id, user_id=None):
                 app.logger.warning(f"[AUTOCREATE] Unknown forced type: {forced_type}, falling back to chord names")
                 return process_chord_names_with_lyrics(client, uploaded_files, item_id, user_id=user_id)
 
-        # Step 1: File type detection using Sonnet 4
-        app.logger.info(f"[AUTOCREATE] Step 1: Analyzing {len(uploaded_files)} files to detect content type using Sonnet 4")
+        # Step 1: File type detection using Sonnet 4.6
+        app.logger.info(f"[AUTOCREATE] Step 1: Analyzing {len(uploaded_files)} files to detect content type using Sonnet 4.6")
         file_type_result = detect_file_types_with_sonnet(client, uploaded_files, user_id=user_id)
 
         # Step 2: Process based on detected content type
         if file_type_result.get('has_mixed_content'):
-            # TODO: Return data for mixed content modal (Steven's requirement #2)
             return {
                 'needs_user_choice': True,
                 'mixed_content_options': file_type_result.get('content_types', []),
@@ -3858,11 +3857,11 @@ If you can't determine sections, use "Main" as the section name.""",
                     }
                 })
 
-        # Call Claude API with prompt caching enabled (Sonnet 4.5 for simple text extraction)
+        # Call Claude API with prompt caching enabled (Sonnet 4.6 for simple text extraction)
         llm_start_time = time.time()
         try:
             response = client.messages.create(
-                model="claude-sonnet-4-5-20250514",
+                model="claude-sonnet-4-6",
                 max_tokens=8000,
                 messages=[{
                     "role": "user",
@@ -3897,7 +3896,7 @@ If you can't determine sections, use "Main" as the section name.""",
             # CRITICAL: Pass user_id from autocreate route
             # Note: user_id comes from simple_analyze_files caller, need to add to function signature
             generation_id = track_llm_generation(
-                model="claude-sonnet-4-5-20250514",
+                model="claude-sonnet-4-6",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from uploaded guitar files"  # Simplified for privacy
@@ -3927,7 +3926,7 @@ If you can't determine sections, use "Main" as the section name.""",
 
             # Track failed generation
             generation_id = track_llm_generation(
-                model="claude-sonnet-4-5-20250514",
+                model="claude-sonnet-4-6",
                 input_messages=[{"role": "user", "content": "Extract chord names from uploaded guitar files"}],
                 output_choices=[],
                 latency_seconds=llm_latency / 1000,  # Will be converted back to ms in track_llm_generation
@@ -4551,8 +4550,8 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                     "text": file_content['data']
                 })
 
-        # Use Sonnet 4 for chord names analysis (cost-efficient)
-        app.logger.info(f"[AUTOCREATE] Using Sonnet 4 for YouTube transcript chord analysis")
+        # Use Sonnet 4.6 for chord names analysis
+        app.logger.info(f"[AUTOCREATE] Using Sonnet 4.6 for YouTube transcript chord analysis")
         app.logger.info(f"[AUTOCREATE] Making API call with {len(message_content)} content items")
         app.logger.info(f"[AUTOCREATE] Message content types: {[item.get('type', 'unknown') for item in message_content]}")
 
@@ -4721,7 +4720,7 @@ def process_chord_names_with_lyrics(client, uploaded_files, item_id, user_id=Non
         app.logger.info(f"[AUTOCREATE] process_chord_names_with_lyrics called with {len(uploaded_files)} files for item {item_id}")
         app.logger.info("Processing chord names above lyrics with CommonChords lookup")
 
-        # POWER OPTIMIZATION: Try OCR extraction first for PDFs and images
+        # ENERGY OPTIMIZATION: Try OCR extraction first for PDFs and images
         file_data = uploaded_files[0]  # Process single file
         if file_data.get('type') in ['pdf', 'image']:
             app.logger.info(f"[AUTOCREATE] Attempting OCR extraction for {file_data.get('type')} file: {file_data.get('name')}")
@@ -4739,7 +4738,7 @@ def process_chord_names_with_lyrics(client, uploaded_files, item_id, user_id=Non
 
                 # Check if OCR found enough chords to use lightweight processing
                 if ocr_result and should_use_ocr_result(ocr_result, minimum_chords=2):
-                    app.logger.info(f"[AUTOCREATE] 🚀 OCR SUCCESS! Found {len(ocr_result['chords'])} chords, using lightweight Sonnet processing for 80% power savings!")
+                    app.logger.info(f"[AUTOCREATE] 🚀 OCR SUCCESS! Found {len(ocr_result['chords'])} chords")
 
                     # Log the OCR raw text for debugging
                     app.logger.info(f"[AUTOCREATE] OCR Raw Text (first 500 chars): {ocr_result['raw_text'][:500]}...")
@@ -4749,17 +4748,17 @@ def process_chord_names_with_lyrics(client, uploaded_files, item_id, user_id=Non
                     file_data['data'] = ocr_result['raw_text']
                     file_data['type'] = 'chord_names'
 
-                    app.logger.info(f"[AUTOCREATE] Feeding complete OCR text to existing Sonnet processing (preserves sections)")
+                    app.logger.info(f"[AUTOCREATE] Feeding complete OCR text to existing claude")
 
-                    # NEW: Assess OCR trustworthiness using Sonnet 4 intelligence
+                    # NEW: Assess OCR trustworthiness
                     ocr_assessment = assess_ocr_trustworthiness(client, ocr_result['raw_text'], file_data['name'], user_id=user_id)
                     if not ocr_assessment['trustworthy']:
                         app.logger.info(f"[AUTOCREATE] OCR contains gibberish ({ocr_assessment['reason']}), falling back to visual analysis")
                         # Fall back to Opus 4.1 visual analysis for complex layouts
                         return process_chord_charts_directly(client, uploaded_files, item_id, user_id=user_id)
 
-                    app.logger.info(f"[AUTOCREATE] OCR text assessed as trustworthy, proceeding with Sonnet processing")
-                    # Continue to existing Sonnet processing below (no return here)
+                    app.logger.info(f"[AUTOCREATE] OCR text assessed as trustworthy, proceeding with processing")
+                    # Continue to existing processing below (no return here)
 
                 else:
                     chords_found = len(ocr_result.get('chords', [])) if ocr_result else 0
@@ -4864,8 +4863,8 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                     "text": file_content['data']
                 })
 
-        # Use Sonnet 4 for chord names analysis (cost-efficient)
-        app.logger.info(f"[AUTOCREATE] Using Sonnet 4 for chord names analysis")
+        # Use Sonnet 4.6 for chord names analysis
+        app.logger.info(f"[AUTOCREATE] Using Sonnet 4.6 for chord names analysis")
         app.logger.info(f"[AUTOCREATE] Making API call with {len(message_content)} content items")
         app.logger.info(f"[AUTOCREATE] Message content types: {[item.get('type', 'unknown') for item in message_content]}")
 
@@ -5395,7 +5394,7 @@ def create_chord_charts_from_data(chord_data, item_id):
 
 def assess_ocr_trustworthiness(client, ocr_text, filename, user_id=None):
     """
-    Use Sonnet 4 to intelligently assess if OCR text contains too much gibberish.
+    Use Claude assess if OCR text contains too much gibberish.
     Returns dict with 'trustworthy' bool and 'reason' string.
     """
     try:
@@ -5403,7 +5402,7 @@ def assess_ocr_trustworthiness(client, ocr_text, filename, user_id=None):
 
         assessment_prompt = f"""**OCR Trustworthiness Assessment**
 
-I need you to assess whether this OCR-extracted text is trustworthy for chord chart processing, or if it contains too much gibberish to trust.
+I need you to please assess whether this OCR-extracted text is trustworthy for chord chart processing, or if it contains too much gibberish to trust.
 
 **Your Task:**
 Look for OCR artifacts and gibberish strings that indicate corrupted data, such as:
@@ -5427,7 +5426,7 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
         import time
         llm_start_time = time.time()
         response = client.messages.create(
-            model="claude-sonnet-4-5-20250514",  # Sonnet for simple binary classification
+            model="claude-sonnet-4-6",  # simple binary classification
             max_tokens=100,  # Short response needed
             temperature=0.1,
             messages=[{"role": "user", "content": assessment_prompt}]
@@ -5451,7 +5450,7 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
             }
 
         track_llm_generation(
-            model="claude-sonnet-4-5-20250514",
+            model="claude-sonnet-4-6",
             input_messages=[{
                 "role": "user",
                 "content": "Assess OCR text trustworthiness"
@@ -5475,10 +5474,10 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
 
         if "TRUSTWORTHY" in assessment_result:
             app.logger.info(f"[AUTOCREATE] OCR assessment: TRUSTWORTHY")
-            return {'trustworthy': True, 'reason': 'Sonnet assessed OCR text as clean and usable'}
+            return {'trustworthy': True, 'reason': 'Claude assessed OCR text as clean and usable'}
         elif "CORRUPTED" in assessment_result:
             app.logger.info(f"[AUTOCREATE] OCR assessment: CORRUPTED")
-            return {'trustworthy': False, 'reason': 'Sonnet detected gibberish patterns in OCR text'}
+            return {'trustworthy': False, 'reason': 'Claude detected gibberish patterns in OCR text'}
         else:
             # Default to untrusted if unclear response
             app.logger.warning(f"[AUTOCREATE] OCR assessment unclear: {assessment_result}, defaulting to untrusted")
@@ -5496,7 +5495,7 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
             llm_latency = 0
 
         track_llm_generation(
-            model="claude-sonnet-4-5-20250514",
+            model="claude-sonnet-4-6",
             input_messages=[{
                 "role": "user",
                 "content": "Assess OCR text trustworthiness"

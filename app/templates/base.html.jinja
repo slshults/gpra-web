@@ -29,6 +29,19 @@
         window.GPRA_DEBUG = {{ 'true' if debug else 'false' }};
     </script>
 
+    <!-- Google Consent Mode v2 - defaults must fire before any Google tags -->
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('consent', 'default', {
+            'ad_storage': 'denied',
+            'analytics_storage': 'denied',
+            'ad_user_data': 'denied',
+            'ad_personalization': 'denied',
+            'wait_for_update': 500
+        });
+    </script>
+
     <!-- Google AdSense Auto Ads (free tier only) -->
     {% if ads_enabled and adsense_publisher_id %}
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_publisher_id }}"
