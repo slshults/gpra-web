@@ -121,7 +121,7 @@
             <section>
                 <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">What inspired this?</h2>
                 <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
-                    GPRA was initially inspired by the <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">My Practice Assistant</code> on <a href="https://www.justinguitar.com/users/stevens/practice#practice" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">JustinGuitar.com</a>. I'd tried several tools for tracking practice stuff, and Justin's was the best I'd found (Btw: Justin's free and paid courses are fantastic. If you're looking for an online course, I highly recommend <a href="https://JustinGuitar.com" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">JustinGuitar.com</a>!)
+                    GPRA was initially inspired by the <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">My Practice Assistant</code> on <a href="https://www.justinguitar.com" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">JustinGuitar.com</a>. I'd tried several tools for tracking practice stuff, and Justin's was the best I'd found (Btw: Justin's free and paid courses are fantastic. If you're looking for an online course, I highly recommend <a href="https://JustinGuitar.com" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">JustinGuitar.com</a>!)
                 </p>
                 <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
                     But the practice assistant on Justin's site was just too much of a pain and a timesink to use (e.g., you can't drag and drop to change the order of items in a routine. Oof. I'm not sure he remembers it's there, it's no longer on the <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">Tools</code> menu of his site, or listed in his FAQ index. So I'm very much hoping he won't be bothered that I used it as an inspiration for GPRA!)
@@ -160,6 +160,8 @@
         <div class="text-center text-sm text-gray-600 dark:text-gray-400 py-4 border-t border-gray-200 dark:border-gray-700">
             <a href="/" class="hover:underline">Back to GPRA</a>
             ·
+            <a href="/why" class="hover:underline">Why</a>
+            ·
             <a href="/faq" class="hover:underline">Help</a>
             ·
             <a href="/pricing" class="hover:underline">Pricing</a>
@@ -167,6 +169,12 @@
             <a href="/terms" class="hover:underline">Terms</a>
             ·
             <a href="/privacy" class="hover:underline">Privacy</a>
+            {% if not current_user.is_authenticated %}
+            ·
+            <a href="/login" class="hover:underline">Login</a>
+            ·
+            <a href="/signup" class="hover:underline">Sign up</a>
+            {% endif %}
         </div>
     </div>
 

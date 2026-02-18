@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Why structured practice? - Guitar Practice Routine App</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🎸</text></svg>">
+
+    <!-- Primary Meta Tags -->
+    <meta name="description" content="Why structured guitar practice matters. The science of deliberate practice, what experienced guitar educators recommend, and how to break through plateaus.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://guitarpracticeroutine.com/why">
+    <meta property="og:title" content="Why structured practice? - Guitar Practice Routine App">
+    <meta property="og:description" content="Why structured guitar practice matters. The science of deliberate practice, what experienced guitar educators recommend, and how to break through plateaus.">
+    <meta property="og:image" content="https://guitarpracticeroutine.com/static/images/og-strat.png">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+
+    <script>
+        // Apply theme immediately to prevent flash (light-mode system)
+        (function() {
+            if (localStorage.getItem('lightMode') === 'true') {
+                document.documentElement.classList.add('light-mode');
+                document.documentElement.classList.remove('dark');
+            }
+        })();
+    </script>
+    <!-- PostHog Analytics -->
+    {% if posthog_key %}
+    <script>
+        // GDPR-Compliant PostHog Loading
+        (function() {
+            var cookieConsent = localStorage.getItem('cookieConsent');
+            if (cookieConsent === 'all') {
+                !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture identify".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+                posthog.init('{{ posthog_key }}', {
+                    api_host: 'https://tacet.guitarpracticeroutine.com',
+                    person_profiles: 'identified_only',
+                    capture_pageview: true
+                });
+            } else {
+                window.posthog = {
+                    capture: function() {},
+                    identify: function() {},
+                    displaySurvey: null,
+                    getSurveys: function(cb) { cb([]); },
+                    onSurveysLoaded: function(cb) { cb(); }
+                };
+            }
+        })();
+    </script>
+    {% endif %}
+
+    <!-- Google Analytics 4 (consent-gated) -->
+    <script>
+        (function() {
+            var cookieConsent = localStorage.getItem('cookieConsent');
+            if (cookieConsent === 'all') {
+                var s = document.createElement('script');
+                s.async = true;
+                s.src = 'https://www.googletagmanager.com/gtag/js?id=G-E3FNWSVY1J';
+                document.head.appendChild(s);
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', 'G-E3FNWSVY1J');
+            }
+        })();
+    </script>
+    <style>
+        /* Theme toggle positioning */
+        .theme-toggle {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        .theme-toggle:hover {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 show-ph-widget">
+    {% set current_page = 'why' %}
+    {% include '_standalone_header.html.jinja' %}
+
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Page Header -->
+        <div class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">Why structured practice?</h1>
+        </div>
+
+        <!-- Main Content -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 space-y-8">
+
+            <!-- Opener -->
+            <section>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed text-lg">
+                    Sure, you can learn to play songs on guitar by watching random videos in random order. But if you really want to learn to <em>play guitar</em>, learn to keep improving your playing, you're going to need some form of structured learning, and structured practice, to keep improving. And to avoid hitting walls.
+                </p>
+            </section>
+
+            <!-- The Plateau Problem -->
+            <section>
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">The plateau problem</h2>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    Here's a story that might sound familiar. You pick up the guitar, learn a few chords from YouTube, start strumming along to some songs, and it feels amazing. You're making real progress! Then... you're not. Weeks go by and you're still playing the same voicings of the same few chords, the same strumming patterns, and the few same songs. You hit a wall. You don't know what to work on next. You know where you want to go, but you don't know how to get there from where you are.
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    This is incredibly common. It's probably the number one reason people stop picking up a guitar. Not because they lack talent, but because they don't have a path, a plan, a structure, a routine. Without some kind of structure, most of us end up noodling around in our comfort zone forever, which is fun for a while, but is that really what you had in mind when you first decided to learn to play guitar?
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    Fear not. This problem has been solved. Researchers have been studying skill acquisition for decades, and experienced guitar educators have been turning that research into practical advice for years. You need to practice eight hours a day to improve. You just need to practice <em>deliberately</em>.
+                </p>
+            </section>
+
+            <!-- What the Science Says -->
+            <section>
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">What the science says</h2>
+
+                <h3 class="text-xl font-medium text-gray-900 dark:text-gray-200 mt-4 mb-2">Deliberate practice</h3>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    The most influential research on skill acquisition comes from psychologist <a href="https://en.wikipedia.org/wiki/K._Anders_Ericsson" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">K. Anders Ericsson</a>, who spent his career studying how people develop expertise. His key finding: what separates experts from amateurs isn't innate talent, it's the <em>quality</em> and <em>structure</em> of their practice.
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    Ericsson called this <strong>deliberate practice</strong>: focused, goal-directed work on specific skills that are just beyond your current ability, with feedback, and with a plan. It's the opposite of mindlessly running through songs you already know. His <a href="https://psycnet.apa.org/record/1993-40718-001" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">original 1993 paper</a> studied musicians specifically, and found that the accumulated hours of deliberate practice (not just any practice) predicted performance level.
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    You've probably heard of Malcolm Gladwell's "10,000 hour rule" from the book <em>Outliers</em>, which was based on Ericsson's research. Ericsson himself said Gladwell got it wrong in several ways. The number 10,000 was an average, not a universal threshold. And it's not just about hours; it's about what you <em>do</em> with those hours. Mindless repetition for 10,000 hours won't make you an expert at anything except mindless repetition.
+                </p>
+
+                <h3 class="text-xl font-medium text-gray-900 dark:text-gray-200 mt-6 mb-2">Spaced repetition and motor learning</h3>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    Another well-established finding is that <strong>spaced practice</strong> beats massed practice. Multiple shorter sessions spread over days and weeks tend to produce better retention than one marathon session. This applies to both cognitive skills (like learning chord names and music theory) and motor skills (like building muscle memory for chord transitions and picking patterns).
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    The neuroscience behind this involves <strong>neuroplasticity</strong>: your brain physically rewires itself when you practice, strengthening neural pathways and building myelin around frequently used connections. Research on <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC2996135/" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">music and brain plasticity</a> has shown that musicians develop measurable structural differences in brain regions related to motor control and auditory processing. But this rewiring doesn't happen during practice; it happens during the rest periods <em>between</em> practice sessions. Which is why cramming a four-hour session once a week is less effective than playing 30 minutes a day.
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    (The research on spacing effects for complex motor skills is <a href="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182986" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">not completely settled</a>. The benefits are clear for memorization and cognitive tasks, and generally supported for motor learning, but some studies show more nuance for complex physical skills. Science is like that. The overall picture still strongly favors regular, structured practice over sporadic cramming.)
+                </p>
+            </section>
+
+            <!-- What Experienced Guitarists Say -->
+            <section>
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">What experienced guitar educators say</h2>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
+                    You don't have to take the researchers' word for it. Pretty much every experienced guitar educator on the planet will tell you the same thing: structure your practice. Here are a few who do a particularly good job of explaining why and how.
+                </p>
+
+                <!-- Educator callouts -->
+                <div class="space-y-4">
+                    <div class="border-l-4 border-orange-500 pl-6 py-3">
+                        <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                            <strong class="text-gray-900 dark:text-white">Justin Sandercoe</strong> (JustinGuitar) has been teaching structured guitar courses for free online since 2006. His <a href="https://www.justinguitar.com/modules/effective-practice" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">Effective Practice module</a> lays out exactly how to structure practice sessions, and his beginner course includes <a href="https://www.justinguitar.com/guitar-lessons/beginners-practice-routine-pc-501" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">ready-made practice routines</a> for each stage of learning. (GPRA was actually <a href="/about" class="text-orange-600 dark:text-orange-400 hover:underline">inspired by Justin's practice tools</a>.)
+                        </p>
+                    </div>
+
+                    <div class="border-l-4 border-orange-500 pl-6 py-3">
+                        <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                            <strong class="text-gray-900 dark:text-white">Paul Davids</strong> emphasizes that consistency beats volume. He teaches that you can make real progress with as little as 15 minutes a day, as long as you have a clear roadmap for what to practice. His courses at <a href="https://pauldavidsguitar.com/" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">pauldavidsguitar.com</a> are built around the idea that knowing <em>what</em> to practice, and in what order, is half the battle.
+                        </p>
+                    </div>
+
+                    <div class="border-l-4 border-orange-500 pl-6 py-3">
+                        <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                            <strong class="text-gray-900 dark:text-white">Tomo Fujita</strong> (Berklee professor) keeps it simple: <a href="https://tomovhxtv.vhx.tv/videos/ft-practice-routine-3-things-to-do" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">his daily practice</a> covers just three things: a chromatic exercise for warm-up, a swing groove with a metronome, and playing actual music. He points out that your routine should change as you grow, and that struggling with a song tells you what fundamentals to go back and review.
+                        </p>
+                    </div>
+
+                </div>
+
+            </section>
+
+            <!-- What the Legends Say -->
+            <section>
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">What some of the legends say about practice</h2>
+
+                <div class="space-y-4">
+
+                    <blockquote class="border-l-4 border-orange-500 pl-6 py-2">
+                        <p class="text-gray-700 dark:text-gray-300 italic leading-relaxed">"When people give me all these great compliments, I thank them, but still go back to my room and practice."</p>
+                        <footer class="mt-2 text-sm font-semibold text-orange-400">— B.B. King</footer>
+                    </blockquote>
+
+                    <blockquote class="border-l-4 border-orange-500 pl-6 py-2">
+                        <p class="text-gray-700 dark:text-gray-300 italic leading-relaxed">"Sometimes you are going to be so frustrated you want to give up the guitar; you'll hate the guitar. But all of this is just a part of learning, because if you stick with it, you're going to be rewarded."</p>
+                        <footer class="mt-2 text-sm font-semibold text-orange-400">— Jimi Hendrix</footer>
+                    </blockquote>
+
+                    <blockquote class="border-l-4 border-orange-500 pl-6 py-2">
+                        <p class="text-gray-700 dark:text-gray-300 italic leading-relaxed">"You have to have the technical ability, because there are a lot of times you have the imagination to do something but the technical ability may not be there. That's where the discipline comes in."</p>
+                        <footer class="mt-2 text-sm font-semibold text-orange-400">— Jimmy Page</footer>
+                    </blockquote>
+
+                    <blockquote class="border-l-4 border-orange-500 pl-6 py-2">
+                        <p class="text-gray-700 dark:text-gray-300 italic leading-relaxed">"If you just practice all day and night going really fast... it's a bit like going to the gym and seeing somebody flexing their muscles. Big deal. So what? Playing with spirit is like giving someone a hug that lasts for infinity."</p>
+                        <footer class="mt-2 text-sm font-semibold text-orange-400">— Carlos Santana</footer>
+                    </blockquote>
+
+                    <blockquote class="border-l-4 border-orange-500 pl-6 py-2">
+                        <p class="text-gray-700 dark:text-gray-300 italic leading-relaxed">"My mom was a tremendous influence because she was so adept and really showed me that that kind of chops doesn't just fall out of the sky. She believed in practice makes perfect."</p>
+                        <footer class="mt-2 text-sm font-semibold text-orange-400">— Bonnie Raitt</footer>
+                    </blockquote>
+
+                    <blockquote class="border-l-4 border-orange-500 pl-6 py-2">
+                        <p class="text-gray-700 dark:text-gray-300 italic leading-relaxed">"See, a lot of cats don't work on their rhythm enough, and if you don't have rhythm, you might as well take up needlepoint or something. I can't stress it enough. The next thing is pitch. That's universal — you're either in tune or you ain't. When you get these things down, then you can learn how to solo."</p>
+                        <footer class="mt-2 text-sm font-semibold text-orange-400">— Prince</footer>
+                    </blockquote>
+
+                    <blockquote class="border-l-4 border-orange-500 pl-6 py-2">
+                        <p class="text-gray-700 dark:text-gray-300 italic leading-relaxed">"Most beginners want to learn lead because they think it's cool. Consequently they never really develop good rhythm skills. Since most of a rock guitarist's time is spent playing rhythm, it's important to learn to do it well. Learning lead should come after you can play solid backup and have the sound of the chords in your head."</p>
+                        <footer class="mt-2 text-sm font-semibold text-orange-400">— Eddie Van Halen</footer>
+                    </blockquote>
+
+                    <blockquote class="border-l-4 border-orange-500 pl-6 py-2">
+                        <p class="text-gray-700 dark:text-gray-300 italic leading-relaxed">"If you're any good at all, you know you can be better."</p>
+                        <footer class="mt-2 text-sm font-semibold text-orange-400">— Lindsey Buckingham</footer>
+                    </blockquote>
+
+                    <blockquote class="border-l-4 border-orange-500 pl-6 py-2">
+                        <p class="text-gray-700 dark:text-gray-300 italic leading-relaxed">"I would practice with a metronome and just play faster and faster each day... eventually my brain would kind of catch up with my fingers, and I would get faster."</p>
+                        <footer class="mt-2 text-sm font-semibold text-orange-400">— Molly Tuttle</footer>
+                    </blockquote>
+
+                    <blockquote class="border-l-4 border-orange-500 pl-6 py-2">
+                        <p class="text-gray-700 dark:text-gray-300 italic leading-relaxed">"Don't just practice until you get it right. Practice until you can't get it wrong."</p>
+                        <footer class="mt-2 text-sm font-semibold text-orange-400">— Source unknown</footer>
+                    </blockquote>
+
+                </div>
+            </section>
+
+            <!-- Practical Principles -->
+            <section>
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">Practical principles that work</h2>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
+                    Here are a few principles that show up consistently across both the research and the advice from experienced players:
+                </p>
+
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-200 mb-1">Time-box your practice</h3>
+                        <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                            Set a timer for each item in your routine. This is basically the Pomodoro technique applied to guitar. It prevents you from spending 45 minutes on the thing you're already good at (because it's fun) and two minutes on the thing you actually need to work on (because it's hard). Timers also create a gentle sense of urgency that helps maintain focus.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-200 mb-1">Mix review with new material</h3>
+                        <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                            A common ratio is roughly 90% review and reinforcement to 10% new material. That might sound boring, but review doesn't mean mindless repetition. It means actively working on things you've recently learned but haven't fully locked in yet, pushing for cleaner transitions, faster chord changes, better timing. The new material keeps things interesting and gives you something to aspire to.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-200 mb-1">Track what you practice</h3>
+                        <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                            This one is simple but powerful. If you keep track of what you've practiced, you can see patterns: what you're avoiding, what you're spending too much time on, and what's actually improving. It also provides motivation on days when you feel like you're not getting anywhere. You can look back and see that two months ago, that chord change that's now effortless was the thing you were struggling with.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-200 mb-1">Organize by context</h3>
+                        <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                            Have different routines for different goals or instruments. An acoustic fingerpicking routine is different from an electric blues routine. A warm-up routine is different from a song-learning routine. Being able to switch between focused routines based on what you want to work on today makes your practice time more effective and more enjoyable.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- How GPRA Helps --> 
+            <section>
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">So, yeah: GPRA</h2>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    This is the part where I'm supposed to pitch you specifically on my app, with a big loud CTA.
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    Marketing/schmarketing.
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    The principles of structured practice work whether you use GPRA, some other app(s), random files in a folder, a spreadsheet, a notebook, a clipboard on a music stand, or sticky notes on your amp. The important thing is that you practice with some kind of structure, some sort of routine.
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    I built <a href="https://guitarpracticeroutine.com" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">GPRA</a> because I wanted a tool that made structured practice easy to put together, easy to maintain, and with features that I use, without bloat that I don't. I tried a lot of apps for tracking my practice routines and keeping my practice organized, but none that I really liked. So I finally just decided to build the app I was looking for, but couldn't find. The rise of vibe-coding meant it was easy to work on it a bit at a time while I used the app myself for practice. 
+                </p>
+                <p class="text-gray-700 dark:text-gray-300 leading-relaxed mt-3">
+                    GPRA gives you practice items, routines, timers, chord charts, completion tracking, and AI-powered automated chord chart generation. It's designed around the principles of structured practice, and meant to make the details easier to deal with. Check out the <a href="/faq" class="text-orange-600 dark:text-orange-400 hover:underline">FAQ</a> if you want to know more, nerd out with me by digging into the open source <a href="https://github.com/slshults/gpra-web" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">code on GitHub</a>, or just <a href="/signup" class="text-orange-600 dark:text-orange-400 hover:underline">sign up for free</a> and poke around.
+                </p>
+            </section>
+
+            <!-- Further Reading -->
+            <section>
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">More thinky things</h2>
+                <ul class="list-disc pl-6 space-y-2 text-gray-700 dark:text-gray-300">
+                    <li>
+                        <a href="https://psycnet.apa.org/record/1993-40718-001" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">The role of deliberate practice in the acquisition of expert performance</a> &mdash; Ericsson, Krampe & Tesch-Romer (1993). The original paper that started the deliberate practice conversation.
+                    </li>
+                    <li>
+                        <a href="https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2019.02396/full" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">Deliberate practice and proposed limits on the effects of practice</a> &mdash; A 2019 review in <em>Frontiers in Psychology</em> that discusses the nuances and debates around deliberate practice research.
+                    </li>
+                    <li>
+                        <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC2996135/" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">Music making as a tool for promoting brain plasticity across the life span</a> &mdash; Research on how playing music physically changes your brain (in a good way).
+                    </li>
+                    <li>
+                        <a href="https://www.justinguitar.com/modules/effective-practice" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">Effective Practice module</a> &mdash; JustinGuitar's practical guide to structuring guitar practice sessions.
+                    </li>
+                </ul>
+            </section>
+        </div>
+
+        <!-- Footer Links -->
+        <div class="text-center text-sm text-gray-600 dark:text-gray-400 py-4 border-t border-gray-200 dark:border-gray-700">
+            <a href="/" class="hover:underline">Back to GPRA</a>
+            ·
+            <a href="/about" class="hover:underline">About</a>
+            ·
+            <a href="/faq" class="hover:underline">Help</a>
+            ·
+            <a href="/pricing" class="hover:underline">Pricing</a>
+            ·
+            <a href="/terms" class="hover:underline">Terms</a>
+            ·
+            <a href="/privacy" class="hover:underline">Privacy</a>
+            {% if not current_user.is_authenticated %}
+            ·
+            <a href="/login" class="hover:underline">Login</a>
+            ·
+            <a href="/signup" class="hover:underline">Sign up</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Theme Toggle -->
+    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+        <img id="light-mode-toggle"
+             src="{{ url_for('static', filename='images/lightmodetoggle.png') }}"
+             alt="Switch to Light Mode"
+             style="height: 20px; width: 40px; display: block;">
+        <img id="dark-mode-toggle"
+             src="{{ url_for('static', filename='images/darkmodetoggle.png') }}"
+             alt="Switch to Dark Mode"
+             style="height: 20px; width: 40px; display: none;">
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+</body>
+</html>

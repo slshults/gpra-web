@@ -293,7 +293,7 @@ const LoginPage = () => {
               {/* Register Link */}
               <div className="text-center text-sm text-gray-400 mt-6">
                 Don't have an account?{' '}
-                <a href="/register" className="text-orange-500 hover:text-orange-400 font-medium">
+                <a href="/signup" className="text-orange-500 hover:text-orange-400 font-medium">
                   Sign up
                 </a>
                 <div className="text-xs text-gray-500 mt-1">
@@ -319,7 +319,11 @@ const LoginPage = () => {
 
         {/* Footer Links */}
         <div className="text-center text-sm text-gray-600 py-4 mt-4">
+          <a href="/" className="hover:underline hover:text-gray-400">Back to GPRA</a>
+          {' · '}
           <a href="/about" className="hover:underline hover:text-gray-400">About</a>
+          {' · '}
+          <a href="/why" className="hover:underline hover:text-gray-400">Why</a>
           {' · '}
           <a href="/faq" className="hover:underline hover:text-gray-400">Help</a>
           {' · '}
@@ -328,6 +332,8 @@ const LoginPage = () => {
           <a href="/terms" className="hover:underline hover:text-gray-400">Terms</a>
           {' · '}
           <a href="/privacy" className="hover:underline hover:text-gray-400">Privacy</a>
+          {' · '}
+          <a href="/signup" className="hover:underline hover:text-gray-400">Sign up</a>
         </div>
       </div>
     </div>

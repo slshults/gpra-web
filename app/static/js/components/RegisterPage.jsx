@@ -525,7 +525,11 @@ const RegisterPage = () => {
 
         {/* Footer Links */}
         <div className="text-center text-sm text-gray-600 py-4 mt-4">
+          <a href="/" className="hover:underline hover:text-gray-400">Back to GPRA</a>
+          {' · '}
           <a href="/about" className="hover:underline hover:text-gray-400">About</a>
+          {' · '}
+          <a href="/why" className="hover:underline hover:text-gray-400">Why</a>
           {' · '}
           <a href="/faq" className="hover:underline hover:text-gray-400">Help</a>
           {' · '}
@@ -534,6 +538,8 @@ const RegisterPage = () => {
           <a href="/terms" className="hover:underline hover:text-gray-400">Terms</a>
           {' · '}
           <a href="/privacy" className="hover:underline hover:text-gray-400">Privacy</a>
+          {' · '}
+          <a href="/login" className="hover:underline hover:text-gray-400">Login</a>
         </div>
       </div>
     </div>

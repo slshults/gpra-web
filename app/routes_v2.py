@@ -77,13 +77,17 @@ def login_page():
         return redirect('/')
     return render_template('auth.html.jinja', page='login', posthog_key=posthog_key, debug=app.debug)
 
-@app.route('/register')
-def register_page():
-    """Custom React register page"""
+@app.route('/signup')
+def signup_page():
+    """Custom React signup page"""
     # If already authenticated, redirect to main app
     if current_user.is_authenticated:
         return redirect('/')
     return render_template('auth.html.jinja', page='register', posthog_key=posthog_key, debug=app.debug)
+
+@app.route('/register')
+def register_redirect():
+    return redirect('/signup', code=301)
 
 @app.route('/forgot-password')
 def forgot_password_page():
@@ -120,6 +124,11 @@ def faq_page():
 def about_page():
     """About page - accessible to everyone"""
     return render_template('about.html.jinja', posthog_key=posthog_key)
+
+@app.route('/why')
+def why_page():
+    """Why structured practice page - accessible to everyone"""
+    return render_template('why.html.jinja', posthog_key=posthog_key)
 
 @app.route('/pricing')
 def pricing_page():
@@ -4336,7 +4345,7 @@ Thanks so much for being thorough with this, you rock Claude! 🤘🎸🚀"""
         app.logger.info("Using Opus 4.6 for chord chart visual analysis")
         llm_start_time = time.time()
         response = client.messages.create(
-            model="claude-opus-4-6",
+            model="claude-sonnet-4-6",
             max_tokens=6000,
             messages=[{
                 "role": "user",
@@ -4350,7 +4359,7 @@ Thanks so much for being thorough with this, you rock Claude! 🤘🎸🚀"""
         # Track LLM generation with PostHog Analytics
         from app.utils.llm_analytics import llm_analytics
         llm_analytics.track_generation(
-            model="claude-opus-4-6",
+            model="claude-sonnet-4-6",
             input_messages=[{"role": "user", "content": "Chord chart processing and analysis"}],
             output_choices=[{"message": {"content": response_text}}],
             usage={
@@ -4550,9 +4559,9 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
         try:
             import time
             llm_start_time = time.time()
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-6")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-sonnet-4-6")
             response = client.messages.create(
-                model="claude-opus-4-6",
+                model="claude-sonnet-4-6",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
                 temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
@@ -4577,7 +4586,7 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                 }
 
             track_llm_generation(
-                model="claude-opus-4-6",
+                model="claude-sonnet-4-6",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from YouTube transcript"
@@ -4612,7 +4621,7 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                 llm_latency = 0
 
             track_llm_generation(
-                model="claude-opus-4-6",
+                model="claude-sonnet-4-6",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from YouTube transcript"
@@ -4863,9 +4872,9 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
         try:
             import time
             llm_start_time = time.time()
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-6")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-sonnet-4-6")
             response = client.messages.create(
-                model="claude-opus-4-6",
+                model="claude-sonnet-4-6",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
                 temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
@@ -4890,7 +4899,7 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                 }
 
             track_llm_generation(
-                model="claude-opus-4-6",
+                model="claude-sonnet-4-6",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from lyrics sheet"
@@ -4924,7 +4933,7 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                 llm_latency = 0
 
             track_llm_generation(
-                model="claude-opus-4-6",
+                model="claude-sonnet-4-6",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from lyrics sheet"

@@ -17,14 +17,20 @@
         </a>
 
         <!-- Desktop nav (hidden on mobile) -->
-        <nav class="desktop-nav gap-4 text-sm">
+        <nav class="desktop-nav gap-4 text-sm items-center">
             <a href="/about" class="{{ 'text-orange-400 font-medium' if current_page == 'about' else 'text-gray-400 hover:text-white transition-colors' }}">About</a>
+            <a href="/why" class="{{ 'text-orange-400 font-medium' if current_page == 'why' else 'text-gray-400 hover:text-white transition-colors' }}">Why</a>
             <a href="/faq" class="{{ 'text-orange-400 font-medium' if current_page == 'faq' else 'text-gray-400 hover:text-white transition-colors' }}">Help</a>
             <a href="/pricing" class="{{ 'text-orange-400 font-medium' if current_page == 'pricing' else 'text-gray-400 hover:text-white transition-colors' }}">Pricing</a>
             <a href="/terms" class="{{ 'text-orange-400 font-medium' if current_page == 'terms' else 'text-gray-400 hover:text-white transition-colors' }}">Terms</a>
             <a href="/privacy" class="{{ 'text-orange-400 font-medium' if current_page == 'privacy' else 'text-gray-400 hover:text-white transition-colors' }}">Privacy</a>
+            {% if current_user.is_authenticated %}
             <a href="/#Account" class="text-gray-400 hover:text-white transition-colors" title="Account settings">⚙️</a>
             <a href="/logout" class="text-gray-400 hover:text-white transition-colors">Logout</a>
+            {% else %}
+            <a href="/login" class="text-gray-400 hover:text-white transition-colors">Login</a>
+            <a href="/signup" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1 rounded text-sm transition-colors">Sign up</a>
+            {% endif %}
         </nav>
 
         <!-- Mobile hamburger button (visible on mobile only) -->
@@ -40,13 +46,19 @@
     <nav id="mobile-menu" class="hidden border-t border-gray-700">
         <div class="max-w-4xl mx-auto px-4 py-3 flex flex-col gap-3 text-sm">
             <a href="/about" class="{{ 'text-orange-400 font-medium' if current_page == 'about' else 'text-gray-400 hover:text-white transition-colors' }}">About</a>
+            <a href="/why" class="{{ 'text-orange-400 font-medium' if current_page == 'why' else 'text-gray-400 hover:text-white transition-colors' }}">Why</a>
             <a href="/faq" class="{{ 'text-orange-400 font-medium' if current_page == 'faq' else 'text-gray-400 hover:text-white transition-colors' }}">Help</a>
             <a href="/pricing" class="{{ 'text-orange-400 font-medium' if current_page == 'pricing' else 'text-gray-400 hover:text-white transition-colors' }}">Pricing</a>
             <a href="/terms" class="{{ 'text-orange-400 font-medium' if current_page == 'terms' else 'text-gray-400 hover:text-white transition-colors' }}">Terms</a>
             <a href="/privacy" class="{{ 'text-orange-400 font-medium' if current_page == 'privacy' else 'text-gray-400 hover:text-white transition-colors' }}">Privacy</a>
             <div class="border-t border-gray-700 pt-3 flex gap-4">
+                {% if current_user.is_authenticated %}
                 <a href="/#Account" class="text-gray-400 hover:text-white transition-colors" title="Account settings">⚙️ Settings</a>
                 <a href="/logout" class="text-gray-400 hover:text-white transition-colors">Logout</a>
+                {% else %}
+                <a href="/login" class="text-gray-400 hover:text-white transition-colors">Login</a>
+                <a href="/signup" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1 rounded text-sm transition-colors">Sign up</a>
+                {% endif %}
             </div>
         </div>
     </nav>

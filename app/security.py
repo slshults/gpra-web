@@ -237,7 +237,7 @@ class CustomAuthOAuthView(AuthOAuthView):
 
         if provider is None:
             # Redirect to register page if no provider specified
-            return redirect('/register')
+            return redirect('/signup')
 
         logger.info(f"Initiating OAuth signup with provider: {provider}")
 
@@ -270,7 +270,7 @@ class CustomAuthOAuthView(AuthOAuthView):
         except Exception as e:
             logger.error(f"Error on OAuth authorize: {e}")
             flash(as_unicode("OAuth signup failed. Please try again."), "warning")
-            return redirect('/register')
+            return redirect('/signup')
 
     @expose('/oauth-authorized/<provider>')
     def oauth_authorized(self, provider):
@@ -329,7 +329,7 @@ class CustomAuthOAuthView(AuthOAuthView):
 
         if userinfo is None or not userinfo.get('email'):
             flash(as_unicode("Failed to retrieve user information"), "danger")
-            redirect_url = '/register' if intent == 'signup' else '/login'
+            redirect_url = '/signup' if intent == 'signup' else '/login'
             return redirect(redirect_url)
 
         logger.info(f"OAuth user info: {userinfo.get('email')}")
@@ -360,7 +360,7 @@ class CustomAuthOAuthView(AuthOAuthView):
                     'reason': 'no_account'
                 })
                 flash(as_unicode("No account found. Please sign up first."), "warning")
-                return redirect('/register')
+                return redirect('/signup')
 
             # User exists - log them in (no tour)
             user = existing_user
@@ -423,7 +423,7 @@ class CustomAuthOAuthView(AuthOAuthView):
                         'error': 'user_creation_failed'
                     })
                     flash(as_unicode("OAuth signup failed"), "danger")
-                    return redirect('/register')
+                    return redirect('/signup')
 
                 # Mark session as permanent to persist across browser restarts
                 from flask import session

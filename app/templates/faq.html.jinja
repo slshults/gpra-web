@@ -585,11 +585,19 @@
             ·
             <a href="/about" class="hover:underline">About</a>
             ·
+            <a href="/why" class="hover:underline">Why</a>
+            ·
             <a href="/pricing" class="hover:underline">Pricing</a>
             ·
             <a href="/terms" class="hover:underline">Terms</a>
             ·
             <a href="/privacy" class="hover:underline">Privacy</a>
+            {% if not current_user.is_authenticated %}
+            ·
+            <a href="/login" class="hover:underline">Login</a>
+            ·
+            <a href="/signup" class="hover:underline">Sign up</a>
+            {% endif %}
         </div>
     </div>
 
