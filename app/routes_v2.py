@@ -35,7 +35,8 @@ def index():
         app.logger.info("User not authenticated, redirecting to login via client-side redirect")
         # Use client-side redirect to preserve URL hash (hash is not sent to server)
         # The login_redirect template saves the hash to sessionStorage before redirecting
-        return render_template('landing.html.jinja', posthog_key=posthog_key)
+        return render_template('landing.html.jinja', posthog_key=posthog_key,
+                             adsense_publisher_id=os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', ''))
 
     app.logger.info(f"Authenticated user accessing main app: {current_user.username}")
 
@@ -75,7 +76,8 @@ def login_page():
     # If already authenticated, redirect to main app
     if current_user.is_authenticated:
         return redirect('/')
-    return render_template('auth.html.jinja', page='login', posthog_key=posthog_key, debug=app.debug)
+    return render_template('auth.html.jinja', page='login', posthog_key=posthog_key, debug=app.debug,
+                         adsense_publisher_id=os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', ''))
 
 @app.route('/signup')
 def signup_page():
@@ -83,7 +85,8 @@ def signup_page():
     # If already authenticated, redirect to main app
     if current_user.is_authenticated:
         return redirect('/')
-    return render_template('auth.html.jinja', page='register', posthog_key=posthog_key, debug=app.debug)
+    return render_template('auth.html.jinja', page='register', posthog_key=posthog_key, debug=app.debug,
+                         adsense_publisher_id=os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', ''))
 
 @app.route('/register')
 def register_redirect():
@@ -95,7 +98,8 @@ def forgot_password_page():
     # If already authenticated, redirect to main app
     if current_user.is_authenticated:
         return redirect('/')
-    return render_template('auth.html.jinja', page='forgot-password', posthog_key=posthog_key, debug=app.debug)
+    return render_template('auth.html.jinja', page='forgot-password', posthog_key=posthog_key, debug=app.debug,
+                         adsense_publisher_id=os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', ''))
 
 @app.route('/reset-password')
 def reset_password_page():
@@ -103,7 +107,8 @@ def reset_password_page():
     # If already authenticated, redirect to main app
     if current_user.is_authenticated:
         return redirect('/')
-    return render_template('auth.html.jinja', page='reset-password', posthog_key=posthog_key, debug=app.debug)
+    return render_template('auth.html.jinja', page='reset-password', posthog_key=posthog_key, debug=app.debug,
+                         adsense_publisher_id=os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', ''))
 
 @app.route('/privacy')
 def privacy_page():
