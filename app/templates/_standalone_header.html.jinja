@@ -8,6 +8,19 @@
         .desktop-nav { display: flex; }
         #mobile-menu { display: none !important; }
     }
+    /* Theme toggle positioning - consolidated here to avoid duplication across standalone templates */
+    .theme-toggle {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        opacity: 0.6;
+        transition: opacity 0.2s;
+        z-index: 1000;
+        cursor: pointer;
+    }
+    .theme-toggle:hover {
+        opacity: 1.0;
+    }
 </style>
 <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
     <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">

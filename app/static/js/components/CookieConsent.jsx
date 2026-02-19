@@ -18,6 +18,30 @@ const CookieConsent = () => {
 
   useEffect(() => {
     const checkConsent = async () => {
+      // If Google's TCF CMP is active (EEA/UK/CH users), let it handle consent
+      // and translate its result into our localStorage key. Skip our banner entirely.
+      if (typeof window.__tcfapi === 'function') {
+        window.__tcfapi('addEventListener', 2, (tcData, success) => {
+          if (!success) return;
+          // Only act on completed user actions or a pre-existing loaded TC string,
+          // not intermediate states like 'cmpuishown'.
+          if (tcData.eventStatus === 'useractioncomplete' || tcData.eventStatus === 'tcloaded') {
+            // Map TCF purpose consent to our simple all/essential model.
+            // Purpose 1 = store/access info on device (basic analytics).
+            // Any consented purposes = treat as 'all'; none = 'essential'.
+            const consentedPurposes = tcData.purpose?.consented || {};
+            const hasAnyConsent = Object.values(consentedPurposes).some(v => v === true);
+            const choice = hasAnyConsent ? 'all' : 'essential';
+            localStorage.setItem('cookieConsent', choice);
+            applyConsent(choice);
+            setShowBanner(false);
+          }
+        });
+        // Don't show our banner — Google's CMP is handling consent for this user.
+        setShowBanner(false);
+        return;
+      }
+
       // Check localStorage first (fast, client-side)
       let consent = localStorage.getItem('cookieConsent');
 
