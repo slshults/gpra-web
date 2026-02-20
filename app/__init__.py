@@ -250,6 +250,46 @@ limiter = Limiter(
     default_limits=["1000 per hour", "100 per minute"]  # Global fallback limits
 )
 
+# User-Agent blocklist — known malicious scanners, exploit tools, and scraper bots
+BAD_USER_AGENTS = [
+    # Security scanners
+    'sqlmap', 'nikto', 'nessus', 'nmap', 'masscan', 'zgrab', 'nuclei',
+    'dirbuster', 'gobuster', 'wfuzz', 'ffuf', 'hydra', 'medusa',
+    'acunetix', 'burpsuite', 'havij', 'metasploit', 'w3af',
+    # Scraper/spam bots
+    'scrapy', 'ahrefsbot', 'semrushbot', 'dotbot', 'mj12bot',
+    'blexbot', 'rogerbot', 'gigabot', 'yandexbot',
+    # Headless browsers used maliciously (real Chrome has a different UA)
+    'phantomjs', 'headlesschrome',
+    # Generic script tools (forged/attack UAs)
+    'python-requests', 'go-http-client', 'java/', 'curl/',
+    # Known exploit tools
+    'libwww-perl',
+]
+
+@app.before_request
+def block_bad_user_agents():
+    """Block known malicious scanners, exploit tools, and scraper bots by User-Agent."""
+    # Allow static files and well-known bot-accessible paths through without UA checks
+    if request.path.startswith('/static/') or request.path in ('/ads.txt', '/robots.txt'):
+        return None
+
+    ua = request.headers.get('User-Agent', '')
+
+    # Block missing/empty User-Agent — no legitimate browser or crawler omits this
+    if not ua.strip():
+        app.logger.info(f"Blocked request with empty User-Agent from {request.remote_addr} path={request.path}")
+        return ('Forbidden', 403)
+
+    # Block any UA containing a known bad pattern (case-insensitive)
+    ua_lower = ua.lower()
+    for pattern in BAD_USER_AGENTS:
+        if pattern in ua_lower:
+            app.logger.info(f"Blocked UA: {ua[:100]} (matched '{pattern}') from {request.remote_addr}")
+            return ('Forbidden', 403)
+
+    return None
+
 # Flask-AppBuilder Authentication Configuration
 app.config['AUTH_TYPE'] = 1  # 1 = Database authentication (email/password + OAuth)
 app.config['AUTH_ROLE_ADMIN'] = 'Admin'

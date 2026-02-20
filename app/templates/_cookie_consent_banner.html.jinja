@@ -1,0 +1,155 @@
+<!-- Cookie Consent Banner (vanilla JS, for standalone templates that don't load the React app) -->
+<style>
+    #gpra-consent-banner {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 9999;
+        background-color: #1f2937; /* gray-800 */
+        border-top: 2px solid #f97316; /* orange-500 */
+        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
+    }
+    #gpra-consent-banner .gpra-consent-inner {
+        max-width: 80rem;
+        margin: 0 auto;
+        padding: 1.25rem 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+    }
+    @media (min-width: 768px) {
+        #gpra-consent-banner .gpra-consent-inner {
+            flex-direction: row;
+            justify-content: space-between;
+        }
+    }
+    #gpra-consent-banner .gpra-consent-text {
+        font-size: 0.875rem;
+        color: #d1d5db; /* gray-300 */
+        text-align: center;
+        flex: 1;
+    }
+    @media (min-width: 768px) {
+        #gpra-consent-banner .gpra-consent-text {
+            text-align: left;
+        }
+    }
+    #gpra-consent-banner .gpra-consent-text a {
+        color: #fb923c; /* orange-400 */
+        text-decoration: none;
+    }
+    #gpra-consent-banner .gpra-consent-text a:hover {
+        text-decoration: underline;
+    }
+    #gpra-consent-banner .gpra-consent-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        min-width: max-content;
+    }
+    @media (min-width: 640px) {
+        #gpra-consent-banner .gpra-consent-buttons {
+            flex-direction: row;
+        }
+    }
+    #gpra-consent-banner .gpra-btn-accept {
+        padding: 0.5rem 1.25rem;
+        background-color: #ea580c; /* orange-600 */
+        color: #ffffff;
+        font-weight: 600;
+        font-size: 0.875rem;
+        border: none;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: background-color 0.15s;
+        white-space: nowrap;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    #gpra-consent-banner .gpra-btn-accept:hover {
+        background-color: #c2410c; /* orange-700 */
+    }
+    #gpra-consent-banner .gpra-btn-decline {
+        padding: 0.5rem 1.25rem;
+        background-color: #374151; /* gray-700 */
+        color: #f9fafb; /* gray-50 */
+        font-weight: 600;
+        font-size: 0.875rem;
+        border: none;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: background-color 0.15s;
+        white-space: nowrap;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    #gpra-consent-banner .gpra-btn-decline:hover {
+        background-color: #4b5563; /* gray-600 */
+    }
+</style>
+
+<div id="gpra-consent-banner" style="display: none;" aria-live="polite" role="region" aria-label="Cookie consent">
+    <div class="gpra-consent-inner">
+        <p class="gpra-consent-text">
+            We use cookies to improve your experience. See our <a href="/privacy">Privacy policy</a>.
+        </p>
+        <div class="gpra-consent-buttons">
+            <button class="gpra-btn-accept" id="gpra-consent-accept">Accept all</button>
+            <button class="gpra-btn-decline" id="gpra-consent-decline">Decline</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    // If Google's TCF CMP is active (EEA/UK/CH), let it handle consent — skip our banner.
+    if (typeof window.__tcfapi === 'function') {
+        return;
+    }
+
+    var consent = localStorage.getItem('cookieConsent');
+
+    // Already decided — don't show the banner.
+    if (consent === 'all' || consent === 'none' || consent === 'essential') {
+        return;
+    }
+
+    // No prior decision — show the banner.
+    var banner = document.getElementById('gpra-consent-banner');
+    if (banner) {
+        banner.style.display = '';
+    }
+
+    function applyGoogleConsent(granted) {
+        if (typeof window.gtag === 'function') {
+            var state = granted ? 'granted' : 'denied';
+            window.gtag('consent', 'update', {
+                'ad_storage': state,
+                'analytics_storage': state,
+                'ad_user_data': state,
+                'ad_personalization': state
+            });
+        }
+    }
+
+    function hideBanner() {
+        if (banner) {
+            banner.style.display = 'none';
+        }
+    }
+
+    document.getElementById('gpra-consent-accept').addEventListener('click', function() {
+        localStorage.setItem('cookieConsent', 'all');
+        applyGoogleConsent(true);
+        hideBanner();
+        // Reload so consent-gated scripts (PostHog, GA4) can initialise on this visit.
+        window.location.reload();
+    });
+
+    document.getElementById('gpra-consent-decline').addEventListener('click', function() {
+        localStorage.setItem('cookieConsent', 'essential');
+        applyGoogleConsent(false);
+        hideBanner();
+    });
+})();
+</script>

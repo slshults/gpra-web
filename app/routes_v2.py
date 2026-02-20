@@ -1734,6 +1734,47 @@ def forgot_password():
     if not email:
         return jsonify({"error": "Email is required"}), 400
 
+    # Verify reCAPTCHA
+    recaptcha_token = data.get('recaptcha_token', '')
+    if not recaptcha_token:
+        return jsonify({"error": "reCAPTCHA verification required"}), 400
+
+    try:
+        import requests as http_requests
+        recaptcha_api_key = os.getenv('RECAPTCHA_API_KEY')
+        if not recaptcha_api_key:
+            app.logger.error("RECAPTCHA_API_KEY not configured")
+            return jsonify({"error": "Service unavailable"}), 500
+
+        verify_url = f"https://recaptchaenterprise.googleapis.com/v1/projects/practiceroutineapp/assessments?key={recaptcha_api_key}"
+        verify_payload = {
+            "event": {
+                "token": recaptcha_token,
+                "siteKey": "6LcjIvQrAAAAAM4psu6wJT3NlL8RIwH4tNiiAJ6C"
+            }
+        }
+        headers = {'Referer': request.url_root}
+        verify_response = http_requests.post(verify_url, json=verify_payload, headers=headers, timeout=10)
+        recaptcha_data = verify_response.json()
+
+        token_valid = recaptcha_data.get('tokenProperties', {}).get('valid', False)
+        risk_score = recaptcha_data.get('riskAnalysis', {}).get('score', 0)
+        app.logger.info(f"Forgot-password reCAPTCHA - valid: {token_valid}, score: {risk_score}")
+
+        if not token_valid or risk_score < 0.5:
+            app.logger.warning(f"reCAPTCHA failed for forgot-password: valid={token_valid}, score={risk_score}")
+            from app.utils.posthog_client import track_event
+            track_event(None, 'recaptcha_failed', {
+                'action': 'forgot_password',
+                'score': risk_score,
+                'reason': 'low_score' if token_valid else 'invalid_token'
+            })
+            return jsonify({"error": "reCAPTCHA verification failed. Please try again."}), 400
+
+    except Exception as e:
+        app.logger.error(f"reCAPTCHA verification error for forgot-password: {e}")
+        return jsonify({"error": "Unable to verify reCAPTCHA. Please try again."}), 500
+
     # Get client IP address
     client_ip = request.remote_addr
     if request.headers.get('X-Forwarded-For'):
@@ -1864,6 +1905,47 @@ def reset_password():
 
     if not new_password:
         return jsonify({"error": "New password is required"}), 400
+
+    # Verify reCAPTCHA
+    recaptcha_token = data.get('recaptcha_token', '')
+    if not recaptcha_token:
+        return jsonify({"error": "reCAPTCHA verification required"}), 400
+
+    try:
+        import requests as http_requests
+        recaptcha_api_key = os.getenv('RECAPTCHA_API_KEY')
+        if not recaptcha_api_key:
+            app.logger.error("RECAPTCHA_API_KEY not configured")
+            return jsonify({"error": "Service unavailable"}), 500
+
+        verify_url = f"https://recaptchaenterprise.googleapis.com/v1/projects/practiceroutineapp/assessments?key={recaptcha_api_key}"
+        verify_payload = {
+            "event": {
+                "token": recaptcha_token,
+                "siteKey": "6LcjIvQrAAAAAM4psu6wJT3NlL8RIwH4tNiiAJ6C"
+            }
+        }
+        headers = {'Referer': request.url_root}
+        verify_response = http_requests.post(verify_url, json=verify_payload, headers=headers, timeout=10)
+        recaptcha_data = verify_response.json()
+
+        token_valid = recaptcha_data.get('tokenProperties', {}).get('valid', False)
+        risk_score = recaptcha_data.get('riskAnalysis', {}).get('score', 0)
+        app.logger.info(f"Reset-password reCAPTCHA - valid: {token_valid}, score: {risk_score}")
+
+        if not token_valid or risk_score < 0.5:
+            app.logger.warning(f"reCAPTCHA failed for reset-password: valid={token_valid}, score={risk_score}")
+            from app.utils.posthog_client import track_event
+            track_event(None, 'recaptcha_failed', {
+                'action': 'reset_password',
+                'score': risk_score,
+                'reason': 'low_score' if token_valid else 'invalid_token'
+            })
+            return jsonify({"error": "reCAPTCHA verification failed. Please try again."}), 400
+
+    except Exception as e:
+        app.logger.error(f"reCAPTCHA verification error for reset-password: {e}")
+        return jsonify({"error": "Unable to verify reCAPTCHA. Please try again."}), 500
 
     # Validate password strength (same rules as password change)
     if len(new_password) < 12:

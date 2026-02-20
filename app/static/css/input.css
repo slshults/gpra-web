@@ -336,14 +336,14 @@ body.show-ph-widget #ph-conversations-widget-container {
 
 /* Dark mode (default) */
 
-/* Floating chat button - GPRA orange */
+/* Floating chat button - muted dark */
 #ph-conversations-widget-container button[aria-label="Open chat"] {
-  background-color: #ea580c !important;
-  color: #ffffff !important;
+  background-color: #374151 !important;
+  color: #9ca3af !important;
   font-family: inherit !important;
 }
 #ph-conversations-widget-container button[aria-label="Open chat"]:hover {
-  background-color: #c2410c !important;
+  background-color: #4b5563 !important;
 }
 
 /* Close button */

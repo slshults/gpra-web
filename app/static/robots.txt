@@ -10,14 +10,14 @@ Allow: /pricing
 Allow: /privacy
 Allow: /terms
 Allow: /ads.txt
+Allow: /signup
+Allow: /login
+Allow: /logout
+Allow: /oauth-signup/
 
 Disallow: /api/
 Disallow: /admin/
-Disallow: /login
-Disallow: /register
 Disallow: /forgot-password
 Disallow: /reset-password
-Disallow: /oauth-signup/
-Disallow: /logout
 
 Sitemap: https://guitarpracticeroutine.com/sitemap.xml
