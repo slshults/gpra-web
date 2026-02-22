@@ -2,7 +2,7 @@
 Updated routes using the data layer abstraction.
 Drop-in replacement for existing routes.py during migration.
 """
-from flask import render_template, request, jsonify, redirect, session, url_for, send_from_directory
+from flask import render_template, request, jsonify, redirect, session, url_for, send_from_directory, abort
 from flask_login import current_user
 from app import app, billing, limiter, csrf
 from app.data_layer import data_layer
@@ -139,6 +139,32 @@ def why_page():
 def pricing_page():
     """Pricing page - accessible to everyone"""
     return render_template('pricing.html.jinja', posthog_key=posthog_key)
+
+@app.errorhandler(404)
+def page_not_found(e):
+    """Custom 404 error page"""
+    return render_template('404.html.jinja', posthog_key=posthog_key), 404
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    """Custom 500 error page"""
+    return render_template('500.html.jinja', posthog_key=posthog_key), 500
+
+@app.errorhandler(429)
+def too_many_requests(e):
+    """Custom 429 error page"""
+    return render_template('429.html.jinja', posthog_key=posthog_key), 429
+
+@app.errorhandler(403)
+def forbidden(e):
+    """Custom 403 error page"""
+    return render_template('403.html.jinja', posthog_key=posthog_key), 403
+
+if app.debug:
+    @app.route('/test-error/<int:code>')
+    def test_error(code):
+        """Debug-only route for testing custom error pages."""
+        abort(code)
 
 @app.route('/ads.txt')
 def ads_txt():

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>403 - Access denied - Guitar Practice Routine App</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🎸</text></svg>">
+
+    <!-- Primary Meta Tags -->
+    <meta name="description" content="Access denied - Guitar Practice Routine App">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+
+    <script>
+        // Apply theme immediately to prevent flash (light-mode system)
+        (function() {
+            if (localStorage.getItem('lightMode') === 'true') {
+                document.documentElement.classList.add('light-mode');
+                document.documentElement.classList.remove('dark');
+            }
+        })();
+    </script>
+    <!-- PostHog Analytics -->
+    {% if posthog_key %}
+    <script>
+        // GDPR-Compliant PostHog Loading
+        (function() {
+            var cookieConsent = localStorage.getItem('cookieConsent');
+            if (cookieConsent === 'all') {
+                !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture identify".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+                posthog.init('{{ posthog_key }}', {
+                    api_host: 'https://tacet.guitarpracticeroutine.com',
+                    person_profiles: 'identified_only',
+                    capture_pageview: true
+                });
+            } else {
+                window.posthog = {
+                    capture: function() {},
+                    identify: function() {},
+                    displaySurvey: null,
+                    getSurveys: function(cb) { cb([]); },
+                    onSurveysLoaded: function(cb) { cb(); }
+                };
+            }
+        })();
+    </script>
+    {% endif %}
+
+    <!-- Google Analytics 4 (consent-gated) -->
+    <script>
+        (function() {
+            var cookieConsent = localStorage.getItem('cookieConsent');
+            if (cookieConsent === 'all') {
+                var s = document.createElement('script');
+                s.async = true;
+                s.src = 'https://www.googletagmanager.com/gtag/js?id=G-E3FNWSVY1J';
+                document.head.appendChild(s);
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', 'G-E3FNWSVY1J');
+            }
+        })();
+    </script>
+</head>
+<body class="bg-gray-900 show-ph-widget">
+    {% set current_page = '' %}
+    {% include '_standalone_header.html.jinja' %}
+
+    <div class="max-w-4xl mx-auto px-4 py-16">
+        <!-- Main content card -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 mb-6 text-center max-w-2xl mx-auto">
+            <h1 class="text-xl font-semibold text-gray-400 dark:text-gray-300 leading-relaxed mb-3">
+                Yeah, no. ⛔<br> You can't go backstage without an official backstage pass.
+            </h1>
+
+            <p class="text-3xl font-bold text-white dark:text-white mb-6">
+                That's a 403 error.
+            </p>
+ <h1 class="text-xl font-semibold text-gray-400 dark:text-gray-300 leading-relaxed mb-3">
+                This happens when you try to go somewhere you shouldn't.<br>
+                Like when you try to play Stairway or Wonderwall at a guitar store.
+            </h1>
+
+
+            <p class="text-gray-700 dark:text-gray-300 mb-2">
+                Click an item on the menu above, or <span id="e403-countdown-text">wait 20 seconds</span> to be redirected.
+            </p>
+
+            <p class="text-sm text-gray-400 dark:text-gray-500 mt-8">
+                (If you keep seeing this page after clicking something,<br> please use the chat icon below to report the problem, thanks.)
+            </p>
+        </div>
+
+        <!-- Footer links -->
+        <div class="text-center text-sm text-gray-600 dark:text-gray-400 py-4 border-t border-gray-200 dark:border-gray-700">
+            <a href="/" class="hover:underline">Back to GPRA</a>
+            ·
+            <a href="/about" class="hover:underline">About</a>
+            ·
+            <a href="/why" class="hover:underline">Why</a>
+            ·
+            <a href="/faq" class="hover:underline">Help</a>
+            ·
+            <a href="/pricing" class="hover:underline">Pricing</a>
+            ·
+            <a href="/terms" class="hover:underline">Terms</a>
+            ·
+            <a href="/privacy" class="hover:underline">Privacy</a>
+            {% if not current_user.is_authenticated %}
+            ·
+            <a href="/login" class="hover:underline">Login</a>
+            ·
+            <a href="/signup" class="hover:underline">Sign up</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Theme Toggle -->
+    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+        <img id="light-mode-toggle"
+             src="{{ url_for('static', filename='images/lightmodetoggle.png') }}"
+             alt="Switch to Light Mode"
+             style="height: 20px; width: 40px; display: block;">
+        <img id="dark-mode-toggle"
+             src="{{ url_for('static', filename='images/darkmodetoggle.png') }}"
+             alt="Switch to Dark Mode"
+             style="height: 20px; width: 40px; display: none;">
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+
+    <script>
+        // Countdown timer that redirects to / after 20 seconds
+        (function() {
+            var e403seconds = 20;
+            var e403countdownEl = document.getElementById('e403-countdown-text');
+            var e403interval = setInterval(function() {
+                e403seconds -= 1;
+                if (e403seconds <= 0) {
+                    clearInterval(e403interval);
+                    window.location.href = '/';
+                } else {
+                    e403countdownEl.textContent = 'wait ' + e403seconds + ' second' + (e403seconds === 1 ? '' : 's') + '...';
+                }
+            }, 1000);
+        })();
+    </script>
+
+    {% include '_cookie_consent_banner.html.jinja' %}
+</body>
+</html>

@@ -11,6 +11,12 @@ export const NavigationProvider = ({ children }) => {
     let hash = window.location.hash.slice(1).split('?')[0]; // Remove the # and any query params
     const validPages = ['Practice', 'Routines', 'Items', 'Account'];
 
+    // If there's a hash but it's not a valid page, trigger 404
+    if (hash && !validPages.includes(hash)) {
+      window.location.replace('/invalid-route-404');
+      return 'Practice'; // fallback while redirect fires
+    }
+
     // If no valid hash in URL, check sessionStorage for saved hash from before login redirect
     // This handles the case where user was redirected to login from a deep link (e.g., /#Account)
     if (!validPages.includes(hash)) {

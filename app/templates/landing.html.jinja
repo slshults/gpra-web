@@ -20,6 +20,18 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
 
+    <!-- Hash validation: redirect invalid hashes to 404 before rendering landing page.
+         Unauthenticated users visiting /#InvalidHash should see 404, not the landing page. -->
+    <script>
+        (function() {
+            var hash = window.location.hash.slice(1).split('?')[0];
+            var validPages = ['Practice', 'Routines', 'Items', 'Account'];
+            if (hash && validPages.indexOf(hash) === -1) {
+                window.location.replace('/invalid-route-404');
+            }
+        })();
+    </script>
+
     <!-- Google Consent Mode v2 - defaults must fire before any Google tags -->
     <script>
         window.dataLayer = window.dataLayer || [];
