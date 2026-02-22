@@ -7,7 +7,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@ui/dialog';
 import { Card, CardHeader, CardTitle, CardContent } from '@ui/card';
 import { Button } from '@ui/button';
 import { Input } from '@ui/input';
@@ -107,7 +107,33 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
   } = useRoutineEditor(routine?.id, routine?.details, items);
 
   const [newRoutineName, setNewRoutineName] = useState(routine?.name || '');
+  const [routineName, setRoutineName] = useState(routine?.name || '');
   const [error, setError] = useState(null);
+
+  const handleRoutineNameBlur = async () => {
+    if (!routine?.id || routineName.trim() === routine.name) return;
+    if (!routineName.trim()) {
+      setRoutineName(routine.name);
+      return;
+    }
+    try {
+      const response = await fetch(`/api/routines/${routine.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ B: routineName.trim() }),
+      });
+      if (!response.ok) throw new Error('Failed to update routine name');
+      onRoutineChange?.();
+    } catch (err) {
+      setError(err.message);
+      setRoutineName(routine.name);
+    }
+  };
+
+  // Sync routineName when a different routine is opened
+  useEffect(() => {
+    setRoutineName(routine?.name || '');
+  }, [routine?.id]);
 
   // Clear error when modal opens/closes
   useEffect(() => {
@@ -234,10 +260,19 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
       <DialogContent className="max-w-4xl max-h-[80vh]">
         <DialogHeader>
           <DialogTitle>
-            {routine ? `Edit routine: ${routine.name}` : 'Create new routine'}
+            {routine ? (
+              <Input
+                value={routineName}
+                onChange={(e) => setRoutineName(e.target.value)}
+                onBlur={handleRoutineNameBlur}
+                className="text-lg font-semibold"
+                autoComplete="off"
+                aria-label="Routine name"
+              />
+            ) : 'Create new routine'}
           </DialogTitle>
           <DialogDescription>
-            Add or remove items and arrange them in your preferred order
+            Add or remove items, drag and drop to rearrange
           </DialogDescription>
           {error && (
             <div className="mt-2 text-sm text-red-500" role="alert">
