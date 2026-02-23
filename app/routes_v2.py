@@ -135,6 +135,12 @@ def why_page():
     """Why structured practice page - accessible to everyone"""
     return render_template('why.html.jinja', posthog_key=posthog_key)
 
+@app.route('/find-a-chord-chart')
+def find_a_chord_chart():
+    """Public chord chart lookup page - accessible to everyone, no auth required"""
+    return render_template('find_a_chord_chart.html.jinja', posthog_key=posthog_key,
+                         adsense_publisher_id=os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', ''))
+
 @app.route('/pricing')
 def pricing_page():
     """Pricing page - accessible to everyone"""

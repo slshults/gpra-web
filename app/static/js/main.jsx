@@ -190,6 +190,10 @@ const App = () => {
             <a href="/privacy" className="hover:text-orange-400 transition-colors">
               Privacy
             </a>
+            <span>·</span>
+            <a href="/#Account" className="hover:text-orange-400 transition-colors">
+              Upgrade
+            </a>
           </div>
         </div>
       </footer>

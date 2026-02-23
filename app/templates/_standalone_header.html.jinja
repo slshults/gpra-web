@@ -3,9 +3,11 @@
     /* Mobile menu responsive behavior - inline styles to avoid CSS cascade issues with CookieConsent.css */
     #mobile-menu-btn { display: block; }
     .desktop-nav { display: none; }
-    @media (min-width: 640px) {
+    .desktop-nav-loggedin { display: none; }
+    @media (min-width: 768px) {
         #mobile-menu-btn { display: none; }
         .desktop-nav { display: flex; }
+        .desktop-nav-loggedin { display: flex; }
         #mobile-menu { display: none !important; }
     }
     /* Theme toggle positioning - consolidated here to avoid duplication across standalone templates */
@@ -21,6 +23,44 @@
     .theme-toggle:hover {
         opacity: 1.0;
     }
+    /* Desktop nav dropdown (logged-out) */
+    #desktop-nav-dropdown {
+        display: none;
+        position: absolute;
+        top: 100%;
+        right: 0;
+        min-width: 180px;
+        background: #1f2937; /* gray-800 */
+        border: 1px solid #374151; /* gray-700 */
+        border-radius: 0.5rem;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        z-index: 200;
+        padding: 0.5rem 0;
+    }
+    #desktop-nav-dropdown.open {
+        display: block;
+    }
+    #desktop-nav-dropdown a {
+        display: block;
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+        white-space: nowrap;
+    }
+    #desktop-hamburger-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0.25rem;
+        color: #9ca3af; /* gray-400 */
+        line-height: 1;
+        font-size: 1.25rem;
+    }
+    #desktop-hamburger-btn:hover {
+        color: #ffffff;
+    }
+    .desktop-nav-wrapper {
+        position: relative;
+    }
 </style>
 <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
     <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -29,22 +69,40 @@
             <span class="text-xl font-semibold text-orange-400">Guitar Practice Routine App</span>
         </a>
 
-        <!-- Desktop nav (hidden on mobile) -->
-        <nav class="desktop-nav gap-4 text-sm items-center">
+        {% if current_user.is_authenticated %}
+        <!-- Desktop nav for logged-in users (hidden on mobile) -->
+        <nav class="desktop-nav-loggedin gap-4 text-sm items-center">
             <a href="/about" class="{{ 'text-orange-400 font-medium' if current_page == 'about' else 'text-gray-400 hover:text-white transition-colors' }}">About</a>
             <a href="/why" class="{{ 'text-orange-400 font-medium' if current_page == 'why' else 'text-gray-400 hover:text-white transition-colors' }}">Why</a>
+            <a href="/find-a-chord-chart" class="{{ 'text-orange-400 font-medium' if current_page == 'find-a-chord-chart' else 'text-gray-400 hover:text-white transition-colors' }}">Find a chord chart</a>
             <a href="/faq" class="{{ 'text-orange-400 font-medium' if current_page == 'faq' else 'text-gray-400 hover:text-white transition-colors' }}">Help</a>
             <a href="/pricing" class="{{ 'text-orange-400 font-medium' if current_page == 'pricing' else 'text-gray-400 hover:text-white transition-colors' }}">Pricing</a>
             <a href="/terms" class="{{ 'text-orange-400 font-medium' if current_page == 'terms' else 'text-gray-400 hover:text-white transition-colors' }}">Terms</a>
             <a href="/privacy" class="{{ 'text-orange-400 font-medium' if current_page == 'privacy' else 'text-gray-400 hover:text-white transition-colors' }}">Privacy</a>
-            {% if current_user.is_authenticated %}
             <a href="/#Account" class="text-gray-400 hover:text-white transition-colors" title="Account settings">⚙️</a>
             <a href="/logout" class="text-gray-400 hover:text-white transition-colors">Logout</a>
-            {% else %}
-            <a href="/login" class="text-gray-400 hover:text-white transition-colors">Login</a>
-            <a href="/signup" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1 rounded text-sm transition-colors">Sign up</a>
-            {% endif %}
         </nav>
+        {% else %}
+        <!-- Desktop nav for logged-out users: Signup button always visible + hamburger for all nav links -->
+        <nav class="desktop-nav gap-3 text-sm items-center">
+            <a href="/signup" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1 rounded text-sm transition-colors whitespace-nowrap">Signup</a>
+            <div class="desktop-nav-wrapper">
+                <button id="desktop-hamburger-btn" aria-label="Navigation menu" aria-expanded="false" aria-controls="desktop-nav-dropdown">
+                    ☰
+                </button>
+                <div id="desktop-nav-dropdown" role="menu">
+                    <a href="/about" class="{{ 'text-orange-400 font-medium' if current_page == 'about' else 'text-gray-400 hover:text-white transition-colors' }}" role="menuitem">About</a>
+                    <a href="/why" class="{{ 'text-orange-400 font-medium' if current_page == 'why' else 'text-gray-400 hover:text-white transition-colors' }}" role="menuitem">Why</a>
+                    <a href="/find-a-chord-chart" class="{{ 'text-orange-400 font-medium' if current_page == 'find-a-chord-chart' else 'text-gray-400 hover:text-white transition-colors' }}" role="menuitem">Find a chord chart</a>
+                    <a href="/faq" class="{{ 'text-orange-400 font-medium' if current_page == 'faq' else 'text-gray-400 hover:text-white transition-colors' }}" role="menuitem">Help</a>
+                    <a href="/pricing" class="{{ 'text-orange-400 font-medium' if current_page == 'pricing' else 'text-gray-400 hover:text-white transition-colors' }}" role="menuitem">Pricing</a>
+                    <a href="/terms" class="{{ 'text-orange-400 font-medium' if current_page == 'terms' else 'text-gray-400 hover:text-white transition-colors' }}" role="menuitem">Terms</a>
+                    <a href="/privacy" class="{{ 'text-orange-400 font-medium' if current_page == 'privacy' else 'text-gray-400 hover:text-white transition-colors' }}" role="menuitem">Privacy</a>
+                    <a href="/login" class="{{ 'text-orange-400 font-medium' if current_page == 'login' else 'text-gray-400 hover:text-white transition-colors' }}" role="menuitem">Login</a>
+                </div>
+            </div>
+        </nav>
+        {% endif %}
 
         <!-- Mobile hamburger button (visible on mobile only) -->
         <button id="mobile-menu-btn" class="text-gray-400 hover:text-white p-2" aria-label="Menu" aria-expanded="false" aria-controls="mobile-menu">
@@ -60,6 +118,7 @@
         <div class="max-w-4xl mx-auto px-4 py-3 flex flex-col gap-3 text-sm">
             <a href="/about" class="{{ 'text-orange-400 font-medium' if current_page == 'about' else 'text-gray-400 hover:text-white transition-colors' }}">About</a>
             <a href="/why" class="{{ 'text-orange-400 font-medium' if current_page == 'why' else 'text-gray-400 hover:text-white transition-colors' }}">Why</a>
+            <a href="/find-a-chord-chart" class="{{ 'text-orange-400 font-medium' if current_page == 'find-a-chord-chart' else 'text-gray-400 hover:text-white transition-colors' }}">Find a chord chart</a>
             <a href="/faq" class="{{ 'text-orange-400 font-medium' if current_page == 'faq' else 'text-gray-400 hover:text-white transition-colors' }}">Help</a>
             <a href="/pricing" class="{{ 'text-orange-400 font-medium' if current_page == 'pricing' else 'text-gray-400 hover:text-white transition-colors' }}">Pricing</a>
             <a href="/terms" class="{{ 'text-orange-400 font-medium' if current_page == 'terms' else 'text-gray-400 hover:text-white transition-colors' }}">Terms</a>
@@ -70,7 +129,7 @@
                 <a href="/logout" class="text-gray-400 hover:text-white transition-colors">Logout</a>
                 {% else %}
                 <a href="/login" class="text-gray-400 hover:text-white transition-colors">Login</a>
-                <a href="/signup" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1 rounded text-sm transition-colors">Sign up</a>
+                <a href="/signup" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1 rounded text-sm transition-colors">Signup</a>
                 {% endif %}
             </div>
         </div>
@@ -93,9 +152,9 @@
             btn.setAttribute('aria-expanded', !isOpen);
         });
 
-        // Close mobile menu if window resizes past the sm breakpoint
+        // Close mobile menu if window resizes past the md breakpoint
         window.addEventListener('resize', function() {
-            if (window.innerWidth >= 640 && !menu.classList.contains('hidden')) {
+            if (window.innerWidth >= 768 && !menu.classList.contains('hidden')) {
                 menu.classList.add('hidden');
                 hamburgerIcon.classList.remove('hidden');
                 closeIcon.classList.add('hidden');
@@ -103,5 +162,30 @@
             }
         });
     }
+})();
+
+// Desktop hamburger dropdown toggle (logged-out only)
+(function() {
+    var btn = document.getElementById('desktop-hamburger-btn');
+    var dropdown = document.getElementById('desktop-nav-dropdown');
+    if (!btn || !dropdown) return;
+
+    btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var isOpen = dropdown.classList.contains('open');
+        dropdown.classList.toggle('open');
+        btn.setAttribute('aria-expanded', !isOpen);
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function() {
+        dropdown.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+    });
+
+    // Prevent dropdown clicks from closing it
+    dropdown.addEventListener('click', function(e) {
+        e.stopPropagation();
+    });
 })();
 </script>

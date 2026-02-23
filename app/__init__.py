@@ -11,6 +11,20 @@ app = Flask(__name__,
            static_folder='static',  # Look directly in static directory
            static_url_path='/static')    # URL prefix for static files
 
+# Cache-busting: inject git commit hash as a Jinja global so templates can
+# append ?v={{ asset_version }} to entry files (main.js, auth.js, main.css).
+# Vendor chunks already have content hashes in their filenames and don't need this.
+import subprocess as _subprocess
+try:
+    _git_hash = _subprocess.check_output(
+        ['git', 'rev-parse', '--short', 'HEAD'],
+        stderr=_subprocess.DEVNULL,
+        cwd=os.path.dirname(os.path.dirname(__file__))
+    ).decode().strip()
+except Exception:
+    _git_hash = 'dev'
+app.jinja_env.globals['asset_version'] = _git_hash
+
 # Configure Flask to work behind reverse proxy (nginx)
 # This is needed for OAuth redirect URIs to use HTTPS in production
 flask_env = os.getenv('FLASK_ENV')

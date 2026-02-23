@@ -321,6 +321,8 @@ const LoginPage = () => {
         <div className="text-center text-sm text-gray-600 py-4 mt-4">
           <a href="/" className="hover:underline hover:text-gray-400">Back to GPRA</a>
           {' · '}
+          <a href="/find-a-chord-chart" className="hover:underline hover:text-gray-400">Find a chord chart</a>
+          {' · '}
           <a href="/about" className="hover:underline hover:text-gray-400">About</a>
           {' · '}
           <a href="/why" className="hover:underline hover:text-gray-400">Why</a>

@@ -14,6 +14,7 @@ Allow: /signup
 Allow: /login
 Allow: /logout
 Allow: /oauth-signup/
+Allow: /find-a-chord-chart
 
 Disallow: /api/
 Disallow: /admin/

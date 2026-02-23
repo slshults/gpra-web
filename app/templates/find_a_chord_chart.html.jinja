@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find a guitar chord chart | Guitar Practice Routine</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🎸</text></svg>">
+
+    <!-- Primary Meta Tags -->
+    <meta name="description" content="Look up guitar chord charts by name. Free, simple chord chart lookup — no account needed.">
+    <link rel="canonical" href="https://guitarpracticeroutine.com/find-a-chord-chart">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://guitarpracticeroutine.com/find-a-chord-chart">
+    <meta property="og:title" content="Find a guitar chord chart | Guitar Practice Routine">
+    <meta property="og:description" content="Look up guitar chord charts by name. Free, simple chord chart lookup — no account needed.">
+    <meta property="og:image" content="https://guitarpracticeroutine.com/static/images/og-strat.png">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+
+    <script>
+        // Apply theme immediately to prevent flash (light-mode system)
+        (function() {
+            if (localStorage.getItem('lightMode') === 'true') {
+                document.documentElement.classList.add('light-mode');
+                document.documentElement.classList.remove('dark');
+            }
+        })();
+    </script>
+    <!-- PostHog Analytics -->
+    {% if posthog_key %}
+    <script>
+        // GDPR-Compliant PostHog Loading
+        (function() {
+            var cookieConsent = localStorage.getItem('cookieConsent');
+            if (cookieConsent === 'all') {
+                !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture identify".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+                posthog.init('{{ posthog_key }}', {
+                    api_host: 'https://tacet.guitarpracticeroutine.com',
+                    person_profiles: 'identified_only',
+                    capture_pageview: true
+                });
+            } else {
+                window.posthog = {
+                    capture: function() {},
+                    identify: function() {},
+                    displaySurvey: null,
+                    getSurveys: function(cb) { cb([]); },
+                    onSurveysLoaded: function(cb) { cb(); }
+                };
+            }
+        })();
+    </script>
+    {% endif %}
+
+    <!-- Google AdSense Auto Ads - loads for CMP and AdSense crawlers -->
+    {% if adsense_publisher_id %}
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_publisher_id }}"
+         crossorigin="anonymous"></script>
+    {% endif %}
+
+    <!-- Google Analytics 4 (consent-gated) -->
+    <script>
+        (function() {
+            var cookieConsent = localStorage.getItem('cookieConsent');
+            if (cookieConsent === 'all') {
+                var s = document.createElement('script');
+                s.async = true;
+                s.src = 'https://www.googletagmanager.com/gtag/js?id=G-E3FNWSVY1J';
+                document.head.appendChild(s);
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', 'G-E3FNWSVY1J');
+            }
+        })();
+    </script>
+
+    <style>
+        /* Chart container sizing — matches the app's chord chart dimensions */
+        #chord-chart-container {
+            width: 128px;
+            height: 176px;
+            flex-shrink: 0;
+        }
+
+        /* Light mode: invert chart colors to dark-on-light */
+        html.light-mode #chord-chart-container svg {
+            filter: invert(1) hue-rotate(180deg);
+        }
+
+        /* Input focus ring in GPRA orange */
+        #chord-name-input:focus {
+            outline: none;
+            border-color: #ea580c;
+            box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 show-ph-widget">
+    {% set current_page = 'find-a-chord-chart' %}
+    {% include '_standalone_header.html.jinja' %}
+
+    <div class="max-w-4xl mx-auto px-4 py-8">
+
+        <!-- Page Header -->
+        <div class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">Find a guitar chord chart</h1>
+            <p class="text-gray-600 dark:text-gray-400">Look up a chord by name to see how it's played. No account needed.</p>
+        </div>
+
+        <!-- Chord Lookup Widget -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+
+            <!-- Input -->
+            <div class="mb-6">
+                <label for="chord-name-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Chord name
+                </label>
+                <input
+                    id="chord-name-input"
+                    type="text"
+                    placeholder="e.g. Am, G, F#m7, Cmaj7"
+                    autocomplete="off"
+                    autocorrect="off"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    class="w-full max-w-xs px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm transition-colors"
+                >
+            </div>
+
+            <!-- Result area -->
+            <div id="chord-result" class="min-h-[180px] flex items-start gap-6">
+                <!-- Empty state -->
+                <div id="state-empty" class="text-gray-500 dark:text-gray-400 text-sm py-2">
+                    Enter a chord name above to see the chart.
+                </div>
+
+                <!-- Loading state (hidden by default) -->
+                <div id="state-loading" class="hidden text-gray-500 dark:text-gray-400 text-sm py-2">
+                    Looking up chord&hellip;
+                </div>
+
+                <!-- Not found state (hidden by default) -->
+                <div id="state-not-found" class="hidden text-gray-500 dark:text-gray-400 text-sm py-2">
+                    Chord not found. Try a different name.
+                </div>
+
+                <!-- Chart state (hidden by default) -->
+                <div id="state-chart" class="hidden flex-col gap-3">
+                    <div class="flex items-start gap-4">
+                        <!-- SVGuitar renders into this div -->
+                        <div id="chord-chart-container"></div>
+                        <div class="pt-1">
+                            <p id="chord-chart-title" class="text-lg font-semibold text-gray-900 dark:text-white mb-1"></p>
+                            <p id="chord-tuning-note" class="text-xs text-gray-500 dark:text-gray-400 hidden">
+                                Most common voicing &middot; standard tuning
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SVGuitar credit -->
+        <div class="text-center text-xs text-gray-500 dark:text-gray-500 py-2 mb-2">
+            Chord charts rendered with <a href="https://github.com/omnibrain/svguitar" target="_blank" rel="noopener noreferrer" class="hover:underline">SVGuitar</a>
+        </div>
+
+        <!-- CTA Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-3">Want to do more with chord charts?</h2>
+            <div class="space-y-3 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                <p>
+                    Want to create and save chord charts for an entire song?
+                    <a href="https://guitarpracticeroutine.com/signup" class="text-orange-600 dark:text-orange-400 hover:underline">Sign up for GPRA</a>.
+                    No credit card needed for a free account with 15 practice items in one free routine.
+                </p>
+                <p>
+                    For autocreated chord charts, bring your own
+                    <a href="/faq#anthropic-api-key" class="text-orange-600 dark:text-orange-400 hover:underline">Anthropic API key</a>,
+                    or upgrade to a paid account.
+                    (<a href="/pricing" class="text-orange-600 dark:text-orange-400 hover:underline">See pricing here</a>.)
+                </p>
+            </div>
+        </div>
+
+        <!-- Footer Links -->
+        <div class="text-center text-sm text-gray-600 dark:text-gray-400 py-4 border-t border-gray-200 dark:border-gray-700">
+            <a href="/" class="hover:underline">Back to GPRA</a>
+            ·
+            <a href="/find-a-chord-chart" class="hover:underline">Find a chord chart</a>
+            ·
+            <a href="/about" class="hover:underline">About</a>
+            ·
+            <a href="/faq" class="hover:underline">Help</a>
+            ·
+            <a href="/pricing" class="hover:underline">Pricing</a>
+            ·
+            <a href="/terms" class="hover:underline">Terms</a>
+            ·
+            <a href="/privacy" class="hover:underline">Privacy</a>
+            {% if not current_user.is_authenticated %}
+            ·
+            <a href="/login" class="hover:underline">Login</a>
+            ·
+            <a href="/signup" class="hover:underline">Sign up</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Theme Toggle -->
+    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+        <img id="light-mode-toggle"
+             src="{{ url_for('static', filename='images/lightmodetoggle.png') }}"
+             alt="Switch to Light Mode"
+             style="height: 20px; width: 40px; display: block;">
+        <img id="dark-mode-toggle"
+             src="{{ url_for('static', filename='images/darkmodetoggle.png') }}"
+             alt="Switch to Dark Mode"
+             style="height: 20px; width: 40px; display: none;">
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+
+    <!-- SVGuitar library (UMD build required for window.svguitar global) -->
+    <script src="https://omnibrain.github.io/svguitar/js/svguitar.umd.js"></script>
+
+    <script>
+    (function() {
+        var input = document.getElementById('chord-name-input');
+        var container = document.getElementById('chord-chart-container');
+
+        var stateEmpty    = document.getElementById('state-empty');
+        var stateLoading  = document.getElementById('state-loading');
+        var stateNotFound = document.getElementById('state-not-found');
+        var stateChart    = document.getElementById('state-chart');
+        var chartTitle    = document.getElementById('chord-chart-title');
+        var tuningNote    = document.getElementById('chord-tuning-note');
+
+        var currentRequest = 0; // used to discard stale responses
+
+        function showState(name) {
+            stateEmpty.classList.add('hidden');
+            stateLoading.classList.add('hidden');
+            stateNotFound.classList.add('hidden');
+            stateChart.classList.add('hidden');
+            if (name === 'empty')    stateEmpty.classList.remove('hidden');
+            if (name === 'loading')  stateLoading.classList.remove('hidden');
+            if (name === 'notfound') stateNotFound.classList.remove('hidden');
+            if (name === 'chart')    stateChart.classList.remove('hidden');
+        }
+
+        function renderChart(chordData) {
+            // Clear previous render
+            container.innerHTML = '';
+
+            var config = {
+                strings: chordData.numStrings || 6,
+                frets: chordData.numFrets || 5,
+                position: chordData.startingFret || 1,
+                fretSize: 1.2,
+                fingerSize: 0.75,
+                sidePadding: 0.2,
+                fontFamily: 'Arial',
+                width: 128,
+                height: 176,
+                color: '#ffffff',
+                backgroundColor: 'transparent',
+                strokeColor: '#ffffff',
+                textColor: '#ffffff',
+                fretLabelColor: '#ffffff',
+                fingerTextColor: '#000000',
+                fingerTextSize: 28,
+                tuning: []
+            };
+
+            // Build the full fingers array, including open and muted strings
+            var allFingers = (chordData.fingers || []).slice();
+            (chordData.openStrings || []).forEach(function(s) {
+                allFingers.push([s, 0]);
+            });
+            (chordData.mutedStrings || []).forEach(function(s) {
+                allFingers.push([s, 'x']);
+            });
+
+            try {
+                new window.svguitar.SVGuitarChord(container)
+                    .configure(config)
+                    .chord({
+                        fingers: allFingers,
+                        barres: chordData.barres || []
+                    })
+                    .draw();
+            } catch (e) {
+                console.error('SVGuitar render error:', e);
+            }
+        }
+
+        function lookup(chordName) {
+            chordName = chordName.trim();
+            if (!chordName) {
+                showState('empty');
+                return;
+            }
+
+            var reqId = ++currentRequest;
+            showState('loading');
+
+            fetch('/api/chord-charts/common/search?name=' + encodeURIComponent(chordName))
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    if (reqId !== currentRequest) return; // stale response, ignore
+                    if (!Array.isArray(data) || data.length === 0) {
+                        showState('notfound');
+                        return;
+                    }
+                    var chord = data[0];
+                    chartTitle.textContent = chord.title || chordName;
+                    tuningNote.classList.remove('hidden');
+                    renderChart(chord);
+                    showState('chart');
+                })
+                .catch(function() {
+                    if (reqId !== currentRequest) return;
+                    showState('notfound');
+                });
+        }
+
+        // Trigger on Enter key
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                lookup(input.value);
+            }
+        });
+
+        // Trigger on blur (clicking away)
+        input.addEventListener('blur', function() {
+            if (input.value.trim()) {
+                lookup(input.value);
+            }
+        });
+
+        // Clear when input is emptied
+        input.addEventListener('input', function() {
+            if (!input.value.trim()) {
+                currentRequest++; // cancel any in-flight lookup
+                showState('empty');
+            }
+        });
+    })();
+    </script>
+
+    {% include '_cookie_consent_banner.html.jinja' %}
+</body>
+</html>
