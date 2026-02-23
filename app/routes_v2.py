@@ -146,25 +146,24 @@ def pricing_page():
     """Pricing page - accessible to everyone"""
     return render_template('pricing.html.jinja', posthog_key=posthog_key)
 
+def _error_page(template, code):
+    return render_template(template, posthog_key=posthog_key), code
+
 @app.errorhandler(404)
 def page_not_found(e):
-    """Custom 404 error page"""
-    return render_template('404.html.jinja', posthog_key=posthog_key), 404
+    return _error_page('404.html.jinja', 404)
 
 @app.errorhandler(500)
 def internal_server_error(e):
-    """Custom 500 error page"""
-    return render_template('500.html.jinja', posthog_key=posthog_key), 500
+    return _error_page('500.html.jinja', 500)
 
 @app.errorhandler(429)
 def too_many_requests(e):
-    """Custom 429 error page"""
-    return render_template('429.html.jinja', posthog_key=posthog_key), 429
+    return _error_page('429.html.jinja', 429)
 
 @app.errorhandler(403)
 def forbidden(e):
-    """Custom 403 error page"""
-    return render_template('403.html.jinja', posthog_key=posthog_key), 403
+    return _error_page('403.html.jinja', 403)
 
 if app.debug:
     @app.route('/test-error/<int:code>')

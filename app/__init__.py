@@ -2,6 +2,7 @@ from flask import Flask
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+import subprocess
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -14,11 +15,10 @@ app = Flask(__name__,
 # Cache-busting: inject git commit hash as a Jinja global so templates can
 # append ?v={{ asset_version }} to entry files (main.js, auth.js, main.css).
 # Vendor chunks already have content hashes in their filenames and don't need this.
-import subprocess as _subprocess
 try:
-    _git_hash = _subprocess.check_output(
+    _git_hash = subprocess.check_output(
         ['git', 'rev-parse', '--short', 'HEAD'],
-        stderr=_subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         cwd=os.path.dirname(os.path.dirname(__file__))
     ).decode().strip()
 except Exception:

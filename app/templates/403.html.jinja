@@ -71,17 +71,18 @@
     <div class="max-w-4xl mx-auto px-4 py-16">
         <!-- Main content card -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 mb-6 text-center max-w-2xl mx-auto">
-            <h1 class="text-xl font-semibold text-gray-400 dark:text-gray-300 leading-relaxed mb-3">
+            <p class="text-xl font-semibold text-gray-400 dark:text-gray-300 leading-relaxed mb-3">
                 Yeah, no. ⛔<br> You can't go backstage without an official backstage pass.
-            </h1>
+            </p>
 
             <p class="text-3xl font-bold text-white dark:text-white mb-6">
                 That's a 403 error.
             </p>
- <h1 class="text-xl font-semibold text-gray-400 dark:text-gray-300 leading-relaxed mb-3">
+
+            <p class="text-xl font-semibold text-gray-400 dark:text-gray-300 leading-relaxed mb-3">
                 This happens when you try to go somewhere you shouldn't.<br>
                 Like when you try to play Stairway or Wonderwall at a guitar store.
-            </h1>
+            </p>
 
 
             <p class="text-gray-700 dark:text-gray-300 mb-2">
@@ -136,15 +137,15 @@
     <script>
         // Countdown timer that redirects to / after 20 seconds
         (function() {
-            var e403seconds = 20;
-            var e403countdownEl = document.getElementById('e403-countdown-text');
-            var e403interval = setInterval(function() {
-                e403seconds -= 1;
-                if (e403seconds <= 0) {
-                    clearInterval(e403interval);
+            var seconds = 20;
+            var countdownEl = document.getElementById('e403-countdown-text');
+            var interval = setInterval(function() {
+                seconds -= 1;
+                if (seconds <= 0) {
+                    clearInterval(interval);
                     window.location.href = '/';
                 } else {
-                    e403countdownEl.textContent = 'wait ' + e403seconds + ' second' + (e403seconds === 1 ? '' : 's') + '...';
+                    countdownEl.textContent = 'wait ' + seconds + ' second' + (seconds === 1 ? '' : 's') + '...';
                 }
             }, 1000);
         })();

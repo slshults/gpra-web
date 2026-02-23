@@ -71,16 +71,17 @@
     <div class="max-w-4xl mx-auto px-4 py-16">
         <!-- Main content card -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 mb-6 text-center max-w-2xl mx-auto">
-            <h1 class="text-xl font-semibold text-gray-400 dark:text-gray-300 leading-relaxed mb-3">
+            <p class="text-xl font-semibold text-gray-400 dark:text-gray-300 leading-relaxed mb-3">
                 Oops, we hit a wrong note. <br> Don't stress about it though, just keep playing.
-            </h1>
+            </p>
 
             <p class="text-3xl font-bold text-white dark:text-white mb-6">
-                That's a 500 error. 
+                That's a 500 error.
             </p>
-            <h1 class="text-xl font-semibold text-gray-400 dark:text-gray-300 leading-relaxed mb-3">
+
+            <p class="text-xl font-semibold text-gray-400 dark:text-gray-300 leading-relaxed mb-3">
                 Something's wrong at the soundboard.
-            </h1>
+            </p>
             <p class="text-gray-700 dark:text-gray-300 mb-2">
                 Click an item on the menu above, or <span id="e500-countdown-text">wait 20 seconds</span> to be redirected.
             </p>
@@ -133,15 +134,15 @@
     <script>
         // Countdown timer that redirects to / after 20 seconds
         (function() {
-            var e500seconds = 20;
-            var e500countdownEl = document.getElementById('e500-countdown-text');
-            var e500interval = setInterval(function() {
-                e500seconds -= 1;
-                if (e500seconds <= 0) {
-                    clearInterval(e500interval);
+            var seconds = 20;
+            var countdownEl = document.getElementById('e500-countdown-text');
+            var interval = setInterval(function() {
+                seconds -= 1;
+                if (seconds <= 0) {
+                    clearInterval(interval);
                     window.location.href = '/';
                 } else {
-                    e500countdownEl.textContent = 'wait ' + e500seconds + ' second' + (e500seconds === 1 ? '' : 's') + '...';
+                    countdownEl.textContent = 'wait ' + seconds + ' second' + (seconds === 1 ? '' : 's') + '...';
                 }
             }, 1000);
         })();
