@@ -1,0 +1,22 @@
+{
+  "name": "Guitar Practice Routine App",
+  "short_name": "GPRA",
+  "description": "A web app for beginning and intermediate guitar players to organize and track guitar practice routines.",
+  "id": "/",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1f36",
+  "theme_color": "#f97316",
+  "icons": [
+    {
+      "src": "/static/images/GPRA-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/images/GPRA-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
