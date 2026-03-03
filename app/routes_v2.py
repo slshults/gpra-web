@@ -174,7 +174,11 @@ if app.debug:
 @app.route('/ads.txt')
 def ads_txt():
     """Serve ads.txt for Google AdSense verification"""
-    return send_from_directory(app.static_folder, 'ads.txt', mimetype='text/plain')
+    from flask import Response
+    return Response(
+        "google.com, pub-5236095389905910, DIRECT, f08c47fec0942fa0\n",
+        mimetype='text/plain'
+    )
 
 @app.route('/robots.txt')
 def robots_txt():
