@@ -79,23 +79,40 @@
     </script>
 
     <style>
-        /* Chart container sizing — matches the app's chord chart dimensions */
-        #chord-chart-container {
-            width: 128px;
-            height: 176px;
-            flex-shrink: 0;
+        /* Dark mode: ensure inputs have white text */
+        #chord-editor-root input,
+        #chord-editor-root select {
+            color: #ffffff;
         }
-
-        /* Light mode: invert chart colors to dark-on-light */
-        html.light-mode #chord-chart-container svg {
+        /* Light mode: inputs get dark text */
+        html.light-mode #chord-editor-root input,
+        html.light-mode #chord-editor-root select {
+            color: #1f2937;
+        }
+        /* Light mode overrides for React chord editor */
+        html.light-mode #chord-editor-root svg {
             filter: invert(1) hue-rotate(180deg);
         }
-
-        /* Input focus ring in GPRA orange */
-        #chord-name-input:focus {
-            outline: none;
-            border-color: #ea580c;
-            box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.3);
+        html.light-mode #chord-editor-root .bg-gray-800 {
+            background-color: #f3f4f6;
+        }
+        html.light-mode #chord-editor-root .text-white,
+        html.light-mode #chord-editor-root .text-gray-200,
+        html.light-mode #chord-editor-root .text-gray-300 {
+            color: #1f2937;
+        }
+        html.light-mode #chord-editor-root .bg-gray-900 {
+            background-color: #ffffff;
+        }
+        html.light-mode #chord-editor-root .bg-gray-700 {
+            background-color: #e5e7eb;
+        }
+        html.light-mode #chord-editor-root .border-gray-700,
+        html.light-mode #chord-editor-root .border-gray-600 {
+            border-color: #d1d5db;
+        }
+        html.light-mode #chord-editor-root .text-blue-400 {
+            color: #2563eb;
         }
     </style>
 </head>
@@ -107,62 +124,12 @@
 
         <!-- Page Header -->
         <div class="mb-8">
-            <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">Find a guitar chord chart</h1>
-            <p class="text-gray-600 dark:text-gray-400">Look up a chord by name to see how it's played. No account needed.</p>
+            <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">Find or make a guitar chord chart</h1>
+            <p class="text-gray-600 dark:text-gray-400">Look up a chord by name to see how it's played.<br> 
+            Edit the chord chart for different voicings, or just make your own from scratch.</p>
         </div>
 
-        <!-- Chord Lookup Widget -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-
-            <!-- Input -->
-            <div class="mb-6">
-                <label for="chord-name-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Chord name
-                </label>
-                <input
-                    id="chord-name-input"
-                    type="text"
-                    placeholder="e.g. Am, G, F#m7, Cmaj7"
-                    autocomplete="off"
-                    autocorrect="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    class="w-full max-w-xs px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm transition-colors"
-                >
-            </div>
-
-            <!-- Result area -->
-            <div id="chord-result" class="min-h-[180px] flex items-start gap-6">
-                <!-- Empty state -->
-                <div id="state-empty" class="text-gray-500 dark:text-gray-400 text-sm py-2">
-                    Enter a chord name above to see the chart.
-                </div>
-
-                <!-- Loading state (hidden by default) -->
-                <div id="state-loading" class="hidden text-gray-500 dark:text-gray-400 text-sm py-2">
-                    Looking up chord&hellip;
-                </div>
-
-                <!-- Not found state (hidden by default) -->
-                <div id="state-not-found" class="hidden text-gray-500 dark:text-gray-400 text-sm py-2">
-                    Chord not found. Try a different name.
-                </div>
-
-                <!-- Chart state (hidden by default) -->
-                <div id="state-chart" class="hidden flex-col gap-3">
-                    <div class="flex items-start gap-4">
-                        <!-- SVGuitar renders into this div -->
-                        <div id="chord-chart-container"></div>
-                        <div class="pt-1">
-                            <p id="chord-chart-title" class="text-lg font-semibold text-gray-900 dark:text-white mb-1"></p>
-                            <p id="chord-tuning-note" class="text-xs text-gray-500 dark:text-gray-400 hidden">
-                                Most common voicing &middot; standard tuning
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <div id="chord-editor-root" class="mb-6"></div>
 
         <!-- SVGuitar credit -->
         <div class="text-center text-xs text-gray-500 dark:text-gray-500 py-2 mb-2">
@@ -171,19 +138,18 @@
 
         <!-- CTA Section -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-3">Want to do more with chord charts?</h2>
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-3">Get charts for the whole song</h2>
             <div class="space-y-3 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                 <p>
-                    Want to create and save chord charts for an entire song?
-                    <a href="https://guitarpracticeroutine.com/signup" class="text-orange-600 dark:text-orange-400 hover:underline">Sign up for GPRA</a>.
-                    No credit card needed for a free account with 15 practice items in one free routine.
-                </p>
-                <p>
+                    <a href="https://guitarpracticeroutine.com/signup" class="text-orange-600 dark:text-orange-400 hover:underline">Sign up for GPRA</a> to create and save chord charts for an entire song.
+                    Free for one routine with 15 practice items, no CC needed.<br>
                     For autocreated chord charts, bring your own
                     <a href="/faq#anthropic-api-key" class="text-orange-600 dark:text-orange-400 hover:underline">Anthropic API key</a>,
                     or upgrade to a paid account.
                     (<a href="/pricing" class="text-orange-600 dark:text-orange-400 hover:underline">See pricing here</a>.)
+
                 </p>
+                
             </div>
         </div>
 
@@ -224,135 +190,7 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
-
-    <!-- SVGuitar library (UMD build required for window.svguitar global) -->
-    <script src="https://omnibrain.github.io/svguitar/js/svguitar.umd.js"></script>
-
-    <script>
-    (function() {
-        var input = document.getElementById('chord-name-input');
-        var container = document.getElementById('chord-chart-container');
-
-        var stateEmpty    = document.getElementById('state-empty');
-        var stateLoading  = document.getElementById('state-loading');
-        var stateNotFound = document.getElementById('state-not-found');
-        var stateChart    = document.getElementById('state-chart');
-        var chartTitle    = document.getElementById('chord-chart-title');
-        var tuningNote    = document.getElementById('chord-tuning-note');
-
-        var currentRequest = 0; // used to discard stale responses
-
-        var stateElements = {
-            empty: stateEmpty,
-            loading: stateLoading,
-            notfound: stateNotFound,
-            chart: stateChart
-        };
-
-        function showState(name) {
-            Object.values(stateElements).forEach(function(el) { el.classList.add('hidden'); });
-            stateElements[name].classList.remove('hidden');
-        }
-
-        function renderChart(chordData) {
-            // Clear previous render
-            container.innerHTML = '';
-
-            var config = {
-                strings: chordData.numStrings || 6,
-                frets: chordData.numFrets || 5,
-                position: chordData.startingFret || 1,
-                fretSize: 1.2,
-                fingerSize: 0.75,
-                sidePadding: 0.2,
-                fontFamily: 'Arial',
-                width: 128,
-                height: 176,
-                color: '#ffffff',
-                backgroundColor: 'transparent',
-                strokeColor: '#ffffff',
-                textColor: '#ffffff',
-                fretLabelColor: '#ffffff',
-                fingerTextColor: '#000000',
-                fingerTextSize: 28,
-                tuning: []
-            };
-
-            // Build the full fingers array, including open and muted strings
-            var allFingers = (chordData.fingers || []).slice();
-            (chordData.openStrings || []).forEach(function(s) {
-                allFingers.push([s, 0]);
-            });
-            (chordData.mutedStrings || []).forEach(function(s) {
-                allFingers.push([s, 'x']);
-            });
-
-            try {
-                new window.svguitar.SVGuitarChord(container)
-                    .configure(config)
-                    .chord({
-                        fingers: allFingers,
-                        barres: chordData.barres || []
-                    })
-                    .draw();
-            } catch (e) {
-                console.error('SVGuitar render error:', e);
-            }
-        }
-
-        function lookup(chordName) {
-            chordName = chordName.trim();
-            if (!chordName) {
-                showState('empty');
-                return;
-            }
-
-            var reqId = ++currentRequest;
-            showState('loading');
-
-            fetch('/api/chord-charts/common/search?name=' + encodeURIComponent(chordName))
-                .then(function(res) { return res.json(); })
-                .then(function(data) {
-                    if (reqId !== currentRequest) return; // stale response, ignore
-                    if (!Array.isArray(data) || data.length === 0) {
-                        showState('notfound');
-                        return;
-                    }
-                    var chord = data[0];
-                    chartTitle.textContent = chord.title || chordName;
-                    tuningNote.classList.remove('hidden');
-                    renderChart(chord);
-                    showState('chart');
-                })
-                .catch(function() {
-                    if (reqId !== currentRequest) return;
-                    showState('notfound');
-                });
-        }
-
-        // Trigger on Enter key
-        input.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                lookup(input.value);
-            }
-        });
-
-        // Trigger on blur (clicking away)
-        input.addEventListener('blur', function() {
-            if (input.value.trim()) {
-                lookup(input.value);
-            }
-        });
-
-        // Clear when input is emptied
-        input.addEventListener('input', function() {
-            if (!input.value.trim()) {
-                currentRequest++; // cancel any in-flight lookup
-                showState('empty');
-            }
-        });
-    })();
-    </script>
+    <script type="module" src="{{ url_for('static', filename='dist/js/chord-editor.js') }}?v={{ asset_version }}"></script>
 
     {% include '_cookie_consent_banner.html.jinja' %}
 </body>

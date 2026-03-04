@@ -14,7 +14,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'app/static/js/main.jsx'),
-        auth: path.resolve(__dirname, 'app/static/js/auth.jsx')
+        auth: path.resolve(__dirname, 'app/static/js/auth.jsx'),
+        'chord-editor': path.resolve(__dirname, 'app/static/js/chord-editor.jsx'),
       },
       output: {
         format: 'es',

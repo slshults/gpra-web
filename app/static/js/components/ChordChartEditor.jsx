@@ -15,10 +15,13 @@ const defaultChartConfig = {
   height: 176,            // Reduced ~20% (was 220)
   // Dark theme colors for visibility
   color: '#ffffff',           // White finger dots
+  fingerColor: '#ffffff',     // White finger/barre fill
   backgroundColor: 'transparent',
   strokeColor: '#ffffff',     // White grid lines
   textColor: '#ffffff',       // White text
   fretLabelColor: '#ffffff',  // White fret labels
+  barreChordStrokeColor: '#ffffff', // White barre outline
+  barreChordStyle: 'arc',           // Arc style (rectangle has a fill bug in v2.5.1)
   // Finger text settings - using SVGuitar's correct property names
   fingerTextColor: '#000000', // Black text on white dots for contrast
   fingerTextSize: 28          // Larger text size for better visibility
@@ -55,7 +58,7 @@ const fetchWithBackoff = async (url, options = {}, maxRetries = 3, onRetry = nul
   throw new Error(`Failed after ${maxRetries} attempts`);
 };
 
-export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = null, insertionContext = null, defaultTuning = 'EADGBE' }) => {
+export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = null, insertionContext = null, defaultTuning = 'EADGBE', saveButtonLabel = null, showLineBreak = true }) => {
   const [title, setTitle] = useState('');
   const [startingFret, setStartingFret] = useState(1);
   const [numFrets, setNumFrets] = useState(5);
@@ -91,41 +94,55 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
 
   // Autofill function to copy existing chord fingerings
   const tryAutofill = async (chordName) => {
-    if (!chordName.trim() || !itemId) return;
-    
+    if (!chordName.trim()) return;
+
     try {
       setIsLoadingChord(true);
-      
-      // Fetch existing chord charts for this item
-      const response = await fetchWithBackoff(`/api/items/${itemId}/chord-charts`, {}, 3, 1000);
-      if (!response.ok) {
-        return;
+
+      let chordToUse = null;
+
+      // Try item-specific chords first (only if we have an itemId)
+      if (itemId) {
+        // Fetch existing chord charts for this item
+        const response = await fetchWithBackoff(`/api/items/${itemId}/chord-charts`, {}, 3, 1000);
+        if (response.ok) {
+          const existingChords = await response.json();
+
+          // Find matching chord name (case-insensitive)
+          const matches = existingChords.filter(chart =>
+            chart.title.toLowerCase() === chordName.toLowerCase()
+          );
+
+          if (matches.length === 1) {
+            chordToUse = matches[0];
+          } else if (matches.length > 1) {
+            // Multiple matches - use the first one (earliest in order/ID)
+            // Sort by order (or ID if order is the same) and take the first one
+            matches.sort((a, b) => {
+              const orderA = parseInt(a.order) || 0;
+              const orderB = parseInt(b.order) || 0;
+              if (orderA !== orderB) return orderA - orderB;
+              // If order is the same, use ID as tiebreaker
+              return (parseInt(a.id) || 0) - (parseInt(b.id) || 0);
+            });
+            chordToUse = matches[0]; // Take the first (earliest)
+          }
+        }
       }
-      
-      const existingChords = await response.json();
-      
-      // Find matching chord name (case-insensitive)
-      const matches = existingChords.filter(chart => 
-        chart.title.toLowerCase() === chordName.toLowerCase()
-      );
-      
-      let chordToUse;
-      
-      if (matches.length === 0) {
-        
-        // Fallback: Search common chords database for specific chord
+
+      // Fallback: Search common chords database if no item-specific match found
+      if (!chordToUse) {
         try {
-          
           // Add a reasonable delay to avoid rapid API calls
           await new Promise(resolve => setTimeout(resolve, 1000));
-          
+
           const searchResponse = await fetchWithBackoff(`/api/chord-charts/common/search?name=${encodeURIComponent(chordName)}`, {}, 3, 1000);
-          
+
           if (searchResponse.ok) {
             const commonMatches = await searchResponse.json();
-            
+
             // commonMatches is already filtered by the backend
-            
+
             if (commonMatches.length > 0) {
               // Use the first common chord match (they should be curated)
               chordToUse = commonMatches[0];
@@ -139,24 +156,8 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
           console.error('Error fetching common chords:', commonError);
           // Don't fail completely - let the finally block clean up
         }
-      } else {
-        // Found existing chords for this item
-        if (matches.length === 1) {
-          chordToUse = matches[0];
-        } else {
-          // Multiple matches - use the first one (earliest in order/ID)
-          // Sort by order (or ID if order is the same) and take the first one
-          matches.sort((a, b) => {
-            const orderA = parseInt(a.order) || 0;
-            const orderB = parseInt(b.order) || 0;
-            if (orderA !== orderB) return orderA - orderB;
-            // If order is the same, use ID as tiebreaker
-            return (parseInt(a.id) || 0) - (parseInt(b.id) || 0);
-          });
-          chordToUse = matches[0]; // Take the first (earliest)
-        }
       }
-      
+
       // Populate editor with existing chord data
       if (chordToUse) {
         setStartingFret(chordToUse.startingFret || 1);
@@ -302,7 +303,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
     // Load SVGuitar UMD script if not already loaded
     if (!window.svguitar) {
       const script = document.createElement('script');
-      script.src = '/static/js/svguitar.es5.js';  // Use local version
+      script.src = 'https://omnibrain.github.io/svguitar/js/svguitar.umd.js';
       script.async = true;
       script.onload = () => {
         initializeCharts();
@@ -570,12 +571,15 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
   };
 
   const toggleBarre = (_string, fret) => {
-    
+    // SVGuitar arc-style barres render at the top edge of the fret space (on the fret wire
+    // above), so a barre at fret N visually appears in fret N-1. Add 1 to compensate.
+    const barreFret = fret + 1;
+
     setBarres(prev => {
       const existingIndex = prev.findIndex(barre => {
-        return barre.fret === fret;
+        return barre.fret === barreFret;
       });
-      
+
       if (existingIndex >= 0) {
         // Remove existing barre
         const newBarres = prev.filter((_, index) => index !== existingIndex);
@@ -585,7 +589,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
         const newBarre = {
           fromString: 6,
           toString: 1,
-          fret: fret,
+          fret: barreFret,
           text: '1'
         };
         const newBarres = [...prev, newBarre];
@@ -972,18 +976,20 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
         )}
         
         {/* Line break option */}
-        <div className="flex items-center space-x-2 bg-gray-700 rounded-lg p-3">
-          <input
-            type="checkbox"
-            id="addLineBreak"
-            checked={addLineBreak}
-            onChange={(e) => setAddLineBreak(e.target.checked)}
-            className="w-4 h-4 text-blue-600 bg-gray-900 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
-          />
-          <label htmlFor="addLineBreak" className="text-sm text-gray-300 cursor-pointer">
-            Line break after ↩️
-          </label>
-        </div>
+        {showLineBreak && (
+          <div className="flex items-center space-x-2 bg-gray-700 rounded-lg p-3">
+            <input
+              type="checkbox"
+              id="addLineBreak"
+              checked={addLineBreak}
+              onChange={(e) => setAddLineBreak(e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-gray-900 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+            />
+            <label htmlFor="addLineBreak" className="text-sm text-gray-300 cursor-pointer">
+              Line break after ↩️
+            </label>
+          </div>
+        )}
 
         {/* Action buttons */}
         <div className="flex gap-2">
@@ -1017,11 +1023,11 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
 
               onSave(saveData);
             }}
-            className={`flex-1 ${title.trim() ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
-            disabled={!title.trim()}
+            className={`flex-1 ${(saveButtonLabel ? (title.trim() || fingers.length > 0 || barres.length > 0 || openStrings.size > 0 || mutedStrings.size > 0) : title.trim()) ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
+            disabled={saveButtonLabel ? !(title.trim() || fingers.length > 0 || barres.length > 0 || openStrings.size > 0 || mutedStrings.size > 0) : !title.trim()}
             data-ph-capture-attribute-button={editingChordId ? "chord-editor-update" : "chord-editor-save"}
           >
-            {editingChordId ? 'Update chord chart' : 'Add chord chart'}
+            {saveButtonLabel || (editingChordId ? 'Update chord chart' : 'Add chord chart')}
           </Button>
 
           {onCancel && (
