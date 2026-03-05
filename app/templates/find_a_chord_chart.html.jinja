@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Find a guitar chord chart | Guitar Practice Routine</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🎸</text></svg>">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="48x48" href="/static/images/favicon-48x48.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/static/images/GPRA-192x192.png">
 
     <!-- Primary Meta Tags -->
     <meta name="description" content="Look up guitar chord charts by name. Free, simple chord chart lookup — no account needed.">
@@ -128,12 +130,141 @@
             <p class="text-gray-600 dark:text-gray-400">Look up a chord by name to see how it's played.<br> 
             Edit the chord chart for different voicings, or just make your own from scratch.</p>
         </div>
-
-        <div id="chord-editor-root" class="mb-6"></div>
-
-        <!-- SVGuitar credit -->
+        <div id="chord-editor-root" class="mb-6"></div><!-- SVGuitar credit -->
         <div class="text-center text-xs text-gray-500 dark:text-gray-500 py-2 mb-2">
             Chord charts rendered with <a href="https://github.com/omnibrain/svguitar" target="_blank" rel="noopener noreferrer" class="hover:underline">SVGuitar</a>
+        </div>
+
+        <!-- How to Read Chord Charts -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">How to read guitar chord chart</h2>
+
+            <div class="space-y-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+
+                <p>
+                    When you first looked at a guitar chord diagram, if you thought "What are these weirdass hieroglyphics I'm looking at?", you're not alone.
+                    Chord charts look alien at first, but once you get the basics, it clicks. From then on you understand at a glance how to translate chord charts to fingers on a fretboard.
+                    So, here are those aforementioned basics:
+                </p>
+
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white pt-2">The grid is your fretboard, standing up</h3>
+                <p>
+                    Imagine taking your guitar and standing it upright in front of you, with the headstock pointing
+                    at the ceiling and the body on the floor. Now look straight at the neck. That's what a chord
+                    chart is showing you; a head-on view of a small section of the fretboard.
+                </p>
+                <p>
+                    The vertical lines are the strings. The horizontal lines are the fretwires. The spaces between the fretwires are the frets. That's it. That's the
+                    whole concept of a blank guitar chord chart. Everything is just annotations telling you where to put your fingers on the fretboard.
+                </p>
+
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white pt-2">Strings: left is thick (low), right is thin (high)</h3>
+                <ul class="list-disc list-outside ml-6 space-y-1">
+                    <li>The leftmost vertical line on a chord chart is your low E string; the thickest one, the one closest to your face
+                    when you're holding the guitar in playing position.</li> 
+                    <li> The rightmost vertical line on a chord chart is the high E string, the
+                    thinnest one. </li>
+                    <li>The in-between strings, left to right, in standard tuning: A, D, G, B. If you already knew that, great. If not,
+                    now you do. </li>
+                    <li>Not seen on most chord charts, but still good to know: When referring to strings by number, the high E (thinnest), is 1, the low E (thickest) is 6.</li>
+                </ul>
+
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white pt-2">Frets: top is the nut (or your capo)</h3>
+                <p>
+                    The thick line across the very top of the chart represents the nut; that (usually) white
+                    or bone-colored bar where the neck meets the headstock. The frets count downward (toward the guitar body) from there: fret 1
+                    is the space just below the nut, fret 2 is below that, etc.
+                </p>
+                <p>
+                    Most beginner chords live in the first three or four frets, so more chord charts that only show the first few frets.<br><br> For higher chords (closer to the body) you'll see a position marker to show you where you are, the "starting fret" (instead of a longer chord chart showing more of the neck.) See the "Position markers" section, below, for more about that. 
+                </p>
+
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white pt-2">Dots: put your fingers here</h3>
+                <p>
+                    The filled circles (dots) on the chart tell you exactly where to press down on the strings. One dot = one finger
+                    on one string at one fret. Pretty straightforward.
+                </p>
+                <p>
+                    Chord charts can also include numbers inside the dots to tell you <em>which</em> finger to use (optional on our charts here. Use the "Edit fingers" button to add them.)
+                </p>
+                <ul class="list-disc list-outside ml-6 space-y-1">
+                    <li><strong>1</strong> = index finger</li>
+                    <li><strong>2</strong> = middle finger</li>
+                    <li><strong>3</strong> = ring finger</li>
+                    <li><strong>4</strong> = pinky</li>
+                    <li><strong>T</strong> = thumb (for those Hendrix-style low string thumb-wraps)</li>
+                </ul>
+                <p>
+                    The suggested fingering isn't mandatory. You can have your own preferences for whatever feels most comfortable for you, <i>especially</i>
+                    once you're thinking about transitions between chords. But when you're starting out, the suggested
+                    fingering is usually the most ergonomic option, so try it until you have a reason not to.
+                </p>
+
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white pt-2">X and O: the symbols above the strings</h3>
+                <p>
+                    For many chords, you'll see 'X' or 'O' over some strings, above the nut:
+                </p>
+                <ul class="list-disc list-outside ml-6 space-y-1">
+                    <li><strong>X</strong> = don't play this string. Mute it, don't strum it. If you
+                        strum a string which should be muted because it isn't part of the chord, the chord will sound muddy or wrong.</li>
+                    <li><strong>O</strong> = play this string open. No fingers on it, just let it ring. If you accidentally mute a strong which should be part of the chord, the chord will sound muddy or wrong.</li>
+                </ul>
+                <p>
+                    Getting the muted ('X') strings right is actually one of the trickier parts of playing chords cleanly.
+                    You'll often use the underside or tip of a nearby finger to lightly touch the muted string so it doesn't
+                    ring out. It's one of those things that feels awkward for a while, but eventually becomes second nature, and becomes part of your muscle memory.
+                </p>
+
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white pt-2">Barre chords: one finger, many strings</h3>
+                <p>
+                    If you see a curved line or arc spanning across multiple strings at the same fret, that's a barre.
+                    It means you lay one finger flat across all those strings, pressing them all down at once.
+                    Usually it's the index finger doing this heavy lifting.
+                </p>
+                <p>
+                    Barre chords are a rite of passage that every guitarist goes through (Like learning to play Smoke On The Water, Stairway, or Wonderwall, but harder.) Your hand will cramp, the
+                    strings will buzz, and you'll wonder if your fingers are physically incapable of doing this.
+                    They're not. It just takes practice, and building hand strength (don't buy hand-exerciser tools, that's what your guitar is for. Just practice to build the muscles.). Give it a few weeks of consistent effort
+                    and it'll start sounding clean. Everyone goes through this phase; literally everyone. But be sure to get a teacher to show you how to do it, or find some good lesson videos for beginner barre chords. (You can hurt yourself if you don't learn from someone who knows what they're doing.)
+                </p>
+
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white pt-2">Position markers: "3fr" and friends</h3>
+                <p>
+                    Not all chords are played at the top of the neck. When you see something like "3fr" or "5fr" next
+                    to the chart, it means the chart is showing you a section of the neck starting at that fret number, instead of the section of the neck up near the nut.
+                    So if it says "5fr," then the top line of the chart represents fret 5, not fret 1.
+                </p>
+                <p>
+                    The same chord shape played at
+                    different positions on the neck gives you different chords, because... guitar. Learn one barre chord shape and you've actually learned the shape for multiple chords. (This is why you want to be working on memorizing where the notes live on the fretboard. When you know where the root note is, you know where to put a shape to play the chord.)
+                </p>
+
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white pt-2">Chord names are weird, but they'll make sense eventually</h3>
+                <p>
+                    Chord naming follows some patterns that are worth knowing, even if music theory isn't your thing:
+                </p>
+                <ul class="list-disc list-outside ml-6 space-y-1">
+                    <li><strong>Just a letter</strong> (C, G, D) = major chord. Happy and bright sounding.</li>
+                    <li><strong>Letter + "m"</strong> (Am, Em, Dm) = minor chord. Sadder, moodier.</li>
+                    <li><strong>Letter + "7"</strong> (G7, A7, D7) = dominant seventh. Has a bluesy tension to it.</li>
+                    <li><strong>Letter + "m7"</strong> (Am7, Em7) = minor seventh. Mellow, jazzy.</li>
+                    <li><strong>Letter + "maj7"</strong> (Cmaj7, Fmaj7) = major seventh. Smooth and dreamy.</li>
+                    <li><strong>Letter + "sus2" or "sus4"</strong> = suspended chord. Neither happy nor sad —
+                        kind of floaty and unresolved.</li>
+                </ul>
+                <p>
+                    There are more variations (diminished, augmented, add9, and so on), but these cover easily 90% of
+                    what you'll run into as a beginner or intermediate player. The rest you can look up as you encounter
+                    them — and hey, the search bar is right up there.
+                </p>
+
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white pt-2">Putting it all together</h3>
+                <p>
+                    Blah, blah, blah... So, anyway, once you can read one chord chart, you can read all of them. The format is
+                    universal. Every guitar book, every tab site, every chord app uses the same system.
+                    The charts you see on this page use the same conventions you'll find anywhere else.<br><br> <strong>Note: Chord charts are not tablature, aka "guitar tabs".</strong> Tablature is a whole different thing, more useful for lead guitar lines than for chords. If you're looking for guitar tabs, then "<em>These are not the droids you're looking for. You can go about your business. <a href="https://www.google.com/search?q=guitar+tablature" class="hover:underline" target="_blank">Move along</a>.</em>"
+                </p>
+            </div>
         </div>
 
         <!-- CTA Section -->

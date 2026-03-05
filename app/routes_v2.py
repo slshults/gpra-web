@@ -180,6 +180,11 @@ def ads_txt():
         mimetype='text/plain'
     )
 
+@app.route('/favicon.ico')
+def favicon():
+    """Serve favicon.ico from the site root for Google Search results"""
+    return send_from_directory(app.static_folder, 'favicon.ico', mimetype='image/x-icon')
+
 @app.route('/robots.txt')
 def robots_txt():
     """Serve robots.txt for search engine crawlers"""
