@@ -782,6 +782,12 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
     }
   }, [editMode, selectedFinger]);
 
+  // Determine if the save button should be enabled.
+  // Public editor (saveButtonLabel set): enabled when any chart content exists.
+  // In-app editor: enabled when the chord has a title.
+  const hasChartContent = title.trim() || fingers.length > 0 || barres.length > 0 || openStrings.size > 0 || mutedStrings.size > 0;
+  const canSave = saveButtonLabel ? hasChartContent : Boolean(title.trim());
+
   return (
     <div className="bg-gray-800 rounded-lg p-4">
       <div className="space-y-4">
@@ -1023,8 +1029,8 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
 
               onSave(saveData);
             }}
-            className={`flex-1 ${(saveButtonLabel ? (title.trim() || fingers.length > 0 || barres.length > 0 || openStrings.size > 0 || mutedStrings.size > 0) : title.trim()) ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
-            disabled={saveButtonLabel ? !(title.trim() || fingers.length > 0 || barres.length > 0 || openStrings.size > 0 || mutedStrings.size > 0) : !title.trim()}
+            className={`flex-1 ${canSave ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
+            disabled={!canSave}
             data-ph-capture-attribute-button={editingChordId ? "chord-editor-update" : "chord-editor-save"}
           >
             {saveButtonLabel || (editingChordId ? 'Update chord chart' : 'Add chord chart')}
