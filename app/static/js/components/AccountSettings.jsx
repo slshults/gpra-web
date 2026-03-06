@@ -1140,7 +1140,7 @@ const AccountSettings = () => {
                     <li>
                       Get your API key from{' '}
                       <a
-                        href="https://console.anthropic.com/"
+                        href="https://platform.claude.com/settings/keys"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"

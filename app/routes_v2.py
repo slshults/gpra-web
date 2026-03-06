@@ -378,9 +378,13 @@ def item(item_id):
         return jsonify({"error": "Invalid item ID"}), 400
         
     if request.method == 'GET':
-        # For single item GET, we can get from the full list for now
+        # Frontend passes ItemID (Column B), so match against Column B first
+        # Column A is the DB primary key, Column B is the ItemID used by the frontend
         items = data_layer.get_all_items()
-        item = next((i for i in items if int(float(i['A'])) == item_id), None)
+        item = next((i for i in items if i.get('B') and int(float(i['B'])) == item_id), None)
+        if not item:
+            # Fallback: try matching by Column A (DB primary key) for backward compatibility
+            item = next((i for i in items if int(float(i['A'])) == item_id), None)
         return jsonify(item) if item else ('', 404)
         
     elif request.method == 'PUT':

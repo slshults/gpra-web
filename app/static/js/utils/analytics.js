@@ -4,6 +4,12 @@
 // Track page visit start times for engagement metrics
 let pageStartTimes = {};
 
+// Dedup guards for practice events (React StrictMode double-mounts + rapid re-fires)
+// Layer 1: microtask-cleared Set catches same-tick duplicates
+// Layer 2: timestamp map catches re-fires within 2 seconds
+let pendingEventKeys = new Set();
+let lastEventTimestamps = {};
+
 // Cache user context for auto-inclusion in events
 let userContext = {
   user_id: null,
@@ -96,6 +102,16 @@ export const trackPracticeEvent = (eventType, itemName, additionalProperties = {
     };
 
     const eventName = eventMap[eventType] || eventType;
+
+    // Dedup: same-tick (microtask) + 2-second window
+    const dedupeKey = `${eventName}_${itemName}`;
+    if (pendingEventKeys.has(dedupeKey)) return;
+    const now = Date.now();
+    if (lastEventTimestamps[dedupeKey] && (now - lastEventTimestamps[dedupeKey]) < 2000) return;
+    pendingEventKeys.add(dedupeKey);
+    Promise.resolve().then(() => pendingEventKeys.delete(dedupeKey));
+    lastEventTimestamps[dedupeKey] = now;
+
     window.posthog.capture(eventName, {
       item_name: itemName,
       timer_started: eventType === 'started_timer',
@@ -258,12 +274,39 @@ export const trackSongbookLinkClick = (itemName, folderPath, additionalPropertie
 };
 
 /**
- * Track active routine when practice page is visited
- * @param {string} routineName - Name of the active routine
- * @param {Object} additionalProperties - Additional properties to track
+ * Track practice session summary when leaving the Practice page.
+ * Deduped by routine name + 30s time bucket to prevent StrictMode double-fires.
  */
+let firedSessionSummaries = new Set();
+
+export const trackPracticeSessionSummary = (summaryData) => {
+  if (typeof window !== 'undefined' && window.posthog) {
+    const sessionKey = `${summaryData.routine_name}_${Math.floor(Date.now() / 30000)}`;
+    if (firedSessionSummaries.has(sessionKey)) return;
+    firedSessionSummaries.add(sessionKey);
+    setTimeout(() => firedSessionSummaries.delete(sessionKey), 60000);
+
+    window.posthog.capture('practice_session_summary', {
+      ...userContext,
+      ...summaryData
+    });
+  }
+};
+
+/**
+ * Track active routine when practice page is visited.
+ * Deduped: skips if same routine tracked within 10s (StrictMode + reference changes).
+ */
+let lastTrackedRoutineName = null;
+let lastTrackedRoutineTime = 0;
+
 export const trackActiveRoutine = (routineName, additionalProperties = {}) => {
   if (typeof window !== 'undefined' && window.posthog) {
+    const now = Date.now();
+    if (routineName === lastTrackedRoutineName && (now - lastTrackedRoutineTime) < 10000) return;
+    lastTrackedRoutineName = routineName;
+    lastTrackedRoutineTime = now;
+
     window.posthog.capture('practice_page_viewed', {
       active_routine_name: routineName,
       ...userContext, // Auto-include user_id and subscription_tier
@@ -300,6 +343,7 @@ export default {
   getUserContext,
   trackPageVisit,
   trackPracticeEvent,
+  trackPracticeSessionSummary,
   trackChordChartEvent,
   trackItemOperation,
   trackRoutineOperation,

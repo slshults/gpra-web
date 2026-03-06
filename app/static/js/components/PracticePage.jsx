@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useState, useRef, useMemo, memo } from 'react';
-import { trackPracticeEvent, trackActiveRoutine, trackChordChartEvent, trackSongbookLinkClick } from '../utils/analytics';
+import { trackPracticeEvent, trackPracticeSessionSummary, trackActiveRoutine, trackChordChartEvent, trackSongbookLinkClick } from '../utils/analytics';
 import { supportsFolderOpening, isMobileDevice, getFileManagerName, isWebUrl } from '../utils/platform';
 
 // Simple debounce function
@@ -473,6 +473,12 @@ export const PracticePage = () => {
   const [showSoundPromptModal, setShowSoundPromptModal] = useState(false);
   const [pendingTimerItemId, setPendingTimerItemId] = useState(null);
 
+  // Analytics tracking refs
+  const sessionStartTime = useRef(null);
+  const sessionCompletedCount = useRef(0);
+  const sessionTimerSeconds = useRef(0);
+  const itemViewStartTimes = useRef({}); // When each item was expanded (for time_on_item_seconds)
+
   // Rotating processing messages for entertainment
   const processingMessages = [
     "✨ Claude is making magic happen",
@@ -911,7 +917,46 @@ export const PracticePage = () => {
     }
   }, [routine, loadAllChordCharts]);
 
-  
+  // Keep a ref to the latest routine so the session summary effect doesn't re-run on reference changes
+  const routineRef = useRef(null);
+  const summaryFiredRef = useRef(false);
+  useEffect(() => {
+    routineRef.current = routine;
+  }, [routine]);
+
+  // Initialize session tracking on mount, fire summary exactly once on leave
+  useEffect(() => {
+    if (!routine) return;
+
+    sessionStartTime.current = Date.now();
+    sessionCompletedCount.current = 0;
+    sessionTimerSeconds.current = 0;
+    summaryFiredRef.current = false;
+
+    const fireSummary = () => {
+      if (summaryFiredRef.current) return;
+      if (!sessionStartTime.current || !routineRef.current) return;
+      const sessionDuration = Math.round((Date.now() - sessionStartTime.current) / 1000);
+      if (sessionDuration < 5) return; // Skip spurious short sessions
+      summaryFiredRef.current = true;
+      trackPracticeSessionSummary({
+        routine_name: routineRef.current.name,
+        items_completed_count: sessionCompletedCount.current,
+        total_items_in_routine: routineRef.current.items?.length || 0,
+        total_timer_seconds: sessionTimerSeconds.current,
+        session_duration_seconds: sessionDuration
+      });
+    };
+
+    window.addEventListener('beforeunload', fireSummary);
+
+    return () => {
+      fireSummary(); // SPA navigation (unmount)
+      window.removeEventListener('beforeunload', fireSummary);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routine?.id]); // Only re-run when the routine ID changes, not on every reference change
+
   // Detect items with existing chord charts for overwrite warnings
   useEffect(() => {
     if (selectedTargetItems.size > 0) {
@@ -1348,8 +1393,10 @@ export const PracticePage = () => {
       const next = new Set(prev);
       if (next.has(itemId)) {
         next.delete(itemId);
+        delete itemViewStartTimes.current[itemId];
       } else {
         next.add(itemId);
+        itemViewStartTimes.current[itemId] = Date.now();
         // Lazy-load item details when expanding
         const routineItem = routine.items.find(item => item['A'] === itemId);  // Column A is ID
         if (routineItem) {
@@ -1390,22 +1437,25 @@ export const PracticePage = () => {
       timerSound.current.stop();
     }
 
-    // Only initialize timer if it doesn't exist
+    const itemDetails = getItemDetails(routineItem['B']);
+    const durationMinutes = parseInt(itemDetails?.['E'], 10) || 5;
+    const itemName = itemDetails?.['C'] || `Item ${itemId}`;
+
     if (!timers[itemId]) {
       debugLog('Timer', `Timer ${itemId} not found, initializing...`);
-      const itemDetails = getItemDetails(routineItem['B']);
-      const duration = itemDetails?.['E'] || 5;
-      initTimer(itemId, duration);
+      initTimer(itemId, durationMinutes);
     }
+
+    trackPracticeEvent('started_timer', itemName, {
+      routine_name: routine?.name,
+      initial_duration_minutes: durationMinutes
+    });
 
     // Activate the timer
     setActiveTimers(prev => {
       const next = new Set(prev);
-      const itemDetails = getItemDetails(routineItem['B']);
-      const itemName = itemDetails?.['C'] || `Item ${itemId}`;
       debugLog('Timer', `Activating timer ${itemId}`);
       next.add(itemId);
-      trackPracticeEvent('started_timer', itemName);
       return next;
     });
   };
@@ -1456,21 +1506,25 @@ export const PracticePage = () => {
           timerSound.current.stop();
         }
 
+        // Track the event BEFORE the state updater (state updaters should be pure)
+        const itemDetails = getItemDetails(routineItem['B']);
+        const itemName = itemDetails?.['C'] || `Item ${itemId}`;
+        const durationMinutes = parseInt(itemDetails?.['E'], 10) || 5;
+        const initialDuration = durationMinutes * 60;
+        const currentTimer = timers[itemId] || initialDuration;
+        const elapsedSeconds = Math.max(0, initialDuration - currentTimer);
+
+        trackPracticeEvent('timer_stopped', itemName, {
+          time_elapsed_seconds: elapsedSeconds,
+          initial_duration_minutes: durationMinutes,
+          routine_name: routine?.name
+        });
+        sessionTimerSeconds.current += elapsedSeconds;
+
         setActiveTimers(prev => {
           const next = new Set(prev);
-          const itemDetails = getItemDetails(routineItem['B']);
-          const itemName = itemDetails?.['C'] || `Item ${itemId}`;
           debugLog('Timer', `Deactivating timer ${itemId}`);
           next.delete(itemId);
-
-          const initialDuration = (itemDetails?.['E'] || 5) * 60;
-          const currentTimer = timers[itemId] || initialDuration;
-          const elapsedSeconds = initialDuration - currentTimer;
-
-          trackPracticeEvent('timer_stopped', itemName, {
-            time_elapsed_seconds: Math.max(0, elapsedSeconds),
-            initial_duration_minutes: itemDetails?.['E'] || 5
-          });
           return next;
         });
       } else {
@@ -1518,62 +1572,77 @@ export const PracticePage = () => {
 
       const result = await response.json();
       if (result.success) {
+        if (newState) {
+          const routineItem = routine.items.find(item => item['A'] === routineEntryId);
+          if (routineItem) {
+            const itemDetails = getItemDetails(routineItem['B']);
+            const itemName = itemDetails?.['C'] || `Item ${routineEntryId}`;
+            const durationMinutes = parseInt(itemDetails?.['E'], 10) || 5;
+            const initialDuration = durationMinutes * 60;
+            const currentTimer = timers[routineEntryId] || initialDuration;
+            const elapsedSeconds = Math.max(0, initialDuration - currentTimer);
+
+            const viewStart = itemViewStartTimes.current[routineEntryId];
+            const timeOnItemSeconds = viewStart ? Math.round((Date.now() - viewStart) / 1000) : null;
+
+            trackPracticeEvent('marked_done', itemName, {
+              time_elapsed_seconds: elapsedSeconds,
+              was_timer_active: activeTimers.has(routineEntryId),
+              initial_duration_minutes: durationMinutes,
+              routine_name: routine?.name,
+              time_on_item_seconds: timeOnItemSeconds
+            });
+            if (activeTimers.has(routineEntryId)) {
+              sessionTimerSeconds.current += elapsedSeconds;
+            }
+            sessionCompletedCount.current += 1;
+          }
+
+          delete itemViewStartTimes.current[routineEntryId];
+        }
+
         setCompletedItems(prev => {
           const next = new Set(prev);
           if (newState) {
             next.add(routineEntryId);
-            
-            // Track completion with timer data
-            const routineItem = routine.items.find(item => item['A'] === routineEntryId);
-            if (routineItem) {
-              const itemDetails = getItemDetails(routineItem['B']);
-              const itemName = itemDetails?.['C'] || `Item ${routineEntryId}`; // Column C is Title
-              const initialDuration = (itemDetails?.['E'] || 5) * 60; // Column E is Duration in minutes, convert to seconds
-              const currentTimer = timers[routineEntryId] || initialDuration;
-              const elapsedSeconds = initialDuration - currentTimer;
-              
-              trackPracticeEvent('marked_done', itemName, {
-                time_elapsed_seconds: Math.max(0, elapsedSeconds),
-                was_timer_active: activeTimers.has(routineEntryId),
-                initial_duration_minutes: itemDetails?.['E'] || 5
-              });
-            }
-            
-            // Stop timer when marking complete
-            setActiveTimers(prev => {
-              const next = new Set(prev);
-              next.delete(routineEntryId);
-              return next;
-            });
-
-            // When marking as complete:
-            // 1. Find the current item's index
-            const currentIndex = routine.items.findIndex(item => item['A'] === routineEntryId);
-            // 2. Collapse current item
-            setExpandedItems(prev => {
-              const next = new Set(prev);
-              next.delete(routineEntryId);
-              // 3. If there's a next item, expand it
-              if (currentIndex < routine.items.length - 1) {
-                const nextItem = routine.items[currentIndex + 1];
-                next.add(nextItem['A']);
-                // Lazy-load details for next item
-                const nextItemReferenceId = nextItem['B'];
-                fetchItemDetails(nextItemReferenceId).then(itemDetails => {
-                  if (itemDetails) {
-                    // Initialize timer and fetch notes for next item
-                    initTimer(nextItem['A'], itemDetails['E'] || 5);
-                    fetchNotes(nextItemReferenceId);
-                  }
-                });
-              }
-              return next;
-            });
           } else {
             next.delete(routineEntryId);
           }
           return next;
         });
+
+        if (newState) {
+          // Stop timer when marking complete
+          setActiveTimers(prev => {
+            const next = new Set(prev);
+            next.delete(routineEntryId);
+            return next;
+          });
+
+          // When marking as complete:
+          // 1. Find the current item's index
+          const currentIndex = routine.items.findIndex(item => item['A'] === routineEntryId);
+          // 2. Collapse current item, expand next
+          setExpandedItems(prev => {
+            const next = new Set(prev);
+            next.delete(routineEntryId);
+            // 3. If there's a next item, expand it
+            if (currentIndex < routine.items.length - 1) {
+              const nextItem = routine.items[currentIndex + 1];
+              next.add(nextItem['A']);
+              itemViewStartTimes.current[nextItem['A']] = Date.now();
+              const nextItemReferenceId = nextItem['B'];
+              fetchItemDetails(nextItemReferenceId).then(itemDetails => {
+                if (itemDetails) {
+                  // Initialize timer and fetch notes for next item
+                  initTimer(nextItem['A'], itemDetails['E'] || 5);
+                  fetchNotes(nextItemReferenceId);
+                }
+              });
+            }
+            return next;
+          });
+        }
       }
     } catch (error) {
       console.error('Error updating completion state:', error);
@@ -1602,15 +1671,17 @@ export const PracticePage = () => {
     if (routineItem) {
       // Try to get cached item details, fallback to default
       const itemDetails = getItemDetails(routineItem['B']);
-      const duration = itemDetails?.['E'] || 5;  // Column E is Duration
+      const duration = parseInt(itemDetails?.['E'], 10) || 5;  // Column E is Duration (string from API)
       const itemName = itemDetails?.['C'] || `Item ${itemId}`; // Column C is Title
-      
+
       setTimers(prev => ({
         ...prev,
         [itemId]: duration * 60
       }));
       
-      trackPracticeEvent('timer_reset', itemName);
+      trackPracticeEvent('timer_reset', itemName, {
+        routine_name: routine?.name
+      });
     }
   };
 
