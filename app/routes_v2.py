@@ -3200,7 +3200,7 @@ def routine_items(routine_id):
             item_data = request.json
             # Accept both camelCase (itemId) and snake_case (item_id) for compatibility
             item_id = item_data.get('itemId') or item_data.get('item_id')
-            order = item_data.get('order')
+            order = int(item_data['order']) if item_data.get('order') is not None else None
             
             if not item_id:
                 return jsonify({"error": "itemId is required"}), 400

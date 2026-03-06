@@ -93,7 +93,13 @@ class RoutineRepository(BaseRepository):
                 RoutineItem.routine_id == routine_id
             ).scalar() or 0
             order = max_order + 1
-        
+        else:
+            # Shift existing items to make room for insertion
+            self.db.query(RoutineItem).filter(
+                RoutineItem.routine_id == routine_id,
+                RoutineItem.order >= order
+            ).update({RoutineItem.order: RoutineItem.order + 1})
+
         routine_item = RoutineItem(
             routine_id=routine_id,
             item_id=db_item_id,  # Use database primary key, not Google Sheets ItemID

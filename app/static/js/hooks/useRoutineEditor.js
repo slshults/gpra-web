@@ -1,5 +1,5 @@
 // app/static/js/hooks/useRoutineEditor.js
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 export const useRoutineEditor = (routineId = null, initialRoutineDetails = null, availableItems = []) => {
   const [selectedItems, setSelectedItems] = useState([]);
@@ -59,12 +59,15 @@ export const useRoutineEditor = (routineId = null, initialRoutineDetails = null,
     return filtered;
   }, [availableItems, selectedItems, searchQuery]);
 
-  const addToRoutine = async (routineId, itemId) => {
+  const addToRoutine = async (routineId, itemId, order = null) => {
     try {
+      const body = { itemId };
+      if (order !== null) body.order = order;
+
       const response = await fetch(`/api/routines/${routineId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId })
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) throw new Error('Failed to add item to routine');
@@ -101,29 +104,24 @@ export const useRoutineEditor = (routineId = null, initialRoutineDetails = null,
 
   const updateRoutineOrder = async (routineId, items) => {
     try {
-
       // Extract only the routine entry data for reordering
       const routineEntries = items.map(item => ({
         'A': item['A'],           // Routine entry ID
         'C': item['C']           // Order in routine
       }));
 
-
       const url = `/api/routines/${routineId}/order`;
-
       const response = await fetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(routineEntries)
       });
 
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Order update failed:', errorData);
         throw new Error(errorData.message || 'Failed to update routine order');
       }
-
 
       // Refresh the routine to get updated items from server
       await fetchRoutine();
