@@ -56,22 +56,6 @@
     </script>
     {% endif %}
 
-    <!-- Google Analytics 4 (consent-gated) -->
-    <script>
-        (function() {
-            var cookieConsent = localStorage.getItem('cookieConsent');
-            if (cookieConsent === 'all') {
-                var s = document.createElement('script');
-                s.async = true;
-                s.src = 'https://www.googletagmanager.com/gtag/js?id=G-E3FNWSVY1J';
-                document.head.appendChild(s);
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', 'G-E3FNWSVY1J');
-            }
-        })();
-    </script>
 </head>
 <body class="bg-gray-900 show-ph-widget">
     {% set current_page = 'about' %}
@@ -131,7 +115,7 @@
             <section>
                 <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">Why a subscription?</h2>
                 <p class="text-gray-700 dark:text-gray-300 leading-relaxed">
-                    Running a web app costs money; hosting, databases, AI API calls, and time (even vibe-coding takes some time, then there's testing, maintenance to keep various libraries up to date and secure, improving things based on feedback, etc.) The subscription model lets me pay those bills to keep the app running (the free tier is ad-supported, but the trickle of ad revenue is unlikely to pay for the costs incurred by free users.) I doubt I'll ever make an actual profit, but it'll be a nice surprise if I do.
+                    Running a web app costs money; hosting, databases, AI API calls, and time (even vibe-coding takes some time, then there's testing, maintenance to keep various libraries up to date and secure, improving things based on feedback, etc.) The subscription model lets me pay those bills to keep the app running. There's a free tier so you can try it out, and paid tiers start at just $1/month. I doubt I'll ever make an actual profit, but it'll be a nice surprise if I do.
                 </p>
             </section>
 

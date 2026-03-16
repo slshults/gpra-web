@@ -285,7 +285,7 @@ BAD_USER_AGENTS = [
 def block_bad_user_agents():
     """Block known malicious scanners, exploit tools, and scraper bots by User-Agent."""
     # Allow static files and well-known bot-accessible paths through without UA checks
-    if request.path.startswith('/static/') or request.path in ('/ads.txt', '/robots.txt'):
+    if request.path.startswith('/static/') or request.path in ('/robots.txt',):
         return None
 
     ua = request.headers.get('User-Agent', '')

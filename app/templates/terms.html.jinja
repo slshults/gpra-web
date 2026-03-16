@@ -56,22 +56,6 @@
     </script>
     {% endif %}
 
-    <!-- Google Analytics 4 (consent-gated) -->
-    <script>
-        (function() {
-            var cookieConsent = localStorage.getItem('cookieConsent');
-            if (cookieConsent === 'all') {
-                var s = document.createElement('script');
-                s.async = true;
-                s.src = 'https://www.googletagmanager.com/gtag/js?id=G-E3FNWSVY1J';
-                document.head.appendChild(s);
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', 'G-E3FNWSVY1J');
-            }
-        })();
-    </script>
 </head>
 <body class="bg-gray-900 show-ph-widget">
     {% set current_page = 'terms' %}
@@ -140,14 +124,15 @@
             <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">3. Subscription Terms</h2>
             <div class="space-y-4 text-gray-700 dark:text-gray-300">
                 <p>
-                    <strong>Subscription tiers:</strong> GPRA offers 5 subscription tiers:
+                    <strong>Subscription tiers:</strong> GPRA offers 6 subscription tiers:
                 </p>
                 <ul class="list-disc pl-6 space-y-2">
-                    <li><strong>Free:</strong> 15 practice items, 1 routine, BYOClaude for autocreated chord charts<br>(no credit card required, ad supported)</li>
-                    <li><strong>Basic:</strong> 80 practice items, 5 routines, BYOClaude for autocreated chord charts (no ads)</li>
-                    <li><strong>The Goods:</strong> 200 practice items, 10 routines, autocreated chord charts included (no ads)</li>
-                    <li><strong>More Goods:</strong> 600 practice items, 25 routines, autocreated chord charts included (no ads)</li>
-                    <li><strong>The Most:</strong> 1500 practice items, 50 routines, autocreated chord charts included (no ads)</li>
+                    <li><strong>Free:</strong> 6 practice items, 1 routine, BYOClaude for autocreated chord charts (no credit card required)</li>
+                    <li><strong>Dollar Store:</strong> 12 practice items, 2 routines, BYOClaude for autocreated chord charts</li>
+                    <li><strong>Basic:</strong> 80 practice items, 5 routines, BYOClaude for autocreated chord charts</li>
+                    <li><strong>The Goods:</strong> 160 practice items, 10 routines, autocreated chord charts included</li>
+                    <li><strong>More Goods:</strong> 500 practice items, 25 routines, autocreated chord charts included</li>
+                    <li><strong>The Most:</strong> 1200 practice items, 50 routines, autocreated chord charts included</li>
                 </ul>
                 <p>
                     <strong>Billing periods:</strong> Subscriptions are monthly. The billing period begins the same day of month/year on which you first subscribe. (No refunds, prorated or otherwise if you cancel mid-month, but you can keep using it until the end of the period you've already paid for.)
@@ -301,7 +286,7 @@
                     <li>Indirect, incidental, consequential, or any types of damages</li>
                     <li>Loss of data, profits, or revenue</li>
                     <li>Service interruptions or downtime</li>
-                    <li>Third-party actions (e.g., payment processing issues, hosting issues, API issues, ads served, etc)</li>
+                    <li>Third-party actions (e.g., payment processing issues, hosting issues, API issues, etc)</li>
                 </ul>
                 <p class="mt-4">
                     The total maximum liability for any claim related to GPRA is $0.00. (I provide a free tier for you to try before you subscribe, and I make no claims that the app will help you make money in any way, nor are there any guarantees about functionality or availability of the app.)

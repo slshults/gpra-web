@@ -543,7 +543,7 @@ def handle_subscription_updated(db: Session, stripe_subscription):
 
     if tier_changed:
         # Tier upgrade or downgrade
-        tier_order = ['free', 'basic', 'thegoods', 'moregoods', 'themost']
+        tier_order = ['free', 'dollarstore', 'basic', 'thegoods', 'moregoods', 'themost']
         old_index = tier_order.index(old_tier) if old_tier in tier_order else 0
         new_index = tier_order.index(tier) if tier in tier_order else 0
 

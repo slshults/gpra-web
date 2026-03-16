@@ -56,22 +56,6 @@
     </script>
     {% endif %}
 
-    <!-- Google Analytics 4 (consent-gated) -->
-    <script>
-        (function() {
-            var cookieConsent = localStorage.getItem('cookieConsent');
-            if (cookieConsent === 'all') {
-                var s = document.createElement('script');
-                s.async = true;
-                s.src = 'https://www.googletagmanager.com/gtag/js?id=G-E3FNWSVY1J';
-                document.head.appendChild(s);
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', 'G-E3FNWSVY1J');
-            }
-        })();
-    </script>
 </head>
 <body class="bg-gray-900 show-ph-widget">
     {% set current_page = 'privacy' %}
@@ -123,7 +107,6 @@
                 <ul class="list-disc pl-6 space-y-2">
                     <li>Process payments via Stripe (they're <a href="https://stripe.com/en-ca/guides/pci-compliance" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">PCI compliant</a>, so your payment info is kept secure)</li>
                     <li>Send password reset emails (via <a href="https://www.mailgun.com" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">Mailgun</a>) if you forget your password and need to reset it.</li>
-                    <li>Show you ads on the free tier, via Google AdSense (so I can keep the free tier free.)</li>
                     <li>Improve the app with PostHog's platform (you can opt out of PostHog cookies in <a href="/#Account" class="text-orange-600 dark:text-orange-400 hover:underline">Account/Settings</a>.)</li>
                     <li>Send you an email if you pay for 3 months without using the app (a reminder to stop paying if you've stopped using it.)</li>
                     <li>Send you an email reminder 7 days before your data is deleted, if you haven't downloaded it yet.</li>
@@ -200,20 +183,10 @@
 
                 <div class="mb-4">
                     <h3 class="font-semibold text-lg mb-1">
-                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">Google OAuth & AdSense</a>
+                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">Google OAuth</a>
                     </h3>
                     <p class="ml-6">
-                        <strong>OAuth:</strong> Optional sign-in method using your Google account.<br>
-                        <strong>AdSense:</strong> Shows ads on the free tier, to keep GPRA free. (You can use an adblocker to opt out of this, but I'd rather you didn't because then you'd be taking away pennies that help me pay for the hosting of this app.)
-                    </p>
-                </div>
-
-                <div class="mb-4">
-                    <h3 class="font-semibold text-lg mb-1">
-                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">Google Analytics</a>
-                    </h3>
-                    <p class="ml-6">
-                        Traffic analytics to help me understand how visitors find GPRA and which pages they visit. Only loaded if you accept analytics cookies. You can opt out anytime in <a href="/#Account" class="text-orange-600 dark:text-orange-400 hover:underline">Account/Settings</a>.
+                        Optional sign-in method using your Google account.
                     </p>
                 </div>
 
@@ -261,7 +234,6 @@
                 <ul class="list-disc pl-6 space-y-2">
                     <li><strong>Session Cookies:</strong> Required for login, keeping you logged in, keeping your account settings, etc. These are "functional cookies" and so they don't require consent.</li>
                     <li><strong>PostHog Cookies:</strong> Tracks how you use GPRA to help me improve it. You can opt out via the <a href="/#Account" class="text-orange-600 dark:text-orange-400 hover:underline">Account/Settings page</a>.</li>
-                    <li><strong>Google Analytics Cookies:</strong> Traffic analytics to help me understand how visitors find and use GPRA. Only loaded if you accept analytics cookies.</li>
                     <li><strong>Dark Mode Preference:</strong> Stored in your browser's localStorage so the app will remember if you're one of those weirdos who prefers light mode. (Yes, my fellow nerds, it's not technically a cookie, but not worthy of its own section in this document either.)</li>
                 </ul>
             </div>

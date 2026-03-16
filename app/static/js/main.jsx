@@ -15,6 +15,7 @@ import UnpluggedAccessModal from '@components/UnpluggedAccessModal';
 import CookieConsent from '@components/CookieConsent';
 import DeletionBanner from '@components/DeletionBanner';
 import ImpersonationBanner from '@components/ImpersonationBanner';
+import KofiWidget from '@components/KofiWidget';
 import { useLightweightItems } from '@hooks/useLightweightItems';
 import { setUserContext } from './utils/analytics';
 
@@ -120,6 +121,9 @@ const App = () => {
 
       {/* Cookie Consent Banner */}
       <CookieConsent />
+
+      {/* Ko-fi floating widget - shown only for free/dollarstore/basic tiers */}
+      {userStatus?.tier && <KofiWidget currentTier={userStatus.tier} />}
 
       {/* Lapsed Subscription Modal */}
       <LapsedSubscriptionModal

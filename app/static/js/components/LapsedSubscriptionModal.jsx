@@ -85,7 +85,7 @@ export default function LapsedSubscriptionModal({ isOpen, onClose, daysUntil90, 
       if (data.success) {
         // Set sessionStorage flag so modal doesn't show again this session
         sessionStorage.setItem('lapsedModalDismissed', 'true');
-        // Reload to show unplugged mode with ads
+        // Reload to show unplugged mode
         window.location.reload();
       } else {
         throw new Error('Failed to set unplugged mode');

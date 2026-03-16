@@ -23,6 +23,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
     // Default: all collapsed except current tier
     return saved ? JSON.parse(saved) : {
       free: true,
+      dollarstore: true,
       basic: true,
       thegoods: true,
       moregoods: true,
@@ -62,11 +63,21 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
     {
       id: 'free',
       name: 'Free',
-      itemsLimit: 15,
+      itemsLimit: 6,
       routinesLimit: 1,
       price: 0,
       autocreate: false,
       description: 'Get started with basic features',
+      byocNote: 'BYOClaude (enter your own Anthropic API key) for autocreated chord charts',
+    },
+    {
+      id: 'dollarstore',
+      name: 'Dollar Store',
+      itemsLimit: 12,
+      routinesLimit: 2,
+      price: 1,
+      autocreate: false,
+      description: 'A little more room to grow',
       byocNote: 'BYOClaude (enter your own Anthropic API key) for autocreated chord charts',
     },
     {
@@ -82,7 +93,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
     {
       id: 'thegoods',
       name: 'The Goods',
-      itemsLimit: 200,
+      itemsLimit: 160,
       routinesLimit: 10,
       price: 6,
       autocreate: true,
@@ -91,7 +102,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
     {
       id: 'moregoods',
       name: 'More Goods',
-      itemsLimit: 600,
+      itemsLimit: 500,
       routinesLimit: 25,
       price: 12,
       autocreate: true,
@@ -100,7 +111,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
     {
       id: 'themost',
       name: 'The Most',
-      itemsLimit: 1500,
+      itemsLimit: 1200,
       routinesLimit: 50,
       price: 20,
       autocreate: true,
@@ -114,6 +125,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
     // Tier names for display
     const tierNames = {
       'free': 'Free',
+      'dollarstore': 'Dollar Store',
       'basic': 'Basic',
       'thegoods': 'The Goods',
       'moregoods': 'More Goods',
@@ -123,7 +135,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
     const newTierName = tierNames[new_tier] || new_tier;
 
     // Tier ordering (index determines hierarchy)
-    const tierOrder = ['free', 'basic', 'thegoods', 'moregoods', 'themost'];
+    const tierOrder = ['free', 'dollarstore', 'basic', 'thegoods', 'moregoods', 'themost'];
     const oldTierIndex = tierOrder.indexOf(old_tier);
     const newTierIndex = tierOrder.indexOf(new_tier);
 
@@ -140,7 +152,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
       const baseMessage = `Right on, you've upgraded to ${newTierName}!`;
       const proratedText = proration_amount > 0 ? ` Your card was charged a prorated amount of $${proration_amount.toFixed(2)} usd.` : '';
 
-      if (autocreate_enabled && old_tier === 'basic') {
+      if (autocreate_enabled && (old_tier === 'basic' || old_tier === 'dollarstore')) {
         return {
           title: '🎉 Upgraded!',
           message: `${baseMessage}${proratedText} You're ready to add more items, organize more routines, and have your chord charts autocreated! 🤘Rock on!`
@@ -176,7 +188,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
     const hasActiveSubscription = actualTier !== 'free' && !unpluggedMode;
 
     // Tier ordering for upgrade/downgrade detection
-    const tierOrder = ['free', 'basic', 'thegoods', 'moregoods', 'themost'];
+    const tierOrder = ['free', 'dollarstore', 'basic', 'thegoods', 'moregoods', 'themost'];
     const currentTierIndex = tierOrder.indexOf(actualTier);
     const targetTierIndex = tierOrder.indexOf(tierId);
     const isUpgrade = targetTierIndex > currentTierIndex;

@@ -4,13 +4,26 @@ SUBSCRIPTION_TIERS = {
     'free': {
         'name': 'Free',
         'display_name': 'Free',
-        'items_limit': 15,
+        'items_limit': 6,
         'routines_limit': 1,
         'autocreate_enabled': False,
         'price_monthly': 0,
         'price_yearly': 0,
         'stripe_price_id_monthly': None,
         'stripe_price_id_yearly': None,
+    },
+    'dollarstore': {
+        'name': 'Dollar Store',
+        'display_name': 'Dollar Store',
+        'items_limit': 12,
+        'routines_limit': 2,
+        'autocreate_enabled': False,
+        'price_monthly': 1.00,
+        'price_yearly': None,  # Yearly pricing deferred
+        'stripe_price_id_monthly': 'price_1TBSIvJpH9RIQos2YK5ZDeJc',
+        'stripe_price_id_yearly': None,
+        'autocreate_daily_limit': 0,
+        'autocreate_hourly_limit': 0,
     },
     'basic': {
         'name': 'Basic',
@@ -26,7 +39,7 @@ SUBSCRIPTION_TIERS = {
     'thegoods': {
         'name': 'The Goods',
         'display_name': 'The Goods',
-        'items_limit': 200,
+        'items_limit': 160,
         'routines_limit': 10,
         'autocreate_enabled': True,  # Autocreate/Claude included starting at $6/mo
         'price_monthly': 6.00,
@@ -37,7 +50,7 @@ SUBSCRIPTION_TIERS = {
     'moregoods': {
         'name': 'More Goods',
         'display_name': 'More Goods',
-        'items_limit': 600,
+        'items_limit': 500,
         'routines_limit': 25,
         'autocreate_enabled': True,
         'price_monthly': 12.00,
@@ -48,7 +61,7 @@ SUBSCRIPTION_TIERS = {
     'themost': {
         'name': 'The Most',
         'display_name': 'The Most',
-        'items_limit': 1500,
+        'items_limit': 1200,
         'routines_limit': 50,
         'autocreate_enabled': True,
         'price_monthly': 20.00,

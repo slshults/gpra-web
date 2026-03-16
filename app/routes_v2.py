@@ -35,38 +35,12 @@ def index():
         app.logger.info("User not authenticated, redirecting to login via client-side redirect")
         # Use client-side redirect to preserve URL hash (hash is not sent to server)
         # The login_redirect template saves the hash to sessionStorage before redirecting
-        return render_template('landing.html.jinja', posthog_key=posthog_key,
-                             adsense_publisher_id=os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', ''))
+        return render_template('landing.html.jinja', posthog_key=posthog_key)
 
     app.logger.info(f"Authenticated user accessing main app: {current_user.username}")
 
-    # Check user's subscription tier to determine if ads should be shown
-    ads_enabled = False  # Default: no ads
-    adsense_publisher_id = os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', '')
-
-    try:
-        with DatabaseTransaction() as tx:
-            # Query user's subscription tier
-            result = tx.execute(text("""
-                SELECT tier
-                FROM subscriptions
-                WHERE user_id = :user_id
-            """), {"user_id": current_user.id})
-
-            tier_row = result.fetchone()
-            if tier_row:
-                tier = tier_row[0]
-                # Only show ads for free tier users
-                ads_enabled = (tier == 'free' and adsense_publisher_id)
-                app.logger.info(f"User {current_user.username} tier: {tier}, ads_enabled: {ads_enabled}")
-    except Exception as e:
-        app.logger.error(f"Failed to check subscription tier for ads: {e}")
-        # On error, default to no ads
-
     return render_template('index.html.jinja',
                          posthog_key=posthog_key,
-                         ads_enabled=ads_enabled,
-                         adsense_publisher_id=adsense_publisher_id,
                          debug=app.debug)
 
 # Custom auth page routes (serve React pages)
@@ -76,8 +50,7 @@ def login_page():
     # If already authenticated, redirect to main app
     if current_user.is_authenticated:
         return redirect('/')
-    return render_template('auth.html.jinja', page='login', posthog_key=posthog_key, debug=app.debug,
-                         adsense_publisher_id=os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', ''))
+    return render_template('auth.html.jinja', page='login', posthog_key=posthog_key, debug=app.debug)
 
 @app.route('/signup')
 def signup_page():
@@ -85,8 +58,7 @@ def signup_page():
     # If already authenticated, redirect to main app
     if current_user.is_authenticated:
         return redirect('/')
-    return render_template('auth.html.jinja', page='register', posthog_key=posthog_key, debug=app.debug,
-                         adsense_publisher_id=os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', ''))
+    return render_template('auth.html.jinja', page='register', posthog_key=posthog_key, debug=app.debug)
 
 @app.route('/register')
 def register_redirect():
@@ -98,8 +70,7 @@ def forgot_password_page():
     # If already authenticated, redirect to main app
     if current_user.is_authenticated:
         return redirect('/')
-    return render_template('auth.html.jinja', page='forgot-password', posthog_key=posthog_key, debug=app.debug,
-                         adsense_publisher_id=os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', ''))
+    return render_template('auth.html.jinja', page='forgot-password', posthog_key=posthog_key, debug=app.debug)
 
 @app.route('/reset-password')
 def reset_password_page():
@@ -107,8 +78,7 @@ def reset_password_page():
     # If already authenticated, redirect to main app
     if current_user.is_authenticated:
         return redirect('/')
-    return render_template('auth.html.jinja', page='reset-password', posthog_key=posthog_key, debug=app.debug,
-                         adsense_publisher_id=os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', ''))
+    return render_template('auth.html.jinja', page='reset-password', posthog_key=posthog_key, debug=app.debug)
 
 @app.route('/privacy')
 def privacy_page():
@@ -138,8 +108,7 @@ def why_page():
 @app.route('/find-a-chord-chart')
 def find_a_chord_chart():
     """Public chord chart lookup page - accessible to everyone, no auth required"""
-    return render_template('find_a_chord_chart.html.jinja', posthog_key=posthog_key,
-                         adsense_publisher_id=os.getenv('GOOGLE_ADSENSE_PUBLISHER_ID', ''))
+    return render_template('find_a_chord_chart.html.jinja', posthog_key=posthog_key)
 
 @app.route('/pricing')
 def pricing_page():
@@ -170,15 +139,6 @@ if app.debug:
     def test_error(code):
         """Debug-only route for testing custom error pages."""
         abort(code)
-
-@app.route('/ads.txt')
-def ads_txt():
-    """Serve ads.txt for Google AdSense verification"""
-    from flask import Response
-    return Response(
-        "google.com, pub-5236095389905910, DIRECT, f08c47fec0942fa0\n",
-        mimetype='text/plain'
-    )
 
 @app.route('/favicon.ico')
 def favicon():
@@ -866,8 +826,8 @@ def autocreate_chord_charts():
         # Get Anthropic API key (user's key if available, otherwise system key)
         api_key, is_using_own_key, tier, is_complimentary = _get_autocreate_api_key()
         if not api_key:
-            # Free/Basic users need their own key, Standard+ can use system key
-            if tier in ['free', 'basic']:
+            # Free/Dollar Store/Basic users need their own key, Standard+ can use system key
+            if tier in ['free', 'dollarstore', 'basic']:
                 return jsonify({
                     'error': 'Autocreate requires an API key. Please add your Anthropic API key in Account Settings.',
                     'requires_api_key': True

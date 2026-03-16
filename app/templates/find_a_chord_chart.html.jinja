@@ -57,29 +57,6 @@
     </script>
     {% endif %}
 
-    <!-- Google AdSense Auto Ads - loads for CMP and AdSense crawlers -->
-    {% if adsense_publisher_id %}
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_publisher_id }}"
-         crossorigin="anonymous"></script>
-    {% endif %}
-
-    <!-- Google Analytics 4 (consent-gated) -->
-    <script>
-        (function() {
-            var cookieConsent = localStorage.getItem('cookieConsent');
-            if (cookieConsent === 'all') {
-                var s = document.createElement('script');
-                s.async = true;
-                s.src = 'https://www.googletagmanager.com/gtag/js?id=G-E3FNWSVY1J';
-                document.head.appendChild(s);
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', 'G-E3FNWSVY1J');
-            }
-        })();
-    </script>
-
     <style>
         /* Dark mode: ensure inputs have white text */
         #chord-editor-root input,
@@ -275,7 +252,7 @@
             <div class="space-y-3 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                 <p>
                     <a href="https://guitarpracticeroutine.com/signup" class="text-orange-600 dark:text-orange-400 hover:underline">Sign up for GPRA</a> to create and save chord charts for an entire song.
-                    Free for one routine with 15 practice items, no CC needed.<br>
+                    Free for one routine with 6 practice items, no CC needed.<br>
                     For autocreated chord charts, bring your own
                     <a href="/faq#anthropic-api-key" class="text-orange-600 dark:text-orange-400 hover:underline">Anthropic API key</a>,
                     or upgrade to a paid account.

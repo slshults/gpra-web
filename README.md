@@ -40,7 +40,7 @@ If you're looking for the free, single-user version to run on your own local mac
 
 Go here: [guitarpracticeroutine.com/register](https://guitarpracticeroutine.com/register)
 
-The free tier does not require you to enter a credit card. Includes 15 items and 1 routine (an item is a song, exercise, break reminder, etc.)
+The free tier does not require you to enter a credit card. Includes 6 items and 1 routine (an item is a song, exercise, break reminder, etc.)
 
 ## Usage Tips
 

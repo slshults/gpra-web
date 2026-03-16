@@ -222,7 +222,7 @@ const FAQPage = () => {
           question="How do I use autocreate?"
           answer={
             <>
-              <strong>Free and Basic tiers:</strong> Enter your own Anthropic API key on the Account page (this is the "byoClaude" model - bring your own Claude). You'll need an API key from{' '}
+              <strong>Free, Dollar Store, and Basic tiers:</strong> Enter your own Anthropic API key on the Account page (this is the "byoClaude" model - bring your own Claude). You'll need an API key from{' '}
               <a
                 href="https://console.anthropic.com/"
                 target="_blank"
@@ -324,13 +324,14 @@ const FAQPage = () => {
           question="What are the different subscription tiers?"
           answer={
             <>
-              GPRA offers 5 tiers:
+              GPRA offers 6 tiers:
               <ul className="list-disc pl-6 mt-2 space-y-1">
-                <li><strong>Free:</strong> 15 items, 1 routine, byoClaude for autocreate</li>
+                <li><strong>Free:</strong> 6 items, 1 routine, byoClaude for autocreate</li>
+                <li><strong>Dollar Store:</strong> 12 items, 2 routines, byoClaude for autocreate</li>
                 <li><strong>Basic:</strong> 80 items, 5 routines, byoClaude for autocreate</li>
-                <li><strong>The Goods:</strong> 200 items, 10 routines, autocreate included</li>
-                <li><strong>More Goods:</strong> 600 items, 25 routines, autocreate included</li>
-                <li><strong>The Most:</strong> 1500 items, 50 routines, autocreate included</li>
+                <li><strong>The Goods:</strong> 160 items, 10 routines, autocreate included</li>
+                <li><strong>More Goods:</strong> 500 items, 25 routines, autocreate included</li>
+                <li><strong>The Most:</strong> 1,200 items, 50 routines, autocreate included</li>
               </ul>
               All paid tiers are billed monthly.
             </>

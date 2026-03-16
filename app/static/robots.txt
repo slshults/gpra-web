@@ -9,7 +9,6 @@ Allow: /why
 Allow: /pricing
 Allow: /privacy
 Allow: /terms
-Allow: /ads.txt
 Allow: /signup
 Allow: /login
 Allow: /logout

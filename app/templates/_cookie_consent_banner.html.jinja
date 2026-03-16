@@ -102,11 +102,6 @@
 
 <script>
 (function() {
-    // If Google's TCF CMP is active (EEA/UK/CH), let it handle consent — skip our banner.
-    if (typeof window.__tcfapi === 'function') {
-        return;
-    }
-
     var consent = localStorage.getItem('cookieConsent');
 
     // Already decided — don't show the banner.
@@ -120,18 +115,6 @@
         banner.style.display = '';
     }
 
-    function applyGoogleConsent(granted) {
-        if (typeof window.gtag === 'function') {
-            var state = granted ? 'granted' : 'denied';
-            window.gtag('consent', 'update', {
-                'ad_storage': state,
-                'analytics_storage': state,
-                'ad_user_data': state,
-                'ad_personalization': state
-            });
-        }
-    }
-
     function hideBanner() {
         if (banner) {
             banner.style.display = 'none';
@@ -140,15 +123,13 @@
 
     document.getElementById('gpra-consent-accept').addEventListener('click', function() {
         localStorage.setItem('cookieConsent', 'all');
-        applyGoogleConsent(true);
         hideBanner();
-        // Reload so consent-gated scripts (PostHog, GA4) can initialise on this visit.
+        // Reload so consent-gated scripts (PostHog) can initialise on this visit.
         window.location.reload();
     });
 
     document.getElementById('gpra-consent-decline').addEventListener('click', function() {
         localStorage.setItem('cookieConsent', 'essential');
-        applyGoogleConsent(false);
         hideBanner();
     });
 })();
