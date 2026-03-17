@@ -1291,13 +1291,13 @@ def admin_impersonate_activate(token):
     app.logger.info(f"Admin {admin_user.username} (id={admin_user_id}) now impersonating {target_user.username} (id={target_user_id})")
 
     # Track impersonation event in PostHog
-    from app.utils.posthog_client import track_event
+    from app.utils.posthog_client import track_event, get_client_ip
     track_event(admin_user_id, 'admin_impersonation_started', {
         'admin_user_id': admin_user_id,
         'admin_username': admin_user.username,
         'target_user_id': target_user_id,
         'target_username': target_user.username
-    })
+    }, ip=get_client_ip())
 
     return redirect('/')
 
@@ -1343,12 +1343,12 @@ def admin_impersonate_stop():
     app.logger.info(f"Admin {admin_user.username} (id={original_admin_id}) stopped impersonating {impersonated_username}")
 
     # Track impersonation stop event in PostHog
-    from app.utils.posthog_client import track_event
+    from app.utils.posthog_client import track_event, get_client_ip
     track_event(original_admin_id, 'admin_impersonation_stopped', {
         'admin_user_id': original_admin_id,
         'admin_username': admin_user.username,
         'impersonated_username': impersonated_username
-    })
+    }, ip=get_client_ip())
 
     return redirect('/users/list/')
 
@@ -1420,12 +1420,12 @@ def api_login():
 
                 if token_valid and action_match and score < 0.3:
                     # Very suspicious - block
-                    from app.utils.posthog_client import track_event
+                    from app.utils.posthog_client import track_event, get_client_ip
                     track_event(None, 'recaptcha_failed', {
                         'action': 'login',
                         'score': score,
                         'reason': 'low_score'
-                    })
+                    }, ip=get_client_ip())
                     return jsonify({"error": "Security verification failed. Please try again."}), 403
         except Exception as e:
             app.logger.warning(f"reCAPTCHA verification error (non-blocking): {e}")
@@ -1442,11 +1442,11 @@ def api_login():
         app.logger.warning(f"Login attempt for non-existent user: {email_or_username}")
         # Note: This event will be skipped by track_event() since there's no user_id
         # Failed logins for non-existent users are logged server-side only
-        from app.utils.posthog_client import track_event
+        from app.utils.posthog_client import track_event, get_client_ip
         track_event(None, 'user_login_failed', {
             'login_method': 'email',
             'failure_reason': 'user_not_found'
-        })
+        }, ip=get_client_ip())
         return jsonify({"error": "Invalid email/username or password"}), 401
 
     # Check password using Flask-AppBuilder's security manager
@@ -1455,11 +1455,11 @@ def api_login():
     if not check_password_hash(user.password, password):
         app.logger.warning(f"Invalid password for user: {email_or_username}")
         # Track failed login
-        from app.utils.posthog_client import track_event
+        from app.utils.posthog_client import track_event, get_client_ip
         track_event(user.id, 'user_login_failed', {
             'login_method': 'email',
             'failure_reason': 'invalid_password'
-        })
+        }, ip=get_client_ip())
         return jsonify({"error": "Invalid email/username or password"}), 401
 
     # Login successful - create Flask-Login session
@@ -1467,11 +1467,12 @@ def api_login():
     app.logger.info(f"User logged in via API: {user.username} ({user.email})")
 
     # Track login event
-    from app.utils.posthog_client import track_event
+    from app.utils.posthog_client import track_event, get_client_ip
+    client_ip = get_client_ip()
     track_event(user.id, 'user_logged_in', {
         'login_method': 'email',
         'oauth_provider': None
-    })
+    }, ip=client_ip)
 
     # Track reCAPTCHA event if token was provided
     if recaptcha_token:
@@ -1479,7 +1480,7 @@ def api_login():
         track_event(user.id, 'recaptcha_passed', {
             'action': 'login',
             'score': recaptcha_score
-        })
+        }, ip=client_ip)
 
     return jsonify({
         "success": True,
@@ -1580,22 +1581,22 @@ def api_register():
         # Reject if score is too low (likely bot)
         if risk_score < 0.5:
             app.logger.warning(f"reCAPTCHA score too low: {risk_score} (threshold: 0.5)")
-            from app.utils.posthog_client import track_event
+            from app.utils.posthog_client import track_event, get_client_ip
             track_event(None, 'recaptcha_failed', {
                 'action': 'register',
                 'score': risk_score,
                 'reason': 'low_score'
-            })
+            }, ip=get_client_ip())
             return jsonify({"error": "reCAPTCHA verification failed. Please try again."}), 400
 
     except Exception as e:
         app.logger.error(f"reCAPTCHA verification error: {e}")
-        from app.utils.posthog_client import track_event
+        from app.utils.posthog_client import track_event, get_client_ip
         track_event(None, 'recaptcha_failed', {
             'action': 'register',
             'score': None,
             'reason': 'api_error'
-        })
+        }, ip=get_client_ip())
         return jsonify({"error": "Unable to verify reCAPTCHA. Please try again."}), 500
 
     # Validate inputs
@@ -1663,17 +1664,18 @@ def api_register():
         app.logger.info(f"User automatically logged in after registration: {user.username}")
 
         # Track registration event
-        from app.utils.posthog_client import track_event
+        from app.utils.posthog_client import track_event, get_client_ip
+        client_ip = get_client_ip()
         track_event(user.id, 'user_registered', {
             'registration_method': 'email',
             'oauth_provider': None
-        })
+        }, ip=client_ip)
 
         # Track reCAPTCHA success
         track_event(user.id, 'recaptcha_passed', {
             'action': 'register',
             'score': risk_score
-        })
+        }, ip=client_ip)
 
         return jsonify({
             "success": True,
@@ -1767,12 +1769,12 @@ def forgot_password():
 
         if not token_valid or risk_score < 0.5:
             app.logger.warning(f"reCAPTCHA failed for forgot-password: valid={token_valid}, score={risk_score}")
-            from app.utils.posthog_client import track_event
+            from app.utils.posthog_client import track_event, get_client_ip
             track_event(None, 'recaptcha_failed', {
                 'action': 'forgot_password',
                 'score': risk_score,
                 'reason': 'low_score' if token_valid else 'invalid_token'
-            })
+            }, ip=get_client_ip())
             return jsonify({"error": "reCAPTCHA verification failed. Please try again."}), 400
 
     except Exception as e:
@@ -1939,12 +1941,12 @@ def reset_password():
 
         if not token_valid or risk_score < 0.5:
             app.logger.warning(f"reCAPTCHA failed for reset-password: valid={token_valid}, score={risk_score}")
-            from app.utils.posthog_client import track_event
+            from app.utils.posthog_client import track_event, get_client_ip
             track_event(None, 'recaptcha_failed', {
                 'action': 'reset_password',
                 'score': risk_score,
                 'reason': 'low_score' if token_valid else 'invalid_token'
-            })
+            }, ip=get_client_ip())
             return jsonify({"error": "reCAPTCHA verification failed. Please try again."}), 400
 
     except Exception as e:
@@ -2120,8 +2122,8 @@ def save_user_api_key():
             app.logger.info(f"API key saved successfully for user {current_user.id}")
 
             # Track API key added event
-            from app.utils.posthog_client import track_event
-            track_event(current_user.id, 'api_key_added', {})
+            from app.utils.posthog_client import track_event, get_client_ip
+            track_event(current_user.id, 'api_key_added', {}, ip=get_client_ip())
 
             return jsonify({
                 "success": True,
@@ -2164,8 +2166,8 @@ def delete_user_api_key():
             app.logger.info(f"API key deleted for user {current_user.id}")
 
             # Track API key removed event
-            from app.utils.posthog_client import track_event
-            track_event(current_user.id, 'api_key_removed', {})
+            from app.utils.posthog_client import track_event, get_client_ip
+            track_event(current_user.id, 'api_key_removed', {}, ip=get_client_ip())
 
             return jsonify({
                 "success": True,
@@ -2213,19 +2215,20 @@ def validate_user_api_key():
 
     is_valid, error_message = validate_anthropic_api_key(api_key)
 
-    from app.utils.posthog_client import track_event
+    from app.utils.posthog_client import track_event, get_client_ip
+    client_ip = get_client_ip()
 
     if is_valid:
         # Track successful validation
         track_event(current_user.id, 'api_key_validated', {
             'validation_result': True
-        })
+        }, ip=client_ip)
         return jsonify({"valid": True})
     else:
         # Track failed validation
         track_event(current_user.id, 'api_key_validation_failed', {
             'reason': error_message
-        })
+        }, ip=client_ip)
         return jsonify({"valid": False, "error": error_message})
 
 # Practice Data Download Routes
@@ -2715,8 +2718,8 @@ def change_password():
         app.logger.info(f"Password changed for user: {current_user.username}")
 
         # Track password change event
-        from app.utils.posthog_client import track_event
-        track_event(current_user.id, 'password_changed', {})
+        from app.utils.posthog_client import track_event, get_client_ip
+        track_event(current_user.id, 'password_changed', {}, ip=get_client_ip())
 
         return jsonify({
             "success": True,
@@ -2792,8 +2795,8 @@ def update_username():
         app.logger.info(f"Username changed from '{old_username}' to '{new_username}' for user id: {current_user.id}")
 
         # Track username change event
-        from app.utils.posthog_client import track_event
-        track_event(current_user.id, 'username_changed', {'old_username': old_username, 'new_username': new_username})
+        from app.utils.posthog_client import track_event, get_client_ip
+        track_event(current_user.id, 'username_changed', {'old_username': old_username, 'new_username': new_username}, ip=get_client_ip())
 
         return jsonify({
             "success": True,
@@ -2892,8 +2895,8 @@ def update_email():
             app.logger.warning(f"Failed to update Stripe customer email: {stripe_error}")
 
         # Track email change event
-        from app.utils.posthog_client import track_event
-        track_event(current_user.id, 'email_changed', {'old_email': old_email, 'new_email': new_email})
+        from app.utils.posthog_client import track_event, get_client_ip
+        track_event(current_user.id, 'email_changed', {'old_email': old_email, 'new_email': new_email}, ip=get_client_ip())
 
         return jsonify({
             "success": True,
@@ -3283,12 +3286,12 @@ def active_routine():
 
         # Track routine activated event
         if success and current_user.is_authenticated:
-            from app.utils.posthog_client import track_event
+            from app.utils.posthog_client import track_event, get_client_ip
             routine = data_layer.get_routine(int(routine_id))
             track_event(current_user.id, 'routine_activated', {
                 'routine_name': routine.get('name') if routine else 'Unknown',
                 'source': 'user'
-            })
+            }, ip=get_client_ip())
 
         return jsonify({"success": success})
 
@@ -3302,11 +3305,11 @@ def active_routine():
 
         # Track routine deactivated event
         if success and current_user.is_authenticated and active:
-            from app.utils.posthog_client import track_event
+            from app.utils.posthog_client import track_event, get_client_ip
             track_event(current_user.id, 'routine_deactivated', {
                 'routine_name': active.get('routine', {}).get('name', 'Unknown'),
                 'source': 'user'
-            })
+            }, ip=get_client_ip())
 
         return jsonify({"success": success})
 

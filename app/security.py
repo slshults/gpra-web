@@ -287,7 +287,8 @@ class CustomAuthOAuthView(AuthOAuthView):
         logger.info(f"OAuth callback from provider: {provider}")
 
         # Track OAuth flow started (intent determined later)
-        from app.utils.posthog_client import track_event
+        from app.utils.posthog_client import track_event, get_client_ip
+        client_ip = get_client_ip()
 
         # Get OAuth token from provider
         try:
@@ -298,7 +299,7 @@ class CustomAuthOAuthView(AuthOAuthView):
             track_event(None, 'oauth_flow_failed', {
                 'oauth_provider': provider,
                 'error': str(e)
-            })
+            }, ip=client_ip)
             flash(as_unicode(f"OAuth authentication failed: {e}"), "danger")
             return redirect('/login')
 
@@ -358,7 +359,7 @@ class CustomAuthOAuthView(AuthOAuthView):
                     'is_new_user': False,
                     'success': False,
                     'reason': 'no_account'
-                })
+                }, ip=client_ip)
                 flash(as_unicode("No account found. Please sign up first."), "warning")
                 return redirect('/signup')
 
@@ -376,12 +377,12 @@ class CustomAuthOAuthView(AuthOAuthView):
             track_event(user.id, 'user_logged_in', {
                 'login_method': 'oauth',
                 'oauth_provider': provider
-            })
+            }, ip=client_ip)
             track_event(user.id, 'oauth_flow_completed', {
                 'oauth_provider': provider,
                 'intent': intent,
                 'is_new_user': False
-            })
+            }, ip=client_ip)
 
             return redirect('/')
 
@@ -403,12 +404,12 @@ class CustomAuthOAuthView(AuthOAuthView):
                 track_event(user.id, 'user_logged_in', {
                     'login_method': 'oauth',
                     'oauth_provider': provider
-                })
+                }, ip=client_ip)
                 track_event(user.id, 'oauth_flow_completed', {
                     'oauth_provider': provider,
                     'intent': intent,
                     'is_new_user': False
-                })
+                }, ip=client_ip)
 
                 # Redirect with show_tour flag
                 return redirect('/?show_tour=true')
@@ -421,7 +422,7 @@ class CustomAuthOAuthView(AuthOAuthView):
                     track_event(None, 'oauth_flow_failed', {
                         'oauth_provider': provider,
                         'error': 'user_creation_failed'
-                    })
+                    }, ip=client_ip)
                     flash(as_unicode("OAuth signup failed"), "danger")
                     return redirect('/signup')
 
@@ -437,12 +438,12 @@ class CustomAuthOAuthView(AuthOAuthView):
                 track_event(user.id, 'user_registered', {
                     'registration_method': 'oauth',
                     'oauth_provider': provider
-                })
+                }, ip=client_ip)
                 track_event(user.id, 'oauth_flow_completed', {
                     'oauth_provider': provider,
                     'intent': intent,
                     'is_new_user': True
-                })
+                }, ip=client_ip)
 
                 # Redirect with show_tour flag
                 return redirect('/?show_tour=true')
@@ -533,8 +534,8 @@ class CustomAuthDBView(AuthDBView):
 
         # Track logout event before clearing session
         if current_user.is_authenticated:
-            from app.utils.posthog_client import track_event
-            track_event(current_user.id, 'user_logged_out', {})
+            from app.utils.posthog_client import track_event, get_client_ip
+            track_event(current_user.id, 'user_logged_out', {}, ip=get_client_ip())
 
         # Log out the user (clears Flask-Login session)
         logout_user()

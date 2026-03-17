@@ -87,11 +87,26 @@ def _get_user_email(user_id: int) -> Optional[str]:
         return None
 
 
+def get_client_ip() -> Optional[str]:
+    """Get client IP from Flask request context for PostHog GeoIP."""
+    try:
+        from flask import has_request_context, request
+        if has_request_context():
+            forwarded = request.headers.get('X-Forwarded-For')
+            if forwarded:
+                return forwarded.split(',')[0].strip()
+            return request.remote_addr
+    except Exception:
+        pass
+    return None
+
+
 def track_event(
     user_id: Optional[int],
     event_name: str,
     properties: Optional[Dict[str, Any]] = None,
-    distinct_id: Optional[str] = None
+    distinct_id: Optional[str] = None,
+    ip: Optional[str] = None
 ) -> None:
     """
     Track an event with PostHog, auto-enriching with subscription tier.
@@ -103,6 +118,8 @@ def track_event(
         event_name: Event name (e.g., "chord_chart_created")
         properties: Additional event properties
         distinct_id: PostHog distinct_id (email or tidalNNNNN). If not provided, will auto-compute from user_id.
+        ip: Client IP address for GeoIP enrichment. Use get_client_ip() for request-context calls.
+            Pass None for non-request contexts (webhooks, background tasks).
     """
     if not posthog_client:
         return
@@ -129,6 +146,9 @@ def track_event(
     # Always include user_id for filtering
     if user_id:
         props['user_id'] = user_id
+
+    if ip:
+        props['$ip'] = ip
 
     try:
         posthog_client.capture(
