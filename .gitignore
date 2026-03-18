@@ -38,6 +38,13 @@ service-account*.json
 .obsidian/
 *.code-workspace
 
+# Claude Code local config
+.claude/*.local.*
+.claude/SETUP_SUMMARY.md
+.claude/api-reference.md
+.claude/npm-sync-tips.md
+.claude/postgresql-schema.md
+
 # Build and cache
 dist/
 build/

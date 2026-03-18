@@ -1049,9 +1049,6 @@ const AccountSettings = () => {
                     />
                     <span className="text-xs text-gray-500">11</span>
                   </div>
-                  <p className="text-xs text-gray-500 italic">
-                    These go to eleven. 🎸
-                  </p>
                 </div>
 
                 {/* Test play button */}
