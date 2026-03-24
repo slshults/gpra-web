@@ -105,9 +105,17 @@
     <div class="min-h-screen flex flex-col items-center px-4 py-3">
         <!-- Hero video section (grows to fill available space) -->
         <div class="w-full max-w-5xl flex-1 flex items-center justify-center mb-2">
-            <video autoplay muted loop playsinline class="w-full rounded-lg shadow-lg max-h-full object-contain">
-                <source src="{{ url_for('static', filename='images/rapidcut5hero.mp4') }}" type="video/mp4">
-            </video>
+            <div class="relative w-full group cursor-default" onclick="this.querySelector('.hero-hint').style.opacity='1'; clearTimeout(this._t); this._t=setTimeout(()=>this.querySelector('.hero-hint').style.opacity='0', 4000)">
+                <video autoplay muted loop playsinline class="w-full rounded-lg shadow-lg max-h-full object-contain">
+                    <source src="{{ url_for('static', filename='images/rapidcut5hero.mp4') }}" type="video/mp4">
+                </video>
+                <div class="hero-hint absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                    <p class="text-white text-center text-lg px-6 py-3 max-w-lg">
+                        This is just a looping video showing parts of the app.<br>
+                        Scroll down to find the <strong>Sign up</strong> and <strong>Login</strong> buttons.
+                    </p>
+                </div>
+            </div>
         </div>
 
         <!-- App title -->
