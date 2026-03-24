@@ -16,7 +16,7 @@ const KofiWidget = ({ currentTier }) => {
       title="Support this app on Ko-fi"
       style={{
         position: 'fixed',
-        bottom: '16px',
+        bottom: '50px',
         left: '16px',
         zIndex: 9999,
         display: 'flex',
