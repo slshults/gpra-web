@@ -475,7 +475,15 @@ def handle_subscription_created(db: Session, stripe_subscription):
     from app.utils.posthog_client import track_event
     track_event(user_id, 'subscription_created', {
         'tier': tier,
-        'billing_period': billing_period
+        'billing_period': billing_period,
+        '$set': {
+            'subscription_tier': tier,
+            'billing_period': billing_period,
+            'has_active_subscription': True,
+        },
+        '$set_once': {
+            'first_subscription_date': datetime.utcnow().isoformat(),
+        },
     })
 
 
@@ -551,13 +559,23 @@ def handle_subscription_updated(db: Session, stripe_subscription):
             track_event(subscription.user_id, 'subscription_upgraded', {
                 'tier_before': old_tier,
                 'tier_after': tier,
-                'billing_period': billing_period
+                'billing_period': billing_period,
+                '$set': {
+                    'subscription_tier': tier,
+                    'billing_period': billing_period,
+                    'has_active_subscription': True,
+                },
             })
         elif new_index < old_index:
             track_event(subscription.user_id, 'subscription_downgraded', {
                 'tier_before': old_tier,
                 'tier_after': tier,
-                'billing_period': billing_period
+                'billing_period': billing_period,
+                '$set': {
+                    'subscription_tier': tier,
+                    'billing_period': billing_period,
+                    'has_active_subscription': True,
+                },
             })
     elif price_changed and not tier_changed:
         # Billing period change (same tier, different price)
@@ -575,7 +593,10 @@ def handle_subscription_updated(db: Session, stripe_subscription):
             track_event(subscription.user_id, 'billing_period_changed', {
                 'tier': tier,
                 'period_before': old_billing_period,
-                'period_after': billing_period
+                'period_after': billing_period,
+                '$set': {
+                    'billing_period': billing_period
+                }
             })
 
 
@@ -647,11 +668,19 @@ def handle_subscription_deleted(db: Session, stripe_subscription):
         from app.utils.posthog_client import track_event
         track_event(subscription.user_id, 'subscription_paused', {
             'tier': 'free',
-            'pause_reason': 'user_initiated'
+            'pause_reason': 'user_initiated',
+            '$set': {
+                'subscription_status': 'paused',
+                'has_active_subscription': False,
+            },
         })
         track_event(subscription.user_id, 'subscription_canceled', {
             'tier': 'free',
-            'cancellation_type': 'pause'
+            'cancellation_type': 'pause',
+            '$set': {
+                'subscription_status': 'canceled',
+                'has_active_subscription': False,
+            },
         })
     else:
         # Automated cancellation (payment failure, etc.) - just downgrade to free
@@ -668,7 +697,11 @@ def handle_subscription_deleted(db: Session, stripe_subscription):
         from app.utils.posthog_client import track_event
         track_event(subscription.user_id, 'subscription_canceled', {
             'tier': 'free',
-            'cancellation_type': 'instant_delete'
+            'cancellation_type': 'instant_delete',
+            '$set': {
+                'subscription_status': 'canceled',
+                'has_active_subscription': False,
+            },
         })
 
     db.commit()
@@ -947,7 +980,12 @@ def unpause_subscription(db: Session):
         # Track subscription resumed event
         from app.utils.posthog_client import track_event
         track_event(user_id, 'subscription_resumed', {
-            'tier': subscription.tier
+            'tier': subscription.tier,
+            '$set': {
+                'subscription_status': 'active',
+                'has_active_subscription': True,
+                'subscription_tier': subscription.tier,
+            },
         })
 
         return jsonify({'success': True})

@@ -90,11 +90,22 @@ function hideRateLimitToast() {
   }
 }
 
-// Wrap the native fetch to intercept 429 responses
+// Wrap the native fetch to intercept 429 responses and forward PostHog session ID
 const originalFetch = window.fetch;
 
-window.fetch = async function(...args) {
-  const response = await originalFetch.apply(this, args);
+window.fetch = async function(url, opts) {
+  // Forward PostHog session ID to backend for session correlation (internal requests only)
+  const isInternal = typeof url === 'string' && (url.startsWith('/') || url.startsWith(window.location.origin));
+  if (isInternal && window.posthog && typeof window.posthog.get_session_id === 'function') {
+    const sid = window.posthog.get_session_id();
+    if (sid) {
+      opts = opts || {};
+      opts.headers = new Headers(opts.headers || {});
+      opts.headers.set('X-PostHog-Session-Id', sid);
+    }
+  }
+
+  const response = await originalFetch.call(this, url, opts);
 
   // Check for rate limiting (429 status)
   if (response.status === 429) {

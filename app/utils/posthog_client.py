@@ -135,7 +135,7 @@ def track_event(
             return
 
     # Initialize properties dict
-    props = properties or {}
+    props = dict(properties) if properties else {}
 
     # Auto-enrich with subscription tier if user_id provided
     if user_id:
@@ -149,6 +149,25 @@ def track_event(
 
     if ip:
         props['$ip'] = ip
+
+    # Auto-enrich with request context properties (user-agent, URL, referrer, session ID)
+    # Skip for Stripe webhooks — their UA/IP/referrer are Stripe's, not the user's
+    try:
+        from flask import has_request_context, request
+        if has_request_context() and not request.path.startswith('/api/webhooks/'):
+            ua = request.headers.get('User-Agent', '')
+            if ua:
+                props['$raw_user_agent'] = ua
+            props['$current_url'] = request.url
+            if request.referrer:
+                props['$referrer'] = request.referrer
+            # Forward PostHog session ID from frontend JS SDK so backend events
+            # appear in the same session recording timeline
+            session_id = request.headers.get('X-PostHog-Session-Id')
+            if session_id:
+                props['$session_id'] = session_id
+    except Exception:
+        pass
 
     try:
         posthog_client.capture(
