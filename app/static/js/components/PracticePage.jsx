@@ -19,9 +19,10 @@ import { useActiveRoutine } from '@hooks/useActiveRoutine';
 import { useItemDetails } from '@hooks/useItemDetails';
 import { usePracticeItems } from '@hooks/usePracticeItems';
 import { useNavigation } from '@contexts/NavigationContext';
-import { ChevronDown, ChevronRight, Check, Plus, FileText, Book, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer, ExternalLink } from 'lucide-react';
+import { ChevronDown, ChevronRight, Check, Plus, FileText, Book, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer, ExternalLink, Pencil } from 'lucide-react';
 import { NoteEditor, renderMarkdown } from './NoteEditor';
 import { ChordChartEditor } from './ChordChartEditor';
+import { RoutineEditor } from '@components/RoutineEditor';
 import ApiErrorModal, { resetRateLimitBackoff } from './ApiErrorModal';
 import AutocreateSuccessModal from './AutocreateSuccessModal';
 import { serverDebug, serverInfo, debugLog } from '../utils/logging';
@@ -384,11 +385,12 @@ const findSimilarSongs = (sourceTitle, allItems, sourceItemId) => {
 };
 
 export const PracticePage = () => {
-  const { routine } = useActiveRoutine();
+  const { routine, refreshRoutine } = useActiveRoutine();
   const { fetchItemDetails, getItemDetails, isLoadingItem } = useItemDetails();
   useNavigation();
   
   const { items: allItems } = usePracticeItems();
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState(new Set());
   const [expandedNotes, setExpandedNotes] = useState(new Set());
   const [activeTimers, setActiveTimers] = useState(new Set());
@@ -3598,8 +3600,19 @@ export const PracticePage = () => {
 
   return (
     <div className="max-w-1130px mx-auto border border-gray-700 rounded-lg p-6" style={{maxWidth: '1130px'}}>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">{routine?.name}</h1>
+      <div className="flex justify-between items-start mb-8">
+        <div className="flex flex-col">
+          {routine && (
+            <button
+              onClick={() => setIsEditOpen(true)}
+              className="text-gray-400 hover:text-orange-400 transition-colors mb-1"
+              title="Edit routine"
+            >
+              <Pencil size={16} />
+            </button>
+          )}
+          <h1 className="text-3xl font-bold">{routine?.name}</h1>
+        </div>
         <div className="flex flex-col items-end gap-2">
           <div className="text-xl font-mono">
             <span title="Time practiced so far">{formatHoursAndMinutes(completedMinutes)}</span>
@@ -5164,6 +5177,14 @@ export const PracticePage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <RoutineEditor
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        routine={routine ? { id: routine.id, name: routine.name } : null}
+        onRoutineChange={refreshRoutine}
+        items={allItems}
+      />
     </div>
   );
 }; 
