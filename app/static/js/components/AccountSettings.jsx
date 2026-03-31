@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
-import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink, Play, Pause, ChevronDown, ChevronRight, Pencil, Volume2, Download } from 'lucide-react';
+import { Loader2, Check, X, Eye, EyeOff, Trash2, ExternalLink, Play, Pause, ChevronDown, ChevronRight, Pencil, Volume2, Download, Keyboard } from 'lucide-react';
 import PricingSection from './PricingSection';
 import AccountDeletion from './AccountDeletion';
 import {
@@ -82,12 +82,18 @@ const AccountSettings = () => {
   const testAudioContextRef = useRef(null);
   const testGainNodeRef = useRef(null);
 
+  // Keyboard shortcuts state
+  const [keyboardLayout, setKeyboardLayout] = useState(() =>
+    localStorage.getItem('gpra_keyboard_shortcuts') || 'off'
+  );
+
   // Collapsed cards state - load from sessionStorage or default to all collapsed
   // Merge with defaults so new keys (like dangerZone) default to collapsed
   const [collapsedCards, setCollapsedCards] = useState(() => {
     const defaults = {
       overview: true,
       timerVolume: true,
+      keyboardShortcuts: true,
       apiKey: true,
       practiceData: true,
       changePassword: true,
@@ -464,6 +470,34 @@ const AccountSettings = () => {
       ...prev,
       [cardName]: !prev[cardName]
     }));
+  };
+
+  const handleKeyboardLayoutChange = (layout) => {
+    setKeyboardLayout(layout);
+    localStorage.setItem('gpra_keyboard_shortcuts', layout);
+    window.dispatchEvent(new Event('gpra_keyboard_shortcuts_changed'));
+    if (window.posthog) {
+      window.posthog.capture('keyboard_shortcuts_changed', { layout });
+    }
+  };
+
+  const keyBindings = {
+    right: [
+      { action: 'Start/stop timer', key: 'Space' },
+      { action: 'Complete item', key: 'Enter' },
+      { action: 'Next item', key: '↓' },
+      { action: 'Previous item', key: '↑' },
+      { action: 'Expand/collapse', key: '→' },
+      { action: 'Reset timer', key: 'Backspace' },
+    ],
+    left: [
+      { action: 'Start/stop timer', key: 'Space' },
+      { action: 'Complete item', key: 'E' },
+      { action: 'Next item', key: 'S' },
+      { action: 'Previous item', key: 'W' },
+      { action: 'Expand/collapse', key: 'D' },
+      { action: 'Reset timer', key: 'R' },
+    ],
   };
 
   const handlePasswordChange = async (e) => {
@@ -1092,6 +1126,84 @@ const AccountSettings = () => {
                     </span>
                   )}
                 </div>
+              </CardContent>
+            )}
+          </Card>
+
+          {/* Keyboard Shortcuts Card - Collapsible */}
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader
+              className="cursor-pointer select-none"
+              onClick={() => toggleCard('keyboardShortcuts')}
+              data-ph-capture-attribute-toggle="settings-keyboard-shortcuts-card"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-gray-100 flex items-center gap-2">
+                    <Keyboard className="w-5 h-5" />
+                    Keyboard shortcuts
+                  </CardTitle>
+                  <CardDescription className="text-gray-400">
+                    One-handed control during practice
+                  </CardDescription>
+                </div>
+                {collapsedCards.keyboardShortcuts ? (
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+            </CardHeader>
+            {!collapsedCards.keyboardShortcuts && (
+              <CardContent className="space-y-4">
+                <p className="text-sm text-gray-400">
+                  Use keyboard shortcuts during practice for one-handed control while holding your guitar.
+                </p>
+
+                <div className="flex gap-2">
+                  {[
+                    { value: 'off', label: 'Off' },
+                    { value: 'right', label: 'Right hand' },
+                    { value: 'left', label: 'Left hand' },
+                  ].map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => handleKeyboardLayoutChange(value)}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        keyboardLayout === value
+                          ? 'bg-orange-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {keyboardLayout !== 'off' && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-gray-500">
+                      {keyboardLayout === 'right'
+                        ? 'Right hand layout: for right-handed guitarists (left hand on fretboard, right hand free for keyboard)'
+                        : 'Left hand layout: for left-handed guitarists (right hand on fretboard, left hand free for keyboard)'}
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                      {keyBindings[keyboardLayout].map(({ action, key }) => (
+                        <div key={action} className="flex items-center justify-between">
+                          <span className="text-sm text-gray-300">{action}</span>
+                          <kbd className="ml-2 px-2 py-0.5 text-xs font-mono bg-gray-900 text-orange-400 border border-gray-600 rounded min-w-[2rem] text-center">
+                            {key}
+                          </kbd>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className="text-xs text-gray-500">
+                      Note: When enabled, Enter and Space are reassigned from their default browser behavior on the practice page to control the timer and completion.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             )}
           </Card>

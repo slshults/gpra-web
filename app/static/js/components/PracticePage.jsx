@@ -19,7 +19,7 @@ import { useActiveRoutine } from '@hooks/useActiveRoutine';
 import { useItemDetails } from '@hooks/useItemDetails';
 import { usePracticeItems } from '@hooks/usePracticeItems';
 import { useNavigation } from '@contexts/NavigationContext';
-import { ChevronDown, ChevronRight, Check, Plus, FileText, Book, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer, ExternalLink, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronRight, Check, Plus, FileText, Book, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer, ExternalLink, Pencil, Keyboard } from 'lucide-react';
 import { NoteEditor, renderMarkdown } from './NoteEditor';
 import { ChordChartEditor } from './ChordChartEditor';
 import { RoutineEditor } from '@components/RoutineEditor';
@@ -474,6 +474,34 @@ export const PracticePage = () => {
   // Timer sound prompt modal state ("More Cowbell" modal)
   const [showSoundPromptModal, setShowSoundPromptModal] = useState(false);
   const [pendingTimerItemId, setPendingTimerItemId] = useState(null);
+
+  // Keyboard shortcuts state
+  const [keyboardLayout, setKeyboardLayout] = useState(() =>
+    localStorage.getItem('gpra_keyboard_shortcuts') || 'off'
+  );
+  const [focusedItemIndex, setFocusedItemIndex] = useState(-1);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  const shortcutsHelpRef = useRef(null);
+
+  // Key bindings for help popover display (shared structure with AccountSettings)
+  const shortcutBindings = {
+    right: [
+      { action: 'Start / stop timer', key: 'Space' },
+      { action: 'Complete item', key: 'Enter' },
+      { action: 'Next item', key: '\u2193' },
+      { action: 'Previous item', key: '\u2191' },
+      { action: 'Expand / collapse', key: '\u2192' },
+      { action: 'Reset timer', key: 'Backspace' },
+    ],
+    left: [
+      { action: 'Start / stop timer', key: 'Space' },
+      { action: 'Complete item', key: 'E' },
+      { action: 'Next item', key: 'S' },
+      { action: 'Previous item', key: 'W' },
+      { action: 'Expand / collapse', key: 'D' },
+      { action: 'Reset timer', key: 'R' },
+    ],
+  };
 
   // Analytics tracking refs
   const sessionStartTime = useRef(null);
@@ -1177,10 +1205,15 @@ export const PracticePage = () => {
     };
   }, [activeTimers]);
 
-  // Effect to sync completedItems with completedItemIds when routine changes  
+  // Effect to sync completedItems with completedItemIds when routine changes
   useEffect(() => {
     setCompletedItems(completedItemIds);
   }, [completedItemIds]);
+
+  // Reset keyboard focus when switching routines
+  useEffect(() => {
+    setFocusedItemIndex(-1);
+  }, [routine?.id]);
 
   // Fetch notes for an item
   const fetchNotes = useCallback(async (itemId) => {
@@ -1375,6 +1408,126 @@ export const PracticePage = () => {
     return () => document.removeEventListener('keydown', handleEscKey);
   }, [showCopyModal, showCopyFromModal, showDeleteChordsModal, showMixedContentModal, showUnsupportedFormatModal, showCancelConfirmation, showApiErrorModal, showNoTranscriptModal, showNoChordNamesModal]);
 
+  // Sync keyboard layout preference from localStorage (cross-tab and same-page updates)
+  useEffect(() => {
+    const handleStorage = (e) => {
+      if (e.key === 'gpra_keyboard_shortcuts') {
+        setKeyboardLayout(e.newValue || 'off');
+      }
+    };
+    // Listen for cross-tab changes
+    window.addEventListener('storage', handleStorage);
+    // Listen for same-page custom event (dispatched from AccountSettings)
+    const handleCustom = () => {
+      setKeyboardLayout(localStorage.getItem('gpra_keyboard_shortcuts') || 'off');
+    };
+    window.addEventListener('gpra_keyboard_shortcuts_changed', handleCustom);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('gpra_keyboard_shortcuts_changed', handleCustom);
+    };
+  }, []);
+
+  // Close shortcuts help popover on outside click or Escape
+  useEffect(() => {
+    if (!showShortcutsHelp) return;
+    const handleClickOutside = (e) => {
+      if (shortcutsHelpRef.current && !shortcutsHelpRef.current.contains(e.target)) {
+        setShowShortcutsHelp(false);
+      }
+    };
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') setShowShortcutsHelp(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showShortcutsHelp]);
+
+  // Keyboard shortcuts for one-handed practice navigation
+  useEffect(() => {
+    if (keyboardLayout === 'off') return;
+    if (!routine?.items?.length) return;
+
+    const isAnyModalOpen = () => (
+      showCopyModal || showCopyFromModal || showDeleteChordsModal ||
+      showMixedContentModal || showUnsupportedFormatModal || showCancelConfirmation ||
+      showApiErrorModal || showNoTranscriptModal || showNoChordNamesModal ||
+      showSoundPromptModal || showFolderPathModal || showAutocreateSuccessModal ||
+      isNoteEditorOpen || isEditOpen || showShortcutsHelp
+    );
+
+    const keyMap = keyboardLayout === 'right'
+      ? { ' ': 'toggleTimer', 'Enter': 'complete', 'ArrowDown': 'next', 'ArrowUp': 'prev', 'ArrowRight': 'expand', 'Backspace': 'reset' }
+      : { ' ': 'toggleTimer', 'e': 'complete', 's': 'next', 'w': 'prev', 'd': 'expand', 'r': 'reset' };
+
+    const handleKeyDown = (e) => {
+      // Don't fire in text inputs
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+      // Don't fire when modals are open
+      if (isAnyModalOpen()) return;
+
+      const action = keyMap[e.key];
+      if (!action) return;
+
+      e.preventDefault();
+
+      const items = routine.items;
+      // Resolve focused index - if none set, default to first non-completed item or 0
+      let idx = focusedItemIndex;
+      if (idx < 0 || idx >= items.length) {
+        idx = items.findIndex(item => !completedItems.has(item['A']));
+        if (idx < 0) idx = 0;
+        setFocusedItemIndex(idx);
+      }
+
+      const focusedItemId = items[idx]?.['A'];
+      if (!focusedItemId) return;
+
+      switch (action) {
+        case 'toggleTimer':
+          toggleTimer(focusedItemId);
+          break;
+        case 'complete':
+          toggleComplete(focusedItemId);
+          break;
+        case 'next': {
+          const nextIdx = Math.min(idx + 1, items.length - 1);
+          setFocusedItemIndex(nextIdx);
+          // Scroll the focused item into view
+          const nextItemEl = document.querySelector(`[data-item-header="${items[nextIdx]['A']}"]`);
+          if (nextItemEl) nextItemEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          break;
+        }
+        case 'prev': {
+          const prevIdx = Math.max(idx - 1, 0);
+          setFocusedItemIndex(prevIdx);
+          const prevItemEl = document.querySelector(`[data-item-header="${items[prevIdx]['A']}"]`);
+          if (prevItemEl) prevItemEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          break;
+        }
+        case 'expand':
+          toggleItem(focusedItemId);
+          break;
+        case 'reset':
+          resetTimer(focusedItemId);
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [keyboardLayout, routine, focusedItemIndex, completedItems, activeTimers, timers,
+      showCopyModal, showCopyFromModal, showDeleteChordsModal, showMixedContentModal,
+      showUnsupportedFormatModal, showCancelConfirmation, showApiErrorModal,
+      showNoTranscriptModal, showNoChordNamesModal, showSoundPromptModal,
+      showFolderPathModal, showAutocreateSuccessModal, isNoteEditorOpen, isEditOpen,
+      showShortcutsHelp]);
+
   // Initialize timer for an item
   const initTimer = useCallback((itemId, duration) => {
     debugLog('Timer', `Initializing timer for item ${itemId} with duration ${duration} minutes`);
@@ -1391,6 +1544,17 @@ export const PracticePage = () => {
 
   // Modified toggleItem to lazy-load item details when expanding
   const toggleItem = async (itemId) => {
+    const isCurrentlyExpanded = expandedItems.has(itemId);
+
+    // Auto-expand/collapse chord charts when shortcuts are enabled
+    if (keyboardLayout !== 'off') {
+      if (isCurrentlyExpanded) {
+        setExpandedChords(p => { const n = new Set(p); n.delete(itemId); return n; });
+      } else {
+        setExpandedChords(p => new Set(p).add(itemId));
+      }
+    }
+
     setExpandedItems(prev => {
       const next = new Set(prev);
       if (next.has(itemId)) {
@@ -1403,7 +1567,7 @@ export const PracticePage = () => {
         const routineItem = routine.items.find(item => item['A'] === itemId);  // Column A is ID
         if (routineItem) {
           const itemReferenceId = routineItem['B'];  // Column B is Item ID
-          
+
           // Fetch full item details if not already cached
           fetchItemDetails(itemReferenceId).then(itemDetails => {
             if (itemDetails) {
@@ -1624,6 +1788,17 @@ export const PracticePage = () => {
           // When marking as complete:
           // 1. Find the current item's index
           const currentIndex = routine.items.findIndex(item => item['A'] === routineEntryId);
+          // Advance keyboard focus and auto-expand chords for next item
+          if (keyboardLayout !== 'off' && currentIndex < routine.items.length - 1) {
+            setFocusedItemIndex(currentIndex + 1);
+            const nextItemId = routine.items[currentIndex + 1]['A'];
+            setExpandedChords(p => {
+              const n = new Set(p);
+              n.delete(routineEntryId);
+              n.add(nextItemId);
+              return n;
+            });
+          }
           // 2. Collapse current item, expand next
           setExpandedItems(prev => {
             const next = new Set(prev);
@@ -1680,7 +1855,14 @@ export const PracticePage = () => {
         ...prev,
         [itemId]: duration * 60
       }));
-      
+
+      // Stop the timer if it's currently running
+      setActiveTimers(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+
       trackPracticeEvent('timer_reset', itemName, {
         routine_name: routine?.name
       });
@@ -3612,6 +3794,35 @@ export const PracticePage = () => {
             </button>
           )}
           <h1 className="text-3xl font-bold">{routine?.name}</h1>
+          {keyboardLayout !== 'off' && (
+            <div className="relative mt-1" ref={shortcutsHelpRef}>
+              <button
+                onClick={() => setShowShortcutsHelp(prev => !prev)}
+                className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-orange-400 transition-colors"
+                title="Keyboard shortcuts"
+                aria-label="Show keyboard shortcuts"
+              >
+                <Keyboard className="h-4 w-4" />
+                <span className="hidden sm:inline">Shortcuts</span>
+              </button>
+              {showShortcutsHelp && (
+                <div className="absolute top-8 left-0 z-50 bg-gray-800 border border-gray-600 rounded-lg p-4 shadow-xl w-64">
+                  <h3 className="text-sm font-semibold text-gray-200 mb-2">
+                    Keyboard shortcuts ({keyboardLayout === 'right' ? 'right hand' : 'left hand'})
+                  </h3>
+                  <div className="space-y-1 text-xs text-gray-300">
+                    {shortcutBindings[keyboardLayout].map(({ action, key }) => (
+                      <div key={action} className="flex justify-between">
+                        <span>{action}</span>
+                        <kbd className="bg-gray-700 px-1.5 py-0.5 rounded text-gray-200">{key}</kbd>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Change layout in Account settings</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="text-xl font-mono">
@@ -3632,33 +3843,37 @@ export const PracticePage = () => {
       </div>
 
       <div className="space-y-4">
-        {routine?.items?.map((routineItem) => {
+        {routine?.items?.map((routineItem, itemIndex) => {
           const isExpanded = expandedItems.has(routineItem['A']);  // Column A is ID
           const isNotesExpanded = expandedNotes.has(routineItem['A']);
           const isTimerActive = activeTimers.has(routineItem['A']);
           const isCompleted = completedItems.has(routineItem['A']);  // Use routine entry ID for completion state
-          
+          const isFocused = keyboardLayout !== 'off' && focusedItemIndex === itemIndex;
+
           // Get full item details from cache if available, otherwise use defaults
           const itemDetails = getItemDetails(routineItem['B']);
-          const timerValue = timers[routineItem['A']] !== undefined 
-            ? timers[routineItem['A']] 
+          const timerValue = timers[routineItem['A']] !== undefined
+            ? timers[routineItem['A']]
             : (itemDetails?.['E'] || 5) * 60;  // Column E is Duration
           const itemNotes = notes[routineItem['B']] || '';
           const isChordsExpanded = expandedChords.has(routineItem['A']);
-          
+
           // For collapsed items, use minimal details; for expanded items, use full details or loading state
           const displayTitle = routineItem.minimalDetails?.['C'] || 'Loading...';
           const isLoadingDetails = isExpanded && !itemDetails && isLoadingItem(routineItem['B']);
-          
+
           return (
             <div
               key={routineItem['A']}  // Column A is ID
-              className="rounded-lg bg-gray-800 overflow-hidden"
+              className={`rounded-lg bg-gray-800 overflow-hidden${isFocused ? ' ring-2 ring-orange-400' : ''}`}
             >
               <h2 className="sr-only">Practice Item: {displayTitle}</h2>
               <div
                 className="flex items-center justify-between p-5 cursor-pointer hover:bg-gray-700"
-                onClick={() => toggleItem(routineItem['A'])}  // Column A is ID
+                onClick={() => {
+                  if (keyboardLayout !== 'off') setFocusedItemIndex(itemIndex);
+                  toggleItem(routineItem['A']);
+                }}  // Column A is ID
                 role="button"
                 aria-expanded={isExpanded}
                 aria-controls={`practice-item-content-${routineItem['A']}`}
@@ -3666,10 +3881,14 @@ export const PracticePage = () => {
                 data-item-header={routineItem['A']}
                 data-expanded={isExpanded ? 'true' : 'false'}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
+                  if (e.key === 'Enter' && keyboardLayout === 'off') {
+                    e.preventDefault();
+                    toggleItem(routineItem['A']);
+                  } else if (e.key === ' ' && keyboardLayout === 'off') {
                     e.preventDefault();
                     toggleItem(routineItem['A']);
                   }
+                  // When shortcuts are on, Space is handled by the document-level keydown handler (timer toggle)
                 }}
               >
                 <div className="flex items-center space-x-4">
@@ -3771,10 +3990,14 @@ export const PracticePage = () => {
                         aria-controls={`chord-charts-content-${routineItem['A']}`}
                         tabIndex={0}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
+                          if (e.key === 'Enter' && keyboardLayout === 'off') {
+                            e.preventDefault();
+                            toggleChords(routineItem['A'], e);
+                          } else if (e.key === ' ' && keyboardLayout === 'off') {
                             e.preventDefault();
                             toggleChords(routineItem['A'], e);
                           }
+                          // When shortcuts are on, Space is handled by the document-level keydown handler (timer toggle)
                         }}
                       >
                         <div className="flex items-center">
@@ -4426,10 +4649,14 @@ export const PracticePage = () => {
                       aria-controls={`notes-content-${routineItem['A']}`}
                       tabIndex={0}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
+                        if (e.key === 'Enter' && keyboardLayout === 'off') {
+                          e.preventDefault();
+                          toggleNotes(routineItem['A'], e);
+                        } else if (e.key === ' ' && keyboardLayout === 'off') {
                           e.preventDefault();
                           toggleNotes(routineItem['A'], e);
                         }
+                        // When shortcuts are on, Space is handled by the document-level keydown handler (timer toggle)
                       }}
                     >
                       <div className="flex items-center">
