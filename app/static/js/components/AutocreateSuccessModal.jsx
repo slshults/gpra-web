@@ -91,7 +91,7 @@ const AutocreateSuccessModal = ({ isOpen, onClose, autocreateData }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" modalName="Autocreate success">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {getIcon()}

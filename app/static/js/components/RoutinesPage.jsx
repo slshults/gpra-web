@@ -906,7 +906,7 @@ const RoutinesPage = () => {
             if (!isOpen) setNewRoutineName('');
           }}
         >
-          <DialogContent>
+          <DialogContent modalName="Create routine">
             <DialogHeader>
               <DialogTitle>Create new routine</DialogTitle>
               <DialogDescription>

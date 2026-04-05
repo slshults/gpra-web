@@ -289,6 +289,7 @@ class UserPreferences(Base):
     # Referential integrity enforced at application level + PostgreSQL trigger
     user_id = Column(Integer, nullable=False, unique=True, index=True)
     tour_completed = Column(Boolean, default=False, nullable=False)
+    first_item_guidance_shown = Column(Boolean, default=False, nullable=False)
     last_data_download_at = Column(DateTime(timezone=True), nullable=True)
     data_expiration_reminder_dismissed_until = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

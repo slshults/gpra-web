@@ -5387,7 +5387,7 @@ export const PracticePage = () => {
 
       {/* No Chord Names Found Modal */}
       <Dialog open={showNoChordNamesModal} onOpenChange={(open) => !open && setShowNoChordNamesModal(false)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" modalName="No chord names">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-6 w-6 text-orange-500" />

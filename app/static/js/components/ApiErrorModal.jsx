@@ -180,7 +180,7 @@ const ApiErrorModal = ({ isOpen, onClose, error }) => {
   if (requiresApiKey) {
     return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" modalName="API key error">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Key className="h-6 w-6 text-orange-500" />
@@ -221,7 +221,7 @@ const ApiErrorModal = ({ isOpen, onClose, error }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => open || handleRetry()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" modalName="Rate limit error">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {errorInfo.icon}

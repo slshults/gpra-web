@@ -2639,6 +2639,92 @@ def reset_tour():
         db.rollback()
         return jsonify({"error": "Failed to reset tour"}), 500
 
+# First Item Guidance Routes
+@app.route('/api/user/preferences/first-item-guidance-status', methods=['GET'])
+def get_first_item_guidance_status():
+    """
+    Get whether the first-item guidance modal has been shown to this user.
+
+    Returns:
+        {
+            "shown": boolean
+        }
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from app import appbuilder
+        from app.models import UserPreferences
+
+        db = appbuilder.session
+        user_id = current_user.id
+
+        preferences = db.query(UserPreferences).filter_by(user_id=user_id).first()
+
+        if preferences:
+            shown = preferences.first_item_guidance_shown
+        else:
+            shown = False
+
+        return jsonify({"shown": shown})
+
+    except Exception as e:
+        app.logger.error(f"Error fetching first item guidance status for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to fetch first item guidance status"}), 500
+
+@app.route('/api/user/preferences/first-item-guidance-complete', methods=['POST'])
+def complete_first_item_guidance():
+    """
+    Mark first-item guidance as shown for the current user.
+
+    Creates or updates user_preferences record to set first_item_guidance_shown = true.
+
+    Returns:
+        {
+            "success": true,
+            "message": "First item guidance marked as shown"
+        }
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from app import appbuilder
+        from app.models import UserPreferences
+
+        db = appbuilder.session
+        user_id = current_user.id
+
+        preferences = db.query(UserPreferences).filter_by(user_id=user_id).first()
+
+        if preferences:
+            preferences.first_item_guidance_shown = True
+            app.logger.info(f"Updated first item guidance for user {user_id} to shown")
+        else:
+            preferences = UserPreferences(
+                user_id=user_id,
+                first_item_guidance_shown=True
+            )
+            db.add(preferences)
+            app.logger.info(f"Created first item guidance for user {user_id} as shown")
+
+        db.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "First item guidance marked as shown"
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error completing first item guidance for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        db.rollback()
+        return jsonify({"error": "Failed to mark first item guidance as shown"}), 500
+
 @app.route('/api/user/password-change', methods=['POST'])
 def change_password():
     """

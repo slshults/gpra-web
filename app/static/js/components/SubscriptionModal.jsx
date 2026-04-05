@@ -28,7 +28,7 @@ const SubscriptionModal = ({ isOpen, onClose, title, message, icon }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" modalName="Subscription info">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             {getIcon()}

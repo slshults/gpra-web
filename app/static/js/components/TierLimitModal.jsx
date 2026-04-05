@@ -43,7 +43,7 @@ const TierLimitModal = ({ isOpen, onClose, limitType, currentTier, currentCount,
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" modalName="Plan limit reached">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <AlertCircle className="h-6 w-6 text-amber-500" />

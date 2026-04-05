@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Plus, Pencil, Trash2, GripVertical } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Pencil, Trash2, GripVertical, Copy, Check, ExternalLink } from 'lucide-react';
 import { trackItemOperation } from '../utils/analytics';
 import { Card, CardHeader, CardTitle, CardContent } from '@ui/card';
 import { Button } from '@ui/button';
 import { Input } from '@ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@ui/dialog';
 import { ItemEditor } from './ItemEditor';
 import ChordChartsModal from './ChordChartsModal';
 import { ChordIcon } from './icons/ChordIcon';
@@ -118,6 +119,18 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
   const [editingItem, setEditingItem] = useState(null);
   const [itemToDelete, setItemToDelete] = useState(null);
 
+  // First item guidance state
+  const [firstItemGuidanceShown, setFirstItemGuidanceShown] = useState(true);
+  const [showFirstItemGuide, setShowFirstItemGuide] = useState(false);
+  const [copiedGuidance, setCopiedGuidance] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/user/preferences/first-item-guidance-status')
+      .then(r => r.json())
+      .then(data => setFirstItemGuidanceShown(data.shown))
+      .catch(() => {});
+  }, []);
+
   // Chord charts modal state
   const [chordChartsModalOpen, setChordChartsModalOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState(null);
@@ -167,9 +180,19 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
   };
 
   const handleSave = async () => {
+    const wasCreate = !editingItem;
     onItemsChange();
     setEditingItem(null);
     setIsEditOpen(false);
+
+    if (wasCreate && !firstItemGuidanceShown) {
+      setShowFirstItemGuide(true);
+      setFirstItemGuidanceShown(true);
+      window.posthog?.capture('first_item_guidance_shown');
+      fetch('/api/user/preferences/first-item-guidance-complete', {
+        method: 'POST'
+      }).catch(() => {});
+    }
   };
 
   const handleDragStart = () => {
@@ -333,6 +356,53 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
         itemId={selectedItemId}
         itemTitle={selectedItemTitle}
       />
+
+      <Dialog open={showFirstItemGuide} onOpenChange={setShowFirstItemGuide}>
+        <DialogContent modalName="First item guidance">
+          <DialogHeader>
+            <DialogTitle>Please read, you won't see this again:</DialogTitle>
+            <DialogDescription className="sr-only">Guidance for new users after creating their first practice item</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>You've created your first practice item. 🙌</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Next: Click "Routines" above to make or edit a routine</li>
+              <li>Edit a routine to add items to it.</li>
+              <li>If you have more than one routine, click <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">+</code> on a routine to make it active</li>
+              <li>Then click "Practice" to use your routine and the items in it</li>
+              <li>Click an item on the practice page to expand it, use the timer, add chord charts, etc.</li>
+              <li>Enjoy</li>
+            </ul>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => {
+                const text = `Next steps after creating your first item:\n\n• Click "Routines" above to make or edit a routine\n• Edit a routine to add items to it\n• If you have more than one routine, click + on a routine to make it active\n• Then click "Practice" to use your routine and the items in it\n• Click an item on the practice page to expand it, use the timer, add chord charts, etc.\n• Enjoy`;
+                navigator.clipboard.writeText(text).then(() => {
+                  setCopiedGuidance(true);
+                  setTimeout(() => setCopiedGuidance(false), 2000);
+                });
+                window.posthog?.capture('first_item_guidance_copied');
+              }}>
+                {copiedGuidance ? <><Check className="h-4 w-4 mr-1" /> Copied</> : <><Copy className="h-4 w-4 mr-1" /> Copy this info</>}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => {
+                const html = `<!DOCTYPE html><html><head><title>Next steps — Guitar Practice Routine App</title><style>body{font-family:system-ui,sans-serif;max-width:600px;margin:40px auto;padding:0 20px;background:#1a1a2e;color:#e0e0e0}h1{font-size:1.4rem;color:#fff}ul{line-height:1.8}code{background:#333;padding:2px 6px;border-radius:4px;font-size:0.9em}</style></head><body><h1>Next steps after creating your first item</h1><ul><li>Click "Routines" above to make or edit a routine</li><li>Edit a routine to add items to it</li><li>If you have more than one routine, click <code>+</code> on a routine to make it active</li><li>Then click "Practice" to use your routine and the items in it</li><li>Click an item on the practice page to expand it, use the timer, add chord charts, etc.</li><li>Enjoy</li></ul></body></html>`;
+                const blob = new Blob([html], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+                window.posthog?.capture('first_item_guidance_opened_in_tab');
+              }}>
+                <ExternalLink className="h-4 w-4 mr-1" /> Open in new tab
+              </Button>
+            </div>
+            <Button onClick={() => {
+              setShowFirstItemGuide(false);
+              window.posthog?.capture('first_item_guidance_dismissed', { method: 'got_it' });
+            }}>Got it</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

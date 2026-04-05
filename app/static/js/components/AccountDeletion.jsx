@@ -587,7 +587,7 @@ const AccountDeletion = ({ userTier, unpluggedMode }) => {
 
       {/* Pause/Unpause Confirmation Modal */}
       <Dialog open={showPauseConfirmModal} onOpenChange={setShowPauseConfirmModal}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-gray-100">
+        <DialogContent className="bg-gray-900 border-gray-700 text-gray-100" modalName={isUnplugged ? 'Resume subscription' : 'Pause subscription'}>
           <DialogHeader>
             <DialogTitle className="text-xl text-gray-100">
               {isUnplugged ? 'Resume subscription?' : 'Pause subscription?'}
@@ -634,7 +634,7 @@ const AccountDeletion = ({ userTier, unpluggedMode }) => {
 
       {/* Deletion Confirmation Modal */}
       <Dialog open={showDeletionConfirmModal} onOpenChange={setShowDeletionConfirmModal}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-gray-100">
+        <DialogContent className="bg-gray-900 border-gray-700 text-gray-100" modalName="Delete account">
           <DialogHeader>
             <DialogTitle className="text-xl text-gray-100">Account deleted</DialogTitle>
             <DialogDescription className="text-gray-300 space-y-3 pt-4">

@@ -1949,7 +1949,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   return (
     <>
     <Dialog open={isOpen && !showCopyModal && !showCopyFromModal} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh] overflow-y-auto" modalName="Chord charts">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Music className="h-5 w-5" />

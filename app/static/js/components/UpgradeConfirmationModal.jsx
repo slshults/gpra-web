@@ -215,7 +215,7 @@ const UpgradeConfirmationModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" modalName="Upgrade confirmation">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <TrendingUp className="h-6 w-6 text-orange-500" />

@@ -183,11 +183,14 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-gray-800">
+      <DialogContent className="max-w-2xl bg-gray-800" modalName={item ? 'Edit item' : 'Create new item'}>
         <DialogHeader>
           <DialogTitle>
             {item ? `Edit item: ${item['C']}` : 'Create new item'}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Create or edit a practice item with title, duration, tuning, and notes
+          </DialogDescription>
           {error && (
             <div className="mt-2 text-sm text-red-500" role="alert">
               {error}
@@ -213,26 +216,54 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
             <Label htmlFor="duration">Duration</Label>
             <div className="flex items-center gap-2">
               <div className="flex-1">
-                <Input
-                  id="duration-minutes"
-                  type="number"
-                  min="0"
-                  max="999"
-                  value={Math.floor(formData['E'])}
-                  onChange={(e) => {
-                    const mins = parseInt(e.target.value) || 0;
-                    const secs = (formData['E'] % 1) * 60;
-                    handleFormChange('E', mins + (secs / 60));
-                  }}
-                  onInput={(e) => {
-                    const mins = parseInt(e.target.value) || 0;
-                    const secs = (formData['E'] % 1) * 60;
-                    handleFormChange('E', mins + (secs / 60));
-                  }}
-                  className="bg-gray-900 text-white text-center"
-                  autoComplete="off"
-                  placeholder="0"
-                />
+                <div className="relative">
+                  <Input
+                    id="duration-minutes"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={Math.floor(formData['E'])}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, '');
+                      const mins = Math.min(999, parseInt(value) || 0);
+                      const secs = (formData['E'] % 1) * 60;
+                      handleFormChange('E', mins + (secs / 60));
+                    }}
+                    className="bg-gray-900 text-white text-center pr-6"
+                    autoComplete="off"
+                    placeholder="0"
+                  />
+                  <div className="absolute right-0 top-0 flex flex-col h-full border-l border-gray-700">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentMins = Math.floor(formData['E']);
+                        const newMins = Math.min(999, currentMins + 1);
+                        const secs = (formData['E'] % 1) * 60;
+                        handleFormChange('E', newMins + (secs / 60));
+                      }}
+                      className="flex-1 px-1 text-gray-400 hover:text-white hover:bg-gray-700 text-xs leading-none"
+                      aria-label="Increase minutes by 1"
+                      data-ph-capture-attribute-button="increase-minutes"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentMins = Math.floor(formData['E']);
+                        const newMins = Math.max(0, currentMins - 1);
+                        const secs = (formData['E'] % 1) * 60;
+                        handleFormChange('E', newMins + (secs / 60));
+                      }}
+                      className="flex-1 px-1 text-gray-400 hover:text-white hover:bg-gray-700 text-xs leading-none border-t border-gray-700"
+                      aria-label="Decrease minutes by 1"
+                      data-ph-capture-attribute-button="decrease-minutes"
+                    >
+                      ▼
+                    </button>
+                  </div>
+                </div>
                 <div className="text-xs text-gray-400 text-center mt-1">minutes</div>
               </div>
               <span className="text-xl text-gray-400">:</span>

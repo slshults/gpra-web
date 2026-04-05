@@ -171,7 +171,7 @@ export const NoteEditor = ({ open, onOpenChange, itemId, currentNote = '', onNot
           onOpenChange(true);
         }
       }}>
-        <DialogContent className="max-w-2xl bg-gray-800">
+        <DialogContent className="max-w-2xl bg-gray-800" modalName="Edit notes">
           <DialogHeader>
             <DialogTitle>Edit note</DialogTitle>
             <DialogDescription>
@@ -234,7 +234,7 @@ export const NoteEditor = ({ open, onOpenChange, itemId, currentNote = '', onNot
 
       {/* Confirmation Modal */}
       <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
-        <DialogContent className="max-w-md bg-gray-800">
+        <DialogContent className="max-w-md bg-gray-800" modalName="Unsaved changes">
           <DialogHeader>
             <DialogTitle>Unsaved changes</DialogTitle>
             <DialogDescription>
