@@ -887,7 +887,11 @@ def autocreate_chord_charts():
             increment_autocreate_usage(user_id)
             app.logger.info(f"[AUTOCREATE] Usage counter incremented for user {user_id}")
 
-        app.logger.debug("Claude analysis complete, creating chord charts")
+        if 'error' in analysis_result:
+            app.logger.info(f"[AUTOCREATE] Claude analysis returned error: {str(analysis_result.get('error', ''))[:100]}")
+            return jsonify(analysis_result), 422
+        else:
+            app.logger.debug("Claude analysis complete, creating chord charts")
 
         return jsonify(analysis_result)
 
@@ -4349,235 +4353,363 @@ If you can't determine sections, use "Main" as the section name.""",
         app.logger.error(f"Error in simple_analyze_files: {str(e)}")
         return {'error': f'Analysis failed: {str(e)}'}
 
+CROP_TOOL = {
+    "name": "crop_image",
+    "description": "Crop a region from the chord chart image to examine it more closely. Use this to zoom into individual chord diagrams for precise dot position reading. Specify normalized coordinates (0-1) for the bounding box.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "x1": {"type": "number", "minimum": 0, "maximum": 1, "description": "Left edge (0=left side, 1=right side)"},
+            "y1": {"type": "number", "minimum": 0, "maximum": 1, "description": "Top edge (0=top, 1=bottom)"},
+            "x2": {"type": "number", "minimum": 0, "maximum": 1, "description": "Right edge (0=left side, 1=right side)"},
+            "y2": {"type": "number", "minimum": 0, "maximum": 1, "description": "Bottom edge (0=top, 1=bottom)"},
+        },
+        "required": ["x1", "y1", "x2", "y2"],
+    },
+}
+
+MAX_CROP_ITERATIONS = 25
+
+
+def handle_crop(image, x1, y1, x2, y2):
+    """Crop the image using normalized 0-1 coordinates and return as base64 PNG content blocks."""
+    import io as _io
+
+    x1 = max(0.0, min(1.0, x1))
+    y1 = max(0.0, min(1.0, y1))
+    x2 = max(0.0, min(1.0, x2))
+    y2 = max(0.0, min(1.0, y2))
+
+    if x2 <= x1 or y2 <= y1:
+        return [{"type": "text", "text": "Error: Invalid crop coordinates. x2 must be > x1 and y2 must be > y1."}]
+
+    width, height = image.size
+    left = int(x1 * width)
+    top = int(y1 * height)
+    right = int(x2 * width)
+    bottom = int(y2 * height)
+
+    if (right - left) < 20 or (bottom - top) < 20:
+        return [{"type": "text", "text": "Error: Crop region too small. Please specify a larger area."}]
+
+    cropped = image.crop((left, top, right, bottom))
+
+    buffer = _io.BytesIO()
+    if cropped.mode in ("RGBA", "P"):
+        cropped = cropped.convert("RGB")
+    cropped.save(buffer, format='PNG')
+    buffer.seek(0)
+    cropped_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+
+    return [
+        {"type": "text", "text": f"Cropped region ({right-left}x{bottom-top}px):"},
+        {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/png",
+                "data": cropped_base64
+            }
+        }
+    ]
+
+
 def process_chord_charts_directly(client, uploaded_files, item_id, user_id=None):
-    """Process files containing chord charts for direct import (complete sheets version)"""
+    """Process files containing chord charts for direct import using crop tool for precision"""
     import time
     import json
+    import io
+    import base64
+    from pdf2image import convert_from_bytes
+    from PIL import Image
 
     try:
-        app.logger.info("Processing chord chart files for direct import")
+        app.logger.info("Processing chord chart files for direct import (crop tool approach)")
 
-        prompt_text = """🎸 **CHORD DIAGRAM VISUAL ANALYSIS WITH LAYOUT STRUCTURE**
+        # Phase 1: Survey — send full-page image, get layout + crop coordinates for each row
+        survey_prompt = """Look at this chord chart image. I need you to identify the layout so I can crop individual rows for detailed reading.
 
-Hey there! I need your help with something really important. I'm asking you to look at guitar chord diagrams and extract the exact finger positions you see. This is tricky because I need you to be like a perfect camera - just tell me what's there, don't "correct" anything based on what you think it should be.
+For each ROW of chord diagrams, tell me:
+1. The section label (Intro, Verse, Chorus, etc.) if visible above/before that row
+2. The approximate bounding box as normalized 0-1 coordinates: x1, y1 (top-left) and x2, y2 (bottom-right)
+3. Include the chord name labels above the grids in the crop area
 
-**🚨 REALLY IMPORTANT:** Here's the thing - please don't use any of your guitar knowledge here. I know you know what an "Em9" or "C7/G" chord typically looks like, but I need you to completely ignore that knowledge. Think of yourself as someone who's never seen a guitar chord before - you're just looking at dots and lines and telling me where the dots are positioned.
+Also note the tuning if shown anywhere on the page.
 
-Why? Because people create their own chord variations and fingerings, and we want to capture THEIR version, not the "standard" version you might know.
-
-**FUNDAMENTAL RULE**: If the file contains chord charts, that's the user's way of asking you to use exactly the chord chart fingerings/shapes and chord chart names seen in the reference image. DO NOT substitute standard tuning patterns - use only what you actually see in the chord charts in the uploaded file.
-
-**OVERRIDE INSTRUCTION**: If the uploaded file contains only Chord Charts (no lyrics), then even if you recognize these as "standard" chord names like E, A, G, etc., you MUST read the actual marker positions shown in THIS specific diagram. These may not be standard tuning - read only what you see, not what you expect these chords to look like.
-
-**Here's how to read these diagrams:**
-
-**Fret Counting** (this trips people up a lot):
-- That thick line at the top? That's the "nut" - call it fret 0
-- **Fret 1** is the space between the nut and the next horizontal line down
-- **Fret 2** is the space between the 2nd and 3rd horizontal lines
-- **Fret 3** is the space between the 3rd and 4th horizontal lines
-- You're counting the *spaces between lines*, not the lines themselves!
-
-**String Order** (left to right):
-- String 6 = Leftmost vertical line (lowest pitch)
-- String 5 = Second from left
-- String 4 = Third from left
-- String 3 = Fourth from left
-- String 2 = Second from right
-- String 1 = Rightmost vertical line (highest pitch)
-
-**What the symbols mean:**
-- Dots, circles, numbered circles (1,2,3,4), lettered circles (T) = finger positions (NOTE: Numbers inside of circles denote which finger is to be used. Do not confuse numbers in the image for marker positions.)
-- "O" above the nut = play this string open (fret 0)
-- "X" above the nut = don't play this string (muted, fret -1)
-
-**Please ignore these completely:**
-- Any "3fr", "5fr" position markers - those are just reference, not part of the pattern
-- What you think the chord "should" be - just tell me what you see!
-
-**CRITICAL: Layout and Structure Rules:**
-- Match the layout of chords exactly as seen in the uploaded file
-- **Section Preservation**: When you see sections labeled `Intro`, `Verse 1`, `Chorus`, `Solo`, `Bridge`, `Outro`, etc, replicate those sections, and fill with the same chords seen in the uploaded chord chart file
-- **Line Breaks Within Sections**: Mark where new rows begin, match the uploaded file
-- **Row Counting**: Assign row numbers (1, 2, 3...) to track chord layout within each section
-- **Position Counting**: Assign position numbers (1, 2, 3...) within each row
-- Read left-to-right, top-to-bottom - exactly as they appear in the file
-- Identify line breaks - when chord diagrams start a new row
-- Use EXACT chord names from diagrams, remove capo suffixes like "(capoOn2)"
-- Group chords that appear on the same horizontal level
-- Preserve the exact order - number chords 1, 2, 3... in reading order
-- **Set lineBreakAfter: true for the last chord in each row**
-
-**Your detailed analysis process for each chord:**
-- **Identify the chord name** from the label above the diagram
-- **Examine each string (left to right, strings 6 through 1):**
-  - Look above the nut: O = open (0), X = muted (-1)
-  - Look for markers: count which fret space they occupy
-  - If no marker and no O/X, assume open (0)
-- **Double-check your work:** Re-examine the diagram and verify each position
-- **Create detailed description:** Describe exactly what you see
-
-**Your process for each chord:**
-1. Spot the chord name (Em9, C7/G, etc.)
-2. Go string by string from left to right (strings 6-1)
-3. For each string: check above the nut first (O or X?), then look for any dots/markers in the fret spaces
-4. Tell me exactly what you see in detail - this helps me debug if something goes wrong
-5. Double-check your work before moving on
-
-**Example 1:** If you see a chord with:
-- String 6: "O" above nut
-- String 5: dot in the space between 2nd and 3rd horizontal lines
-- String 4: dot in the space between 3rd and 4th horizontal lines
-- String 3: "O" above nut
-- String 2: "O" above nut
-- String 1: "O" above nut
-
-You'd report: [0, 2, 3, 0, 0, 0] and describe it like: "String 6 open, string 5 has dot in fret 2, string 4 has dot in fret 3, strings 3-1 are open"
-
-**Example 2:** If you see:
-- String 6: "X" above nut
-- String 5: dot in first fret space (between nut and 2nd line)
-- Strings 4,3,2,1: "O" above nut
-
-You'd report: [-1, 1, 0, 0, 0, 0] and describe: "String 6 muted, string 5 dot at fret 1, strings 4-1 open"
-
-Make sense? You're being my eyes here, and I really appreciate the help!
-
-**OUTPUT FORMAT:**
+Output as JSON:
 ```json
 {
-  "tuning": "DETECT_FROM_FILE",
-  "capo": 0,
-  "analysis": {
-    "referenceChordDescriptions": [
-      {
-        "name": "Em9",
-        "visualDescription": "DEBUG: String 6: O (open, fret 0), String 5: O (open, fret 0), String 4: O (open, fret 0), String 3: numbered circle '1' in fret space 2 (fret 2), String 2: numbered circle '4' in fret space 4 (fret 4), String 1: O (open, fret 0). Final pattern: [0,0,0,2,4,0]",
-        "extractedPattern": [0, 0, 0, 2, 4, 0]
-      }
-    ]
-  },
-  "sections": [
-    {
-      "label": "Main",
-      "chords": [
-        {
-          "name": "Em9",
-          "frets": [0, 0, 0, 2, 4, 0],
-          "sourceType": "chord_chart_direct",
-          "row": 1,
-          "position": 1,
-          "lineBreakAfter": false
-        }
-      ]
-    }
-  ],
-  "totalRows": 3
+  "tuning": "EADGBE or whatever is shown",
+  "rows": [
+    {"section": "Intro", "x1": 0.0, "y1": 0.0, "x2": 0.9, "y2": 0.2},
+    {"section": "Verse", "x1": 0.0, "y1": 0.2, "x2": 0.9, "y2": 0.4}
+  ]
 }
-```
+```"""
 
-**A couple more things that really help me out:**
-- Please include that detailed visualDescription for each chord - it's like showing your work in math class, and it helps me figure out if something went wrong
-- If you see something confusing or contradictory, just tell me about it - I'd rather know you're uncertain than guess wrong
-- Remember the frets array goes [string 6, string 5, string 4, string 3, string 2, string 1] (low to high pitch)
-- Use -1 for muted (X), 0 for open (O), and 1, 2, 3, etc. for fretted positions
-
-**One last technical note:** Please set lineBreakAfter: true for chords at the end of lines/phrases, and return only the JSON format shown above (no extra explanatory text). Thanks!
-
-Thanks so much for being thorough with this, you rock Claude! 🤘🎸🚀"""
-
-        message_content = [{
-            "type": "text",
-            "text": prompt_text
-        }]
-
-        # Add all files for visual analysis
+        # Convert uploaded files to PIL images
+        page_images = []
         for file_content in uploaded_files:
-            name = file_content['name']
-
-            # Add file label
-            message_content.append({
-                "type": "text",
-                "text": f"\n\n**FILE: {name}**"
-            })
-
             if file_content['type'] == 'pdf':
-                message_content.append({
-                    "type": "document",
-                    "source": {
-                        "type": "base64",
-                        "media_type": "application/pdf",
-                        "data": file_content['data']
-                    }
-                })
+                pdf_bytes = base64.b64decode(file_content['data'])
+                try:
+                    pages = convert_from_bytes(pdf_bytes, dpi=300)
+                    page_images.append(pages[0])
+                    app.logger.info(f"[AUTOCREATE-CROP] Converted PDF to image: {pages[0].size[0]}x{pages[0].size[1]}px ({len(pages)} pages)")
+                except Exception as e:
+                    app.logger.error(f"[AUTOCREATE-CROP] Failed to convert PDF to image: {e}")
+                    return {'error': f'Failed to convert PDF to image: {str(e)}'}
             elif file_content['type'] == 'image':
-                message_content.append({
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": file_content['media_type'],
-                        "data": file_content['data']
-                    }
-                })
+                image_bytes = base64.b64decode(file_content['data'])
+                img = Image.open(io.BytesIO(image_bytes))
+                page_images.append(img)
+                app.logger.info(f"[AUTOCREATE-CROP] Loaded image: {img.size[0]}x{img.size[1]}px")
 
-        # Use Opus 4.6 for visual analysis of chord diagrams (complex visual task)
-        app.logger.info("Using Opus 4.6 for chord chart visual analysis")
+        if not page_images:
+            return {'error': 'No valid images found in uploaded files'}
+
+        source_image = page_images[0]
+
+        # Cap image size
+        max_dimension = 4000
+        if source_image.width > max_dimension or source_image.height > max_dimension:
+            source_image.thumbnail((max_dimension, max_dimension), Image.LANCZOS)
+            app.logger.info(f"[AUTOCREATE-CROP] Resized to {source_image.size[0]}x{source_image.size[1]}px")
+
+        # Encode full-page image as base64 PNG
+        img_buffer = io.BytesIO()
+        if source_image.mode in ("RGBA", "P"):
+            source_image = source_image.convert("RGB")
+        source_image.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+        full_page_base64 = base64.b64encode(img_buffer.read()).decode('utf-8')
+
+        full_page_image_block = {
+            "type": "image",
+            "source": {"type": "base64", "media_type": "image/png", "data": full_page_base64}
+        }
+
+        app.logger.info("[AUTOCREATE-CROP] Phase 1: Survey — identifying layout and row positions")
         llm_start_time = time.time()
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=6000,
+        total_input_tokens = 0
+        total_output_tokens = 0
+
+        survey_response = client.messages.create(
+            model="claude-opus-4-6",
+            max_tokens=4000,
             messages=[{
                 "role": "user",
-                "content": message_content
+                "content": [
+                    {"type": "text", "text": survey_prompt},
+                    full_page_image_block
+                ]
             }]
         )
+
+        if hasattr(survey_response, 'usage'):
+            total_input_tokens += survey_response.usage.input_tokens
+            total_output_tokens += survey_response.usage.output_tokens
+
+        survey_text = survey_response.content[0].text
+        app.logger.info(f"[AUTOCREATE-CROP] Phase 1 complete: {survey_response.usage.output_tokens} output tokens")
+        app.logger.info(f"[AUTOCREATE-CROP] Survey response: {survey_text[:500]}")
+
+        # Parse survey JSON to get row coordinates
+        import re
+        survey_json_match = re.search(r'```json\s*(.*?)\s*```', survey_text, re.DOTALL)
+        if not survey_json_match:
+            survey_json_match = re.search(r'\{.*\}', survey_text, re.DOTALL)
+        if not survey_json_match:
+            return {'error': 'Failed to parse layout survey response'}
+
+        try:
+            survey_data = json.loads(survey_json_match.group(1) if '```' in survey_text else survey_json_match.group(0))
+        except json.JSONDecodeError:
+            return {'error': 'Invalid JSON in layout survey response'}
+
+        rows = survey_data.get('rows', [])
+        detected_tuning = survey_data.get('tuning', 'EADGBE')
+        app.logger.info(f"[AUTOCREATE-CROP] Found {len(rows)} rows, tuning: {detected_tuning}")
+
+        if not rows:
+            return {'error': 'No chord diagram rows found in image'}
+
+        # Phase 2: Read each row — stateless, independent calls with cropped images
+        app.logger.info("[AUTOCREATE-CROP] Phase 2: Reading chord diagrams from each row")
+        all_readings = []
+
+        read_prompt = """Read ALL chord diagrams in this cropped image. This is a VISUAL task — read what you SEE, not what you know.
+
+IGNORE what any chord "should" look like. These may use non-standard tunings. Read ONLY the dot positions on each grid.
+
+For each chord diagram, left to right:
+- Read the chord **name** from the label above the grid
+- Check **above the nut** for each string: O = open (0), X = muted (-1)
+- For each **dot on the grid**: count which vertical line it's on (left-to-right: string 6,5,4,3,2,1) and which fret space it occupies (between horizontal lines: nut-to-first = fret 1, first-to-second = fret 2, etc.)
+- Numbers inside dots are FINGER numbers — ignore them for the frets array
+
+Output JSON array of the chords you read:
+```json
+[
+  {"name": "G", "frets": [3, 0, 0, 0, 0, -1], "visualDescription": "String 6: dot fret 3, Strings 5-2: open, String 1: X"},
+  {"name": "Am", "frets": [0, 0, 2, 2, 1, 0], "visualDescription": "..."}
+]
+```
+
+frets = [string 6, string 5, string 4, string 3, string 2, string 1] (low to high)
+-1 = muted (X), 0 = open (O), 1+ = fretted"""
+
+        for i, row in enumerate(rows):
+            x1 = row.get('x1', 0)
+            y1 = row.get('y1', 0)
+            x2 = row.get('x2', 1)
+            y2 = row.get('y2', 1)
+            section = row.get('section', 'Chords')
+
+            app.logger.info(f"[AUTOCREATE-CROP] Reading row {i+1}/{len(rows)} ({section}): x1={x1:.3f}, y1={y1:.3f}, x2={x2:.3f}, y2={y2:.3f}")
+
+            # Crop the row
+            crop_result = handle_crop(source_image, x1, y1, x2, y2)
+
+            # Find the image block in the crop result
+            crop_image_block = None
+            for block in crop_result:
+                if isinstance(block, dict) and block.get('type') == 'image':
+                    crop_image_block = block
+                    break
+
+            if not crop_image_block:
+                app.logger.warning(f"[AUTOCREATE-CROP] Failed to crop row {i+1}, skipping")
+                continue
+
+            # Stateless call — only sends this one crop + the read prompt
+            # Low effort thinking — brief reasoning for each chord, won't spiral
+            row_response = client.messages.create(
+                model="claude-opus-4-6",
+                max_tokens=16000,
+                thinking={"type": "adaptive"},
+                output_config={"effort": "medium"},
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": read_prompt},
+                        crop_image_block
+                    ]
+                }]
+            )
+
+            if hasattr(row_response, 'usage'):
+                total_input_tokens += row_response.usage.input_tokens
+                total_output_tokens += row_response.usage.output_tokens
+
+            # Extract text from response
+            row_text = ""
+            for block in row_response.content:
+                if block.type == "text":
+                    row_text = block.text
+
+            app.logger.info(f"[AUTOCREATE-CROP] Row {i+1} response: {row_response.usage.output_tokens} output tokens, {len(row_text)} text chars")
+
+            # Parse chord readings from this row
+            row_json_match = re.search(r'```json\s*(.*?)\s*```', row_text, re.DOTALL)
+            if not row_json_match:
+                row_json_match = re.search(r'\[.*\]', row_text, re.DOTALL)
+            if row_json_match:
+                try:
+                    row_chords = json.loads(row_json_match.group(1) if '```' in row_text else row_json_match.group(0))
+                    if isinstance(row_chords, list):
+                        for chord in row_chords:
+                            chord['section'] = section
+                        all_readings.extend(row_chords)
+                        app.logger.info(f"[AUTOCREATE-CROP] Row {i+1}: read {len(row_chords)} chords")
+                    else:
+                        app.logger.warning(f"[AUTOCREATE-CROP] Row {i+1}: expected array, got {type(row_chords)}")
+                except json.JSONDecodeError as e:
+                    app.logger.warning(f"[AUTOCREATE-CROP] Row {i+1}: JSON parse error: {e}")
+            else:
+                app.logger.warning(f"[AUTOCREATE-CROP] Row {i+1}: no JSON found in response")
+
         llm_end_time = time.time()
 
-        response_text = response.content[0].text
+        if not all_readings:
+            return {'error': 'Failed to read any chord diagrams from the image'}
+
+        app.logger.info(f"[AUTOCREATE-CROP] Phase 2 complete: read {len(all_readings)} total chords in {llm_end_time - llm_start_time:.1f}s")
+
+        # Assemble into the expected output format
+        sections_dict = {}
+        row_num = 0
+        for chord in all_readings:
+            section_label = chord.get('section', 'Chords')
+            if section_label not in sections_dict:
+                sections_dict[section_label] = []
+                row_num = 0
+            row_num += 1
+            sections_dict[section_label].append({
+                "name": chord.get('name', 'Unknown'),
+                "frets": chord.get('frets', []),
+                "sourceType": "chord_chart_direct",
+                "row": row_num,
+                "position": len(sections_dict[section_label]),
+                "lineBreakAfter": False
+            })
+
+        # Mark last chord in each section's rows with lineBreakAfter
+        # (We don't have exact row info from the crops, so mark last chord per section)
+        for section_chords in sections_dict.values():
+            if section_chords:
+                section_chords[-1]['lineBreakAfter'] = True
+
+        sections_list = [{"label": label, "chords": chords} for label, chords in sections_dict.items()]
+
+        # Build reference chord descriptions (deduplicated by name)
+        seen_names = set()
+        ref_descriptions = []
+        for chord in all_readings:
+            name = chord.get('name', '')
+            if name and name.lower() not in seen_names:
+                seen_names.add(name.lower())
+                ref_descriptions.append({
+                    "name": name,
+                    "visualDescription": chord.get('visualDescription', ''),
+                    "extractedPattern": chord.get('frets', [])
+                })
+
+        chord_data = {
+            "tuning": detected_tuning,
+            "capo": 0,
+            "analysis": {"referenceChordDescriptions": ref_descriptions},
+            "sections": sections_list,
+            "totalRows": len(rows)
+        }
+
+        response_text = json.dumps(chord_data)
+
+        app.logger.info(f"[AUTOCREATE-CROP] Assembled {len(all_readings)} chords into {len(sections_list)} sections")
 
         # Track LLM generation with PostHog Analytics
         from app.utils.llm_analytics import llm_analytics
         llm_analytics.track_generation(
-            model="claude-sonnet-4-6",
-            input_messages=[{"role": "user", "content": "Chord chart processing and analysis"}],
-            output_choices=[{"message": {"content": response_text}}],
+            model="claude-opus-4-6",
+            input_messages=[{"role": "user", "content": "Chord chart processing with stateless crops"}],
+            output_choices=[{"message": {"content": json.dumps(chord_data)[:500]}}],
             usage={
-                "input_tokens": response.usage.input_tokens if hasattr(response, 'usage') else None,
-                "output_tokens": response.usage.output_tokens if hasattr(response, 'usage') else None
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens
             },
             latency_seconds=llm_end_time - llm_start_time,
             custom_properties={
                 "function": "process_chord_charts_directly",
                 "file_count": len(uploaded_files),
-                "analysis_type": "chord_chart_processing",
-                "item_id": str(item_id)
+                "analysis_type": "chord_chart_stateless_crop",
+                "item_id": str(item_id),
+                "rows_processed": len(rows),
+                "chords_read": len(all_readings)
             },
             user_id=user_id
         )
 
-        response_text = response.content[0].text
-
-        # Parse JSON response (matching sheets version logic)
-        import re
-        json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(1)
-        else:
-            # Try to find JSON without markdown wrapper
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(0)
-            else:
-                return {'error': 'Failed to parse chord chart data from analysis response'}
-
-        try:
-            chord_data = json.loads(json_str)
-        except json.JSONDecodeError:
-            return {'error': 'Invalid JSON in chord chart analysis response'}
-
-        if chord_data is None:
-            return {'error': 'Failed to parse chord chart data from analysis response'}
-
+        # chord_data already assembled from stateless crop readings above
         # Create chord charts from the structured data using sheets version logic
         created_charts = create_chord_charts_from_data(chord_data, item_id)
 
@@ -4649,15 +4781,28 @@ Hi there! This time I need your help with a YouTube video transcript - this is s
 - References to chord progressions ("G to C to D", "the verse goes Am, F, C, G")
 - Song sections mentioned in speech ("in the chorus we play...", "for the bridge use...")
 - Spoken chord sequences ("so it's G, C, Am, F throughout")
+- Nashville number system references ("the 1 chord", "the 4 chord", "the 5 chord", or Roman numerals like "I, IV, V")
+- Chord quality descriptions with numbers ("a major seven chord", "dominant seventh", "minor chord on the 2")
+
+**Nashville Number System / Numeric References:**
+Guitar teachers often refer to chords by number instead of name. When you encounter this:
+1. Look for the KEY of the song — teachers often say things like "we're in the key of E", "this is in A", "standard blues in G", "key of D", etc.
+2. Once you know the key, convert the numbers to actual chord names using standard music theory:
+   - In a major key: 1=major, 2=minor, 3=minor, 4=major, 5=major (or dominant 7), 6=minor, 7=diminished
+   - Example: Key of E → 1=E, 4=A, 5=B7 (or B), 6=C#m
+   - Example: Key of A → 1=A, 4=D, 5=E7 (or E), 2=Bm
+3. Apply any mentioned chord qualities (e.g., "the 5 chord as a dominant 7" in key of E = B7, "major seven feel on the 1" in key of E = Emaj7)
+4. If the teacher describes chord shapes or fret positions AND you can determine the chord name from context, include it
 
 **What to IGNORE:**
-- Music theory discussions without specific chord names
-- General guitar technique talk
-- References to fret positions without chord names
+- General guitar technique talk unrelated to chord progressions
 - Equipment or setup discussions
+- Scale discussions (unless they help identify the key for Nashville number conversion)
 
 **Your job:**
-- Listen for actual chord names mentioned in the dialogue
+- Listen for actual chord names AND numeric/Nashville references in the dialogue
+- Determine the key of the song from context clues when possible
+- Convert any numeric references to actual chord letter names
 - Group them by song sections, if mentioned (e.g. Intro, Verse, Chorus, Bridge, etc.)
 - Keep the chord charts in the order they're to be played in the song
 
@@ -4688,7 +4833,7 @@ Hi there! This time I need your help with a YouTube video transcript - this is s
 
 Key difference from lyrics sheets: Here you're reading a transcript of spoken words about chords, from a teaching video. This differs from reading chord symbols positioned above lyrics, but the output is to be similar.
 
-Important: If no chord names are actually mentioned in the transcript, respond with: "No chord names found in this transcript." (The scenario here will be video lessons of lead guitar lines, which would be about playing specific notes, instead of chords.)
+Important: Only respond with "No chord names found in this transcript." if you truly cannot determine ANY chord names — neither explicit names NOR Nashville numbers with enough key context to resolve them. The main scenario for "no chord names" would be video lessons focused purely on lead guitar lines or single-note melodies with no chord context at all.
 
 Thanks for helping me extract chord progressions from this voice-to-text transcript of a guitar lesson video from youtube!"""
 
@@ -4738,9 +4883,9 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
         try:
             import time
             llm_start_time = time.time()
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-sonnet-4-6")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-6")
             response = client.messages.create(
-                model="claude-sonnet-4-6",
+                model="claude-opus-4-6",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
                 temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
@@ -4765,7 +4910,7 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                 }
 
             track_llm_generation(
-                model="claude-sonnet-4-6",
+                model="claude-opus-4-6",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from YouTube transcript"
@@ -4800,7 +4945,7 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                 llm_latency = 0
 
             track_llm_generation(
-                model="claude-sonnet-4-6",
+                model="claude-opus-4-6",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from YouTube transcript"
@@ -5043,17 +5188,17 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                     "text": file_content['data']
                 })
 
-        # Use Sonnet 4.6 for chord names analysis
-        app.logger.info(f"[AUTOCREATE] Using Sonnet 4.6 for chord names analysis")
+        # Use Opus 4.6 for chord names analysis (complex reasoning for non-standard tunings)
+        app.logger.info(f"[AUTOCREATE] Using Opus 4.6 for chord names analysis")
         app.logger.info(f"[AUTOCREATE] Making API call with {len(message_content)} content items")
         app.logger.info(f"[AUTOCREATE] Message content types: {[item.get('type', 'unknown') for item in message_content]}")
 
         try:
             import time
             llm_start_time = time.time()
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-sonnet-4-6")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-6")
             response = client.messages.create(
-                model="claude-sonnet-4-6",
+                model="claude-opus-4-6",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
                 temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
@@ -5078,7 +5223,7 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                 }
 
             track_llm_generation(
-                model="claude-sonnet-4-6",
+                model="claude-opus-4-6",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from lyrics sheet"
@@ -5112,7 +5257,7 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                 llm_latency = 0
 
             track_llm_generation(
-                model="claude-sonnet-4-6",
+                model="claude-opus-4-6",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from lyrics sheet"

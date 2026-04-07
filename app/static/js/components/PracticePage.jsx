@@ -3236,7 +3236,7 @@ export const PracticePage = () => {
       }
 
       const result = await response.json();
-      debugLog('YOUTUBE', 'Chord charts created successfully:', result);
+      debugLog('YOUTUBE', 'Autocreate response received:', result);
 
       // Reset rate limit backoff on success
       resetRateLimitBackoff();
