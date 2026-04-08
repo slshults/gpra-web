@@ -256,11 +256,11 @@ class DataLayer:
                             'sectionId': chord_data.get('sectionId', ''),
                             'sectionLabel': chord_data.get('sectionLabel', ''),
                             'sectionRepeatCount': chord_data.get('sectionRepeatCount', ''),
-                            'hasLineBreakAfter': chord_data.get('hasLineBreakAfter', False)
+                            'hasLineBreakAfter': chord_data.get('hasLineBreakAfter', chord_data.get('lineBreakAfter', False))
                         })
-                    
+
                     charts.append(chart)
-            
+
             return charts
         else:
             return sheets.get_chord_charts_for_item(item_id)
@@ -354,9 +354,9 @@ class DataLayer:
                                 'sectionId': chord_data.get('sectionId', ''),
                                 'sectionLabel': chord_data.get('sectionLabel', ''),
                                 'sectionRepeatCount': chord_data.get('sectionRepeatCount', ''),
-                                'hasLineBreakAfter': chord_data.get('hasLineBreakAfter', False)
+                                'hasLineBreakAfter': chord_data.get('hasLineBreakAfter', chord_data.get('lineBreakAfter', False))
                             })
-                        
+
                         charts.append(chart)
                     
                     # Store charts for this item_id (as string for frontend compatibility)

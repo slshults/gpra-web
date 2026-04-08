@@ -17,9 +17,13 @@ const autocreateStore = {
       type
     };
   },
-  completeRequest(itemId, status, result) {
+  completeRequest(itemId, status, result, handledInline = false) {
     delete this.activeRequests[itemId];
     this.completedRequests[itemId] = { status, result };
+    // Dispatch event for global watcher (AutocreateWatcher.jsx)
+    window.dispatchEvent(new CustomEvent('autocreate-complete', {
+      detail: { itemId, status, result, handledInline }
+    }));
   },
   cancelRequest(itemId) {
     const active = this.activeRequests[itemId];

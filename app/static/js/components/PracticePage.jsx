@@ -1134,6 +1134,44 @@ export const PracticePage = () => {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Handle scroll-to-item from AutocreateWatcher navigation
+  useEffect(() => {
+    const raw = sessionStorage.getItem('autocreateScrollTarget');
+    if (!raw || !routine?.items) return;
+
+    sessionStorage.removeItem('autocreateScrollTarget');
+
+    try {
+      const { itemId, columnA } = JSON.parse(raw);
+      debugLog('WATCHER', 'Scrolling to item:', { itemId, columnA });
+
+      // Expand the item and its chord charts section
+      setExpandedItems(prev => new Set([...prev, columnA]));
+      setExpandedChords(prev => new Set([...prev, columnA]));
+
+      // Refresh chord charts for this item
+      fetch(`/api/items/${itemId}/chord-charts`)
+        .then(resp => resp.ok ? resp.json() : Promise.reject('Failed to fetch'))
+        .then(charts => {
+          if (isMountedRef.current) {
+            setChordCharts(prev => ({ ...prev, [itemId]: charts }));
+            setChordSections(prev => ({ ...prev, [itemId]: buildSectionsFromCharts(charts) }));
+          }
+        })
+        .catch(err => debugLog('WATCHER', 'Failed to refresh charts for scroll target:', err));
+
+      // Scroll to the item after a short delay for DOM to render
+      setTimeout(() => {
+        const el = document.querySelector(`[data-item-header="${columnA}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 400);
+    } catch (e) {
+      debugLog('WATCHER', 'Failed to parse scroll target:', e);
+    }
+  }, [routine?.items]); // Re-run when routine items are available
+
   const loadChordChartsForItem = async (itemReferenceId) => {
     // Skip if already loaded
     if (chordCharts[itemReferenceId]) {
@@ -3808,14 +3846,14 @@ export const PracticePage = () => {
           );
         }
 
-        // Update module-level store with success
+        // Update module-level store with success (handledInline = true if component is mounted)
         autocreateStore.completeRequest(itemId, 'success', {
           itemName,
           chordCount: result.chord_count || 0,
           contentType: result.content_type || 'auto-detected',
           uploadedFileNames: result.uploaded_file_names || '',
           isVisionAnalysis: result.content_type === 'chord_charts' || result.used_vision_analysis === true || (!result.content_type && result.used_vision_analysis !== false)
-        });
+        }, isMountedRef.current);
 
         // Only update React state if component is still mounted
         if (isMountedRef.current) {
@@ -3893,8 +3931,8 @@ export const PracticePage = () => {
           );
         }
 
-        // Update module-level store with error
-        autocreateStore.completeRequest(itemId, 'error', { error: errorMsg });
+        // Update module-level store with error (handledInline = true if component is mounted)
+        autocreateStore.completeRequest(itemId, 'error', { error: errorMsg, itemName }, isMountedRef.current);
 
         // Only update React state if component is still mounted
         if (!isMountedRef.current) return;

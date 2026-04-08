@@ -136,6 +136,23 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [selectedItemTitle, setSelectedItemTitle] = useState('');
 
+  // Auto-open chord charts modal from AutocreateWatcher navigation
+  useEffect(() => {
+    const raw = sessionStorage.getItem('autocreateOpenChordCharts');
+    if (!raw || !items?.length) return;
+
+    sessionStorage.removeItem('autocreateOpenChordCharts');
+
+    try {
+      const { itemId, itemTitle } = JSON.parse(raw);
+      setSelectedItemId(itemId);
+      setSelectedItemTitle(itemTitle);
+      setChordChartsModalOpen(true);
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }, [items]);
+
   const handleDelete = async (itemId) => {
     if (isDragging) return; // Prevent delete during drag
     setItemToDelete(itemId);

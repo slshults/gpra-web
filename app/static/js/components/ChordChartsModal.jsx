@@ -1819,14 +1819,14 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
           );
         }
 
-        // Update module-level store with success
+        // Update module-level store with success (handledInline = true if component is mounted)
         autocreateStore.completeRequest(dropItemId, 'success', {
           itemName,
           chordCount: result.chord_count || 0,
           contentType: result.content_type || 'auto-detected',
           uploadedFileNames: result.uploaded_file_names || '',
           isVisionAnalysis: result.content_type === 'chord_charts' || result.used_vision_analysis === true || (!result.content_type && result.used_vision_analysis !== false)
-        });
+        }, isMountedRef.current);
 
         // Only update React state if component is still mounted
         if (isMountedRef.current) {
@@ -1904,8 +1904,8 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
           );
         }
 
-        // Update module-level store with error
-        autocreateStore.completeRequest(dropItemId, 'error', { error: errorMsg });
+        // Update module-level store with error (handledInline = true if component is mounted)
+        autocreateStore.completeRequest(dropItemId, 'error', { error: errorMsg, itemName }, isMountedRef.current);
 
         // Only update React state if component is still mounted
         if (!isMountedRef.current) return;

@@ -16,6 +16,7 @@ import CookieConsent from '@components/CookieConsent';
 import DeletionBanner from '@components/DeletionBanner';
 import ImpersonationBanner from '@components/ImpersonationBanner';
 import KofiWidget from '@components/KofiWidget';
+import AutocreateWatcher from '@components/AutocreateWatcher';
 import { useLightweightItems } from '@hooks/useLightweightItems';
 import { setUserContext } from './utils/analytics';
 
@@ -121,6 +122,9 @@ const App = () => {
 
       {/* Cookie Consent Banner */}
       <CookieConsent />
+
+      {/* Global autocreate completion watcher - shows modal when user is on a different page */}
+      <AutocreateWatcher />
 
       {/* Ko-fi floating widget - shown only for free/dollarstore/basic tiers */}
       {userStatus?.tier && <KofiWidget currentTier={userStatus.tier} />}

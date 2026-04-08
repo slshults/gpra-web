@@ -4553,11 +4553,13 @@ For each chord diagram, left to right:
 - For each **dot on the grid**: count which vertical line it's on (left-to-right: string 6,5,4,3,2,1) and which fret space it occupies (between horizontal lines: nut-to-first = fret 1, first-to-second = fret 2, etc.)
 - Numbers inside dots are FINGER numbers — ignore them for the frets array
 
+Also note the **layout of chords on each line** in the source image. If the next chord appears on a NEW line/row in the original layout, set "lineBreakAfter": true for the current chord. This preserves the source document's line break pattern (e.g., 3 chords on one line, then 2 on the next).
+
 Output JSON array of the chords you read:
 ```json
 [
-  {"name": "G", "frets": [3, 0, 0, 0, 0, -1], "visualDescription": "String 6: dot fret 3, Strings 5-2: open, String 1: X"},
-  {"name": "Am", "frets": [0, 0, 2, 2, 1, 0], "visualDescription": "..."}
+  {"name": "G", "frets": [3, 0, 0, 0, 0, -1], "visualDescription": "String 6: dot fret 3, Strings 5-2: open, String 1: X", "lineBreakAfter": false},
+  {"name": "Am", "frets": [0, 0, 2, 2, 1, 0], "visualDescription": "...", "lineBreakAfter": true}
 ]
 ```
 
@@ -4661,25 +4663,39 @@ frets = [string 6, string 5, string 4, string 3, string 2, string 1] (low to hig
         app.logger.info(f"[AUTOCREATE-CROP] Phase 2 complete: read {len(all_readings)} total chords in {llm_end_time - llm_start_time:.1f}s")
 
         # Assemble into the expected output format
+        # Strip "(row N)" suffixes from section labels to merge multi-row sections,
+        # and add line breaks between rows within the same section
         sections_dict = {}
-        row_num = 0
+        prev_raw_label = None
         for chord in all_readings:
-            section_label = chord.get('section', 'Chords')
-            if section_label not in sections_dict:
-                sections_dict[section_label] = []
-                row_num = 0
-            row_num += 1
-            sections_dict[section_label].append({
+            raw_label = chord.get('section', 'Chords')
+            # Strip "(row N)" suffix to merge rows into one section
+            base_label = re.sub(r'\s*\(row\s*\d+\)', '', raw_label, flags=re.IGNORECASE).strip()
+            if not base_label:
+                base_label = 'Chords'
+
+            if base_label not in sections_dict:
+                sections_dict[base_label] = []
+
+            # When we move to a new crop row within the same section,
+            # mark the last chord of the previous row with a line break
+            if prev_raw_label is not None and raw_label != prev_raw_label:
+                prev_base = re.sub(r'\s*\(row\s*\d+\)', '', prev_raw_label, flags=re.IGNORECASE).strip() or 'Chords'
+                if prev_base == base_label and sections_dict[base_label]:
+                    sections_dict[base_label][-1]['lineBreakAfter'] = True
+                    app.logger.debug(f"[AUTOCREATE-CROP] Line break after '{sections_dict[base_label][-1]['name']}' (row transition: {prev_raw_label} → {raw_label})")
+
+            sections_dict[base_label].append({
                 "name": chord.get('name', 'Unknown'),
                 "frets": chord.get('frets', []),
                 "sourceType": "chord_chart_direct",
-                "row": row_num,
-                "position": len(sections_dict[section_label]),
-                "lineBreakAfter": False
+                "row": len(sections_dict[base_label]),
+                "position": len(sections_dict[base_label]),
+                "lineBreakAfter": chord.get('lineBreakAfter', False)
             })
+            prev_raw_label = raw_label
 
-        # Mark last chord in each section's rows with lineBreakAfter
-        # (We don't have exact row info from the crops, so mark last chord per section)
+        # Mark last chord in each section with lineBreakAfter
         for section_chords in sections_dict.values():
             if section_chords:
                 section_chords[-1]['lineBreakAfter'] = True
@@ -4708,6 +4724,11 @@ frets = [string 6, string 5, string 4, string 3, string 2, string 1] (low to hig
         }
 
         response_text = json.dumps(chord_data)
+
+        # Debug: log lineBreakAfter values for each chord
+        for section in sections_list:
+            breaks = [(c['name'], c['lineBreakAfter']) for c in section['chords']]
+            app.logger.debug(f"[AUTOCREATE-CROP] Section '{section['label']}' lineBreaks: {breaks}")
 
         app.logger.info(f"[AUTOCREATE-CROP] Assembled {len(all_readings)} chords into {len(sections_list)} sections")
 
@@ -5491,13 +5512,13 @@ def create_chord_charts_from_data(chord_data, item_id):
         if not sections:
             sections = [{'label': 'Chords', 'chords': []}]
 
-        for section in sections:
+        for section_idx, section in enumerate(sections):
             section_label = section.get('label', 'Chords')
             section_repeat = section.get('repeatCount', '')
 
-            # Generate a unique section ID
+            # Generate a unique section ID (include index to avoid collisions in tight loops)
             import time
-            section_id = f"section-{int(time.time() * 1000)}"
+            section_id = f"section-{int(time.time() * 1000)}-{section_idx}"
 
             for chord in section.get('chords', []):
                 chord_name = chord.get('name', 'Unknown')

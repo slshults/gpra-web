@@ -103,30 +103,15 @@
     </script>
 
     <div class="min-h-screen flex flex-col items-center px-4 py-3">
-        <!-- Hero video section (grows to fill available space) -->
-        <div class="w-full max-w-5xl flex-1 flex items-center justify-center mb-2">
-            <div class="relative w-full group cursor-default" onclick="this.querySelector('.hero-hint').style.opacity='1'; clearTimeout(this._t); this._t=setTimeout(()=>this.querySelector('.hero-hint').style.opacity='0', 4000)">
-                <video autoplay muted loop playsinline class="w-full rounded-lg shadow-lg max-h-full object-contain">
-                    <source src="{{ url_for('static', filename='images/rapidcut5hero.mp4') }}" type="video/mp4">
-                </video>
-                <div class="hero-hint absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                    <p class="text-white text-center text-lg px-6 py-3 max-w-lg">
-                        This is just a looping video showing parts of the app.<br>
-                        Scroll down to find the <strong>Sign up</strong> and <strong>Login</strong> buttons.
-                    </p>
-                </div>
-            </div>
-        </div>
-
         <!-- App title -->
-        <div class="text-center mb-2">
+        <div class="text-center mb-2 mt-4">
             <h1 class="text-3xl font-bold text-orange-500 mb-2">
                 🎸 Guitar Practice Routine App
             </h1>
         </div>
 
-        <!-- Main content card (compact) -->
-        <div class="w-full max-w-md">
+        <!-- Main content card -->
+        <div class="w-full" style="max-width: 32rem;">
             <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 flex flex-col">
                 <!-- Intro paragraphs (left-aligned) -->
                 <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
@@ -162,7 +147,21 @@
             </div>
         </div>
 
-        <!-- Footer links (outside max-w-md wrapper) -->
+        <!-- Hero video section -->
+        <div class="w-full max-w-5xl flex items-center justify-center mt-4 mb-2">
+            <div class="relative w-full group cursor-default" onclick="this.querySelector('.hero-hint').style.opacity='1'; clearTimeout(this._t); this._t=setTimeout(()=>this.querySelector('.hero-hint').style.opacity='0', 4000)">
+                <video autoplay muted loop playsinline class="w-full rounded-lg shadow-lg max-h-full object-contain">
+                    <source src="{{ url_for('static', filename='images/rapidcut5hero.mp4') }}" type="video/mp4">
+                </video>
+                <div class="hero-hint absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                    <p class="text-white text-center text-lg px-6 py-3 max-w-lg">
+                        This is just a looping video showing parts of the app.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer links -->
         <div class="text-center text-sm text-gray-400 py-2 mt-1">
             <a href="/find-a-chord-chart" class="hover:underline hover:text-gray-400">Find a chord chart</a>
             <span> &middot; </span>
