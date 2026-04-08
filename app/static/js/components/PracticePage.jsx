@@ -19,7 +19,7 @@ import { useActiveRoutine } from '@hooks/useActiveRoutine';
 import { useItemDetails } from '@hooks/useItemDetails';
 import { usePracticeItems } from '@hooks/usePracticeItems';
 import { useNavigation } from '@contexts/NavigationContext';
-import { ChevronDown, ChevronRight, Check, Plus, FileText, Book, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer, ExternalLink, Pencil, Keyboard } from 'lucide-react';
+import { ChevronDown, ChevronRight, Check, Plus, FileText, Book, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer, ExternalLink, Pencil, Keyboard, Bell } from 'lucide-react';
 import { NoteEditor, renderMarkdown } from './NoteEditor';
 import { ChordChartEditor } from './ChordChartEditor';
 import { RoutineEditor } from '@components/RoutineEditor';
@@ -384,6 +384,77 @@ const findSimilarSongs = (sourceTitle, allItems, sourceItemId) => {
   });
 };
 
+// Module-level store for in-progress visual analysis (survives component unmount/remount)
+const autocreateStore = {
+  // Map of itemId -> { itemName, abortController, notifyRequested, startTime, type }
+  activeRequests: {},
+  // Map of itemId -> { status, result, error } for completed requests not yet consumed
+  completedRequests: {},
+
+  startRequest(itemId, itemName, abortController, type) {
+    this.activeRequests[itemId] = {
+      itemName,
+      abortController,
+      notifyRequested: false,
+      startTime: Date.now(),
+      type
+    };
+  },
+  completeRequest(itemId, status, result) {
+    delete this.activeRequests[itemId];
+    this.completedRequests[itemId] = { status, result };
+  },
+  cancelRequest(itemId) {
+    const active = this.activeRequests[itemId];
+    if (active?.abortController) {
+      active.abortController.abort();
+    }
+    delete this.activeRequests[itemId];
+  },
+  // Remove entry without aborting (for completed requests that don't need store tracking)
+  clearRequest(itemId) {
+    delete this.activeRequests[itemId];
+  },
+  getActive(itemId) {
+    return this.activeRequests[itemId] || null;
+  },
+  getActiveVisualAnalysis() {
+    const entries = Object.entries(this.activeRequests);
+    for (const [itemId, req] of entries) {
+      if (req.type === 'visual_analysis') {
+        return { itemId, ...req };
+      }
+    }
+    return null;
+  },
+  consumeCompleted(itemId) {
+    const completed = this.completedRequests[itemId];
+    if (completed) {
+      delete this.completedRequests[itemId];
+    }
+    return completed || null;
+  },
+  setNotifyRequested(itemId) {
+    if (this.activeRequests[itemId]) {
+      this.activeRequests[itemId].notifyRequested = true;
+    }
+  }
+};
+
+// Fire a browser notification if permission was granted
+const fireAutocreateNotification = (title, body) => {
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      new Notification(title, {
+        body,
+        icon: '/static/images/GPRA-192x192.png'
+      });
+    }
+  } catch (e) {
+    debugLog('NOTIFY', 'Failed to fire notification:', e);
+  }
+};
+
 export const PracticePage = () => {
   const { routine, refreshRoutine } = useActiveRoutine();
   const { fetchItemDetails, getItemDetails, isLoadingItem } = useItemDetails();
@@ -439,6 +510,23 @@ export const PracticePage = () => {
 // oxlint-disable-next-line no-unused-vars
   const [messageQueue, setMessageQueue] = useState([]);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
+
+  // Notification UX state
+  const [notifyRequested, setNotifyRequested] = useState({});
+  const [showNotifyInfoModal, setShowNotifyInfoModal] = useState(false);
+  const [notifyPermissionDenied, setNotifyPermissionDenied] = useState({});
+
+  // Queue gating state
+  const [showQueueGateModal, setShowQueueGateModal] = useState(false);
+  const [showQueueActiveItemModal, setShowQueueActiveItemModal] = useState(false);
+
+  // Effort selector state
+  const [showEffortSelector, setShowEffortSelector] = useState(false);
+  const [selectedEffort, setSelectedEffort] = useState('medium');
+  const [pendingEffortItemId, setPendingEffortItemId] = useState(null);
+
+  // Mount tracking ref for safe state updates from async operations
+  const isMountedRef = useRef(false);
 
   // Songbook folder path copy modal state
   const [showFolderPathModal, setShowFolderPathModal] = useState(false);
@@ -519,34 +607,38 @@ export const PracticePage = () => {
     "You could be stretching or something while you wait, couldn't you?",
     "The pyramids weren't built in a day... ",
     "but hey, at least I'm not going to ask you for an email address to send the chord charts to.",
-    "Perfect chord charts take time to craft. These will take less time and they won't be perfect.",
+    "Perfect chord charts take hours to craft. These will take less time. They won't be perfect.",
     "Yeah, I could show you a progress bar, but we both know it would just lie to you",
     "This is taking precisely as long as it needs to take",
-    "Meanwhile, your guitar is getting dusty just sitting there...",
-    "Quality over speed, as they say in the chord chart business. We'll see which this turns out to be",
+    "Meanwhile, your guitar is getting dusty, just sitting there...",
+    "Quality over speed, as they say in the chord chart business. We'll see which this turns out to be...",
     "Calculating the optimal finger placement for maximum laziness...",
     "Teaching AI to read guitar tabs is harder than teaching humans, surprisingly",
     "Processing at the speed of artisanal chord crafting",
     "Your patience is being converted into beautiful chord diagrams",
     "Still faster than drawing the chord charts by hand",
-    "Fun fact: I process thousands of tokens per second, but this still takes a while. Go figure.",
+    "Fun fact: I process thousands of tokens per second, but this still takes a while.",
     "At least you're not on hold listening to elevator music right now",
-    "I'd apologize for the wait, but I'm kinda busy with building your chord charts",
+    "I'd apologize for the wait, but I'm kinda busy building your chord charts",
     "Remember when you had to buy chord books? Yeah, this is still better than that",
-    "I'm doing math that would make your guitar teacher's head spin. Or maybe just mild geometry.",
+    "I'm doing math that would make your guitar teacher's head spin.",
     "Analyzing fret positions with the intensity of a guitarist tuning by ear in a loud bar",
-    "If you're wondering why this takes so long: perfectionism. Just kidding, it's token processing limits.",
+    "If you're wondering why this takes so long: perfectionism. JK, it's because of token processing limits.",
     "Good news: I found all the chords. Bad news: I'm still drawing the little dots",
-    "Pro tip: This wait time is perfect for questioning your life choices that led to learning Wonderwall",
-    "Yes, I could work faster, but then where would the suspense be?",
-    "Translating guitar hieroglyphics into something your fingers can actually use...",
-    "Automating what should have been automated decades ago. You're welcome.",
-    "The AI is thinking. Or maybe procrastinating. Hard to tell, really.",
+    "Pro tip: This wait time is perfect for questioning the life choices that led you to learning Wonderwall",
+    "Even if I could work faster, where would the suspense be in that?",
+    "Automating what should have been automated decades ago...",
+    "The AI is still thinking. Or maybe procrastinating. Hard to tell, really.",
     "Breaking news: Local AI still processing, guitarist growing older by the second",
     "This would go faster if you stopped watching. Seriously, go practice your scales or something.",
-    "Reminder: You could have practiced barre chords for 2 minutes by now. Just saying.",
-    "I promise this is the most interesting thing happening on your screen right now. Probably.",
-    "Currently debating whether that's a Cadd9 or just someone's finger slipped on the photo"
+    "You could have practiced barre chords for 2 minutes by now.",
+    "This is not the most interesting thing happening on your screen right now. Probably.",
+    "Currently debating whether that's a Cadd9 or a smudge",
+    "I'm zooming and enhancing like a detective in a crime show, except the crime is your handwriting",
+    "Counting dots on a grid. This is what I went to AI school for.",
+    "If I had fingers, I'd be playing these chords instead of drawing them",
+    "Putting tiny dots on a grid so you don't have to",
+    "String 6, fret 3... string 5, fret 2... string 4... oh sorry, I count out loud when I'm concentrating..."
   ];
 
   // Helper function to group chords into sections based on persisted metadata
@@ -1048,7 +1140,68 @@ export const PracticePage = () => {
     
     return () => clearInterval(interval);
   }, [autocreateProgress, processingMessages.length]);
-  
+
+  // Mount/unmount tracking + restore state from autocreateStore
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    // Restore any active requests from the module-level store
+    const activeEntries = Object.entries(autocreateStore.activeRequests);
+    for (const [itemId, req] of activeEntries) {
+      setAutocreateProgress(prev => ({ ...prev, [itemId]: 'processing' }));
+      if (req.notifyRequested) {
+        setNotifyRequested(prev => ({ ...prev, [itemId]: true }));
+      }
+    }
+
+    // Consume any completed requests
+    const completedEntries = Object.entries(autocreateStore.completedRequests);
+    for (const [itemId, completed] of completedEntries) {
+      autocreateStore.consumeCompleted(itemId);
+      if (completed.status === 'success') {
+        // Show the success modal and refresh charts
+        const result = completed.result;
+        setAutocreateSuccessData({
+          itemName: result.itemName,
+          chordCount: result.chordCount || 0,
+          contentType: result.contentType || 'auto-detected',
+          uploadedFileNames: result.uploadedFileNames || '',
+          isVisionAnalysis: true
+        });
+        setShowAutocreateSuccessModal(true);
+        // Refresh chord charts for this item
+        (async () => {
+          try {
+            const response = await fetch(`/api/items/${itemId}/chord-charts`);
+            if (response.ok) {
+              const charts = await response.json();
+              if (isMountedRef.current) {
+                setChordCharts(prev => ({ ...prev, [itemId]: charts }));
+                setChordSections(prev => ({ ...prev, [itemId]: buildSectionsFromCharts(charts) }));
+              }
+            }
+          } catch (e) {
+            debugLog('AUTOCREATE', 'Failed to refresh charts on remount:', e);
+          }
+        })();
+      } else if (completed.status === 'error') {
+        setApiError({ message: completed.result?.error || 'Autocreate failed. Please try again.' });
+        setShowApiErrorModal(true);
+      }
+      // Clean up progress state
+      setAutocreateProgress(prev => {
+        const newState = { ...prev };
+        delete newState[itemId];
+        return newState;
+      });
+      setShowAutocreateZone(prev => ({ ...prev, [itemId]: false }));
+    }
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const loadChordChartsForItem = async (itemReferenceId) => {
     // Skip if already loaded
     if (chordCharts[itemReferenceId]) {
@@ -2882,7 +3035,9 @@ export const PracticePage = () => {
     if (autocreateAbortController[itemId]) {
       autocreateAbortController[itemId].abort();
     }
-    
+    // Also cancel in the module-level store
+    autocreateStore.cancelRequest(itemId);
+
     // Reset all state for this item
     setAutocreateProgress(prev => {
       const newState = { ...prev };
@@ -2895,6 +3050,16 @@ export const PracticePage = () => {
       return newState;
     });
     setUploadedFiles(prev => {
+      const newState = { ...prev };
+      delete newState[itemId];
+      return newState;
+    });
+    setNotifyRequested(prev => {
+      const newState = { ...prev };
+      delete newState[itemId];
+      return newState;
+    });
+    setNotifyPermissionDenied(prev => {
       const newState = { ...prev };
       delete newState[itemId];
       return newState;
@@ -2917,6 +3082,66 @@ export const PracticePage = () => {
   const handleCancelDialog = () => {
     setShowCancelConfirmation(false);
     setPendingCancelItemId(null);
+  };
+
+  const handleNotifyMe = async (itemId) => {
+    const itemDetails = getItemDetails(itemId);
+    const itemName = itemDetails?.['C'] || `Item ${itemId}`;
+
+    // Track the event
+    trackChordChartEvent('autocreate_notification_requested', itemName);
+
+    // Check current permission status
+    if (typeof Notification === 'undefined') {
+      // Browser doesn't support notifications
+      setNotifyPermissionDenied(prev => ({ ...prev, [itemId]: true }));
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      // Already granted — set notify and show info modal
+      trackChordChartEvent('autocreate_notification_granted', itemName);
+      autocreateStore.setNotifyRequested(itemId);
+      setNotifyRequested(prev => ({ ...prev, [itemId]: true }));
+      setShowNotifyInfoModal(true);
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      // Already denied
+      trackChordChartEvent('autocreate_notification_denied', itemName);
+      setNotifyPermissionDenied(prev => ({ ...prev, [itemId]: true }));
+      return;
+    }
+
+    // Request permission
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        trackChordChartEvent('autocreate_notification_granted', itemName);
+        autocreateStore.setNotifyRequested(itemId);
+        setNotifyRequested(prev => ({ ...prev, [itemId]: true }));
+        setShowNotifyInfoModal(true);
+      } else {
+        trackChordChartEvent('autocreate_notification_denied', itemName);
+        setNotifyPermissionDenied(prev => ({ ...prev, [itemId]: true }));
+      }
+    } catch (e) {
+      debugLog('NOTIFY', 'Permission request failed:', e);
+      trackChordChartEvent('autocreate_notification_denied', itemName);
+      setNotifyPermissionDenied(prev => ({ ...prev, [itemId]: true }));
+    }
+  };
+
+  const handleEffortConfirm = () => {
+    const itemId = pendingEffortItemId;
+    const files = uploadedFiles[itemId] || [];
+    const itemDetails = getItemDetails(itemId);
+    const itemName = itemDetails?.['C'] || `Item ${itemId}`;
+    trackChordChartEvent('autocreate_effort_selected', itemName, { effort_level: selectedEffort });
+    setShowEffortSelector(false);
+    setPendingEffortItemId(null);
+    handleFileDrop(itemId, files, selectedEffort);
   };
 
   const handleSingleFileDrop = (itemId, files) => {
@@ -3009,7 +3234,20 @@ export const PracticePage = () => {
       return;
     }
 
-    await handleFileDrop(itemId, files);
+    // Queue gate: only one visual analysis at a time
+    const activeVisual = autocreateStore.getActiveVisualAnalysis();
+    if (activeVisual && activeVisual.itemId !== itemId) {
+      const itemDetails = getItemDetails(itemId);
+      const itemName = itemDetails?.['C'] || `Item ${itemId}`;
+      trackChordChartEvent('autocreate_queue_gate_hit', itemName);
+      setShowQueueGateModal(true);
+      return;
+    }
+
+    // Show effort selector before starting visual analysis
+    setPendingEffortItemId(itemId);
+    setSelectedEffort('medium');
+    setShowEffortSelector(true);
   };
 
   const handleManualChordInput = async (itemId, chordInput) => {
@@ -3395,6 +3633,7 @@ export const PracticePage = () => {
       });
       formData.append('itemId', itemId);
       formData.append('userChoice', contentType); // Add user's choice
+      formData.append('effortLevel', selectedEffort);
       
       debugLog('AUTOCREATE', 'Sending API request to /api/autocreate-chord-charts');
       
@@ -3521,7 +3760,7 @@ export const PracticePage = () => {
     }
   };
   
-  const handleFileDrop = async (itemId, files) => {
+  const handleFileDrop = (itemId, files, effortLevel = 'medium') => {
     if (!files || files.length === 0) return;
 
     // Validate file count
@@ -3530,253 +3769,255 @@ export const PracticePage = () => {
       return;
     }
 
+    // Get item name for notifications before starting
+    const itemDetails = getItemDetails(itemId);
+    const itemName = itemDetails?.['C'] || `Item ${itemId}`;
+
     // Flag to prevent processing timer from firing after error
     let hasErrorOccurred = false;
     let processingTimer = null;
 
-    try {
-      setAutocreateProgress(prev => ({ ...prev, [itemId]: 'uploading' }));
+    setAutocreateProgress(prev => ({ ...prev, [itemId]: 'uploading' }));
 
-      // Create abort controller for this request
-      const abortController = new AbortController();
-      setAutocreateAbortController(prev => ({ ...prev, [itemId]: abortController }));
+    // Create abort controller for this request
+    const abortController = new AbortController();
+    setAutocreateAbortController(prev => ({ ...prev, [itemId]: abortController }));
 
-      const formData = new FormData();
-      Array.from(files).forEach((file, index) => {
-        formData.append(`file${index}`, file);
-      });
-      formData.append('itemId', itemId);
+    // Register in module-level store (persists across unmount/remount)
+    autocreateStore.startRequest(itemId, itemName, abortController, 'visual_analysis');
 
-      // Show uploading for minimum 2 seconds, then switch to processing
-      const minDisplayTime = 2000;
+    const formData = new FormData();
+    Array.from(files).forEach((file, index) => {
+      formData.append(`file${index}`, file);
+    });
+    formData.append('itemId', itemId);
+    formData.append('effortLevel', effortLevel);
 
-      processingTimer = setTimeout(() => {
-        if (!hasErrorOccurred) {
+    // Show uploading for minimum 2 seconds, then switch to processing
+    const minDisplayTime = 2000;
+
+    processingTimer = setTimeout(() => {
+      if (!hasErrorOccurred) {
+        if (isMountedRef.current) {
           setAutocreateProgress(prev => ({ ...prev, [itemId]: 'processing' }));
         }
-      }, minDisplayTime);
-
-      const response = await fetch('/api/autocreate-chord-charts', {
-        method: 'POST',
-        body: formData,
-        signal: abortController.signal
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to process files');
       }
-      
-      const result = await response.json();
-      
-      // Check if user needs to choose between mixed content types
-      if (result.needs_user_choice) {
-        setMixedContentData({
-          itemId: itemId,
-          options: result.mixed_content_options || [],
-          files: result.files || []
-        });
-        setShowMixedContentModal(true);
-        setAutocreateProgress(prev => {
-          const newState = { ...prev };
-          delete newState[itemId];
-          return newState;
-        });
-        return;
-      }
+    }, minDisplayTime);
 
-      // Check for unsupported file formats
-      if (result.error === 'unsupported_format') {
-        setUnsupportedFormatData({
-          message: result.message,
-          title: result.title
-        });
-        setShowUnsupportedFormatModal(true);
-        setAutocreateProgress(prev => {
-          const newState = { ...prev };
-          delete newState[itemId];
-          return newState;
-        });
-        return;
-      }
+    // Use Promise chain instead of await so it runs even if component unmounts
+    fetch('/api/autocreate-chord-charts', {
+      method: 'POST',
+      body: formData,
+      signal: abortController.signal
+    })
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(errorData => {
+            throw new Error(errorData.error || 'Failed to process files');
+          });
+        }
+        return response.json();
+      })
+      .then(result => {
+        // Check if user needs to choose between mixed content types
+        if (result.needs_user_choice) {
+          autocreateStore.clearRequest(itemId); // Request completed, no longer needs tracking
+          if (isMountedRef.current) {
+            setMixedContentData({
+              itemId: itemId,
+              options: result.mixed_content_options || [],
+              files: result.files || []
+            });
+            setShowMixedContentModal(true);
+            setAutocreateProgress(prev => {
+              const newState = { ...prev };
+              delete newState[itemId];
+              return newState;
+            });
+          }
+          return;
+        }
 
-      // Reset rate limit backoff on success
-      resetRateLimitBackoff();
-      setAutocreateProgress(prev => ({ ...prev, [itemId]: 'complete' }));
+        // Check for unsupported file formats
+        if (result.error === 'unsupported_format') {
+          autocreateStore.clearRequest(itemId); // Request completed, no longer needs tracking
+          if (isMountedRef.current) {
+            setUnsupportedFormatData({
+              message: result.message,
+              title: result.title
+            });
+            setShowUnsupportedFormatModal(true);
+            setAutocreateProgress(prev => {
+              const newState = { ...prev };
+              delete newState[itemId];
+              return newState;
+            });
+          }
+          return;
+        }
 
-      // Get item details once for reuse
-      const itemDetails = getItemDetails(itemId);
-      const itemName = itemDetails?.['C'] || `Item ${itemId}`;
+        // Reset rate limit backoff on success
+        resetRateLimitBackoff();
+        if (processingTimer) clearTimeout(processingTimer);
 
-      // Track autocreate chord charts success (direct upload flow)
-      const routineItem = routine.items.find(item => item['B'] === itemId);
-      if (routineItem) {
+        // Track autocreate chord charts success
         trackChordChartEvent('autocreated', itemName, {
           file_count: result.file_count || 0,
           content_type: result.content_type || 'auto-detected',
           uploaded_file_names: result.uploaded_file_names || ''
         });
-      }
 
-      // Show success modal for visual analysis (more complex processing)
-      setAutocreateSuccessData({
-        itemName,
-        chordCount: result.chord_count || 0,
-        contentType: result.content_type || 'auto-detected',
-        uploadedFileNames: result.uploaded_file_names || '',
-        isVisionAnalysis: result.content_type === 'chord_charts' || result.used_vision_analysis === true || (!result.content_type && result.used_vision_analysis !== false)
-      });
-      setShowAutocreateSuccessModal(true);
-
-      // Force refresh chord charts for this item (don't use loadChordChartsForItem as it skips if already loaded)
-      try {
-        const response = await fetch(`/api/items/${itemId}/chord-charts`);
-        if (response.ok) {
-          const charts = await response.json();
-          
-          // Transform chord data from Google Sheets format to expected format
-          const transformedCharts = charts;
-          
-          // Update chord charts state like manual creation does
-          setChordCharts(prev => ({
-            ...prev,
-            [itemId]: transformedCharts
-          }));
-          
-          // Build sections from loaded chord charts
-          if (transformedCharts.length === 0) {
-            setChordSections(prev => ({
-              ...prev,
-              [itemId]: []
-            }));
-          } else {
-            // Group chords by their section metadata (same logic as getChordSections)
-            const sectionMap = new Map();
-            
-            transformedCharts.forEach(chart => {
-              const sectionId = chart.sectionId || 'section-1';
-              const sectionLabel = chart.sectionLabel || 'Verse';
-              const sectionRepeatCount = chart.sectionRepeatCount || '';
-              
-              if (!sectionMap.has(sectionId)) {
-                sectionMap.set(sectionId, {
-                  id: sectionId,
-                  label: sectionLabel,
-                  repeatCount: sectionRepeatCount,
-                  chords: []
-                });
-              }
-              
-              sectionMap.get(sectionId).chords.push(chart);
-            });
-            
-            // Convert to array and sort sections by the order of their first chord
-            const sections = Array.from(sectionMap.values()).sort((a, b) => {
-              const aMinOrder = Math.min(...a.chords.map(c => c.order || 0));
-              const bMinOrder = Math.min(...b.chords.map(c => c.order || 0));
-              return aMinOrder - bMinOrder;
-            });
-            
-            // Sort chords within each section by order
-            sections.forEach(section => {
-              section.chords.sort((a, b) => (a.order || 0) - (b.order || 0));
-            });
-            
-            setChordSections(prev => ({
-              ...prev,
-              [itemId]: sections
-            }));
-          }
+        // Fire browser notification if user opted in (works even when unmounted)
+        const storeEntry = autocreateStore.getActive(itemId);
+        if (storeEntry?.notifyRequested) {
+          fireAutocreateNotification(
+            'Chord charts ready!',
+            `${itemName} has new chord charts.`
+          );
         }
-      } catch (error) {
-        console.error('Failed to refresh chord charts after autocreate:', error);
-      }
-      
-      // Clear progress and close autocreate zone after a delay
-      setTimeout(() => {
-        setAutocreateProgress(prev => {
-          const newState = { ...prev };
-          delete newState[itemId];
-          return newState;
-        });
-        setShowAutocreateZone(prev => ({ ...prev, [itemId]: false }));
-        setAutocreateAbortController(prev => {
-          const newState = { ...prev };
-          delete newState[itemId];
-          return newState;
-        });
-        setUploadedFiles(prev => {
-          const newState = { ...prev };
-          delete newState[itemId];
-          return newState;
-        });
-      }, 5000);
-      
-    } catch (error) {
-      // Prevent the processing timer from firing after error
-      hasErrorOccurred = true;
-      if (processingTimer) clearTimeout(processingTimer);
 
-      if (error.name === 'AbortError') {
-        debugLog('AUTOCREATE', 'Request was cancelled');
-        return;
-      }
-
-      console.error('Error in autocreate:', error);
-
-      // Check if this is an API error that needs special handling
-      const errorMsg = error.message || error.toString();
-
-      // Check for API key required error first
-      if (errorMsg.startsWith('API_KEY_REQUIRED: ')) {
-        const message = errorMsg.replace('API_KEY_REQUIRED: ', '');
-        setApiError({
-          message: message,
-          requiresApiKey: true
+        // Update module-level store with success
+        autocreateStore.completeRequest(itemId, 'success', {
+          itemName,
+          chordCount: result.chord_count || 0,
+          contentType: result.content_type || 'auto-detected',
+          uploadedFileNames: result.uploaded_file_names || '',
+          isVisionAnalysis: result.content_type === 'chord_charts' || result.used_vision_analysis === true || (!result.content_type && result.used_vision_analysis !== false)
         });
-        setShowApiErrorModal(true);
-        setAutocreateProgress(prev => {
-          const newState = { ...prev };
-          delete newState[itemId];
-          return newState;
-        });
-      } else if (errorMsg.includes('529') || errorMsg.includes('overloaded') ||
-          errorMsg.includes('429') || errorMsg.includes('rate limit') ||
-          errorMsg.includes('500') || errorMsg.includes('502') || errorMsg.includes('503') ||
-          errorMsg.includes('timeout')) {
-        // Show API error modal for these specific errors
-        setApiError(error);
-        setShowApiErrorModal(true);
-        // Clear progress so user is back at clean state
-        setAutocreateProgress(prev => {
-          const newState = { ...prev };
-          delete newState[itemId];
-          return newState;
-        });
-      } else {
-        // Generic error handling for other errors
-        setAutocreateProgress(prev => ({ ...prev, [itemId]: 'error' }));
-      }
-      
-      // Clear error state after delay (only for generic errors)
-      if (!(errorMsg.includes('529') || errorMsg.includes('overloaded') || 
+
+        // Only update React state if component is still mounted
+        if (isMountedRef.current) {
+          setAutocreateProgress(prev => ({ ...prev, [itemId]: 'complete' }));
+
+          setAutocreateSuccessData({
+            itemName,
+            chordCount: result.chord_count || 0,
+            contentType: result.content_type || 'auto-detected',
+            uploadedFileNames: result.uploaded_file_names || '',
+            isVisionAnalysis: result.content_type === 'chord_charts' || result.used_vision_analysis === true || (!result.content_type && result.used_vision_analysis !== false)
+          });
+          setShowAutocreateSuccessModal(true);
+
+          // Force refresh chord charts for this item
+          fetch(`/api/items/${itemId}/chord-charts`)
+            .then(resp => resp.ok ? resp.json() : Promise.reject('Failed to fetch charts'))
+            .then(charts => {
+              if (isMountedRef.current) {
+                setChordCharts(prev => ({ ...prev, [itemId]: charts }));
+                setChordSections(prev => ({ ...prev, [itemId]: buildSectionsFromCharts(charts) }));
+              }
+            })
+            .catch(err => console.error('Failed to refresh chord charts after autocreate:', err));
+
+          // Clear progress and close autocreate zone after a delay
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              setAutocreateProgress(prev => {
+                const newState = { ...prev };
+                delete newState[itemId];
+                return newState;
+              });
+              setShowAutocreateZone(prev => ({ ...prev, [itemId]: false }));
+              setAutocreateAbortController(prev => {
+                const newState = { ...prev };
+                delete newState[itemId];
+                return newState;
+              });
+              setUploadedFiles(prev => {
+                const newState = { ...prev };
+                delete newState[itemId];
+                return newState;
+              });
+              setNotifyRequested(prev => {
+                const newState = { ...prev };
+                delete newState[itemId];
+                return newState;
+              });
+            }
+          }, 5000);
+        }
+      })
+      .catch(error => {
+        // Prevent the processing timer from firing after error
+        hasErrorOccurred = true;
+        if (processingTimer) clearTimeout(processingTimer);
+
+        if (error.name === 'AbortError') {
+          debugLog('AUTOCREATE', 'Request was cancelled by user');
+          autocreateStore.cancelRequest(itemId);
+          return;
+        }
+
+        console.error('Error in autocreate:', error);
+
+        const errorMsg = error.message || error.toString();
+
+        // Fire error notification if user opted in (works even when unmounted)
+        const storeEntry = autocreateStore.getActive(itemId);
+        if (storeEntry?.notifyRequested) {
+          fireAutocreateNotification(
+            'Autocreate failed',
+            `Autocreate failed for ${itemName}. Please try again.`
+          );
+        }
+
+        // Update module-level store with error
+        autocreateStore.completeRequest(itemId, 'error', { error: errorMsg });
+
+        // Only update React state if component is still mounted
+        if (!isMountedRef.current) return;
+
+        // Check for API key required error first
+        if (errorMsg.startsWith('API_KEY_REQUIRED: ')) {
+          const message = errorMsg.replace('API_KEY_REQUIRED: ', '');
+          setApiError({
+            message: message,
+            requiresApiKey: true
+          });
+          setShowApiErrorModal(true);
+          setAutocreateProgress(prev => {
+            const newState = { ...prev };
+            delete newState[itemId];
+            return newState;
+          });
+        } else if (errorMsg.includes('529') || errorMsg.includes('overloaded') ||
             errorMsg.includes('429') || errorMsg.includes('rate limit') ||
             errorMsg.includes('500') || errorMsg.includes('502') || errorMsg.includes('503') ||
-            errorMsg.includes('timeout'))) {
-        setTimeout(() => {
+            errorMsg.includes('timeout')) {
+          // Show API error modal for these specific errors
+          setApiError(error);
+          setShowApiErrorModal(true);
           setAutocreateProgress(prev => {
-          const newState = { ...prev };
-          delete newState[itemId];
-          return newState;
-        });
-        setAutocreateAbortController(prev => {
-          const newState = { ...prev };
-          delete newState[itemId];
-          return newState;
-        });
-      }, 5000);
-      }
-    }
+            const newState = { ...prev };
+            delete newState[itemId];
+            return newState;
+          });
+        } else {
+          // Generic error handling for other errors
+          setAutocreateProgress(prev => ({ ...prev, [itemId]: 'error' }));
+        }
+
+        // Clear error state after delay (only for generic errors)
+        if (!(errorMsg.includes('529') || errorMsg.includes('overloaded') ||
+              errorMsg.includes('429') || errorMsg.includes('rate limit') ||
+              errorMsg.includes('500') || errorMsg.includes('502') || errorMsg.includes('503') ||
+              errorMsg.includes('timeout'))) {
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              setAutocreateProgress(prev => {
+                const newState = { ...prev };
+                delete newState[itemId];
+                return newState;
+              });
+              setAutocreateAbortController(prev => {
+                const newState = { ...prev };
+                delete newState[itemId];
+                return newState;
+              });
+            }
+          }, 5000);
+        }
+      });
   };
 
 
@@ -4031,11 +4272,6 @@ export const PracticePage = () => {
                           const sectionsFromCharts = sectionsFromState ? null : getChordSections(itemReferenceId);
                           const finalSections = sectionsFromState || sectionsFromCharts || [];
 
-                          // Debug: Log the sections data during render to verify state updates
-                          debugLog('LineBreaks', 'Rendering sections for item', itemReferenceId,
-                            'from state:', !!sectionsFromState,
-                            'chords:', finalSections.flatMap(s => s.chords).map(c => ({id: c.id, title: c.title, hasLineBreakAfter: c.hasLineBreakAfter})));
-                          
                           // Map sections to JSX elements with itemReferenceId in scope
                           const sections = finalSections.map((section, sectionIndex) => {
                             return (
@@ -4109,8 +4345,6 @@ export const PracticePage = () => {
                                   const chordRows = [];
                                   let currentRow = [];
 
-                                  debugLog('LineBreaks', 'Processing section:', section.id, 'chords:', section.chords.map(c => ({id: c.id, title: c.title, hasLineBreakAfter: c.hasLineBreakAfter})));
-
                                   section.chords.forEach((chart, index) => {
                                     currentRow.push(chart);
 
@@ -4120,13 +4354,10 @@ export const PracticePage = () => {
                                     // 3. This is the last chord
                                     const shouldBreak = chart.hasLineBreakAfter || currentRow.length >= 5 || index === section.chords.length - 1;
                                     if (shouldBreak) {
-                                      debugLog('LineBreaks', 'Creating row with', currentRow.length, 'chords. Reason:', chart.hasLineBreakAfter ? 'hasLineBreakAfter' : currentRow.length >= 5 ? 'max 5' : 'last chord');
                                       chordRows.push([...currentRow]);
                                       currentRow = [];
                                     }
                                   });
-
-                                  debugLog('LineBreaks', 'Final row structure:', chordRows.map((row, i) => `Row ${i}: ${row.map(c => c.title).join(', ')}`));
 
                                   return chordRows.map((row, rowIndex) => (
                                     <div
@@ -4265,9 +4496,27 @@ export const PracticePage = () => {
                                                     onDrop={(e) => {
                                                       e.preventDefault();
                                                       setIsDragActive(prev => ({ ...prev, [itemReferenceId]: false }));
+                                                      // Queue gate: block if another visual analysis is running
+                                                      const activeVisual = autocreateStore.getActiveVisualAnalysis();
+                                                      if (activeVisual && activeVisual.itemId !== itemReferenceId) {
+                                                        const dropItemDetails = getItemDetails(itemReferenceId);
+                                                        const dropItemName = dropItemDetails?.['C'] || `Item ${itemReferenceId}`;
+                                                        trackChordChartEvent('autocreate_queue_gate_hit', dropItemName);
+                                                        setShowQueueGateModal(true);
+                                                        return;
+                                                      }
                                                       handleSingleFileDrop(itemReferenceId, e.dataTransfer.files);
                                                     }}
                                                     onClick={() => {
+                                                      // Queue gate: block if another visual analysis is running
+                                                      const activeVisual = autocreateStore.getActiveVisualAnalysis();
+                                                      if (activeVisual && activeVisual.itemId !== itemReferenceId) {
+                                                        const clickItemDetails = getItemDetails(itemReferenceId);
+                                                        const clickItemName = clickItemDetails?.['C'] || `Item ${itemReferenceId}`;
+                                                        trackChordChartEvent('autocreate_queue_gate_hit', clickItemName);
+                                                        setShowQueueGateModal(true);
+                                                        return;
+                                                      }
                                                       const input = document.createElement('input');
                                                       input.type = 'file';
                                                       input.multiple = true;
@@ -4473,8 +4722,45 @@ export const PracticePage = () => {
                                                       <div className="ml-2 animate-spin" aria-hidden="true">⚙️</div>
                                                     </div>
                                                   </div>
-                                                  <br />
-                                                  <div className="flex justify-center">
+
+                                                  {/* Notification UX — only for visual analysis (not YouTube or manual entry) */}
+                                                  {/* Only shows for visual analysis — reads from module-level store.
+                                                      Works because setAutocreateProgress (React state) changes in sync,
+                                                      triggering the re-render that reads from the store. */}
+                                                  {autocreateStore.getActive(itemReferenceId) && (
+                                                  <div className="mt-4 text-center space-y-3">
+                                                    <p className="text-gray-400 text-sm px-4">
+                                                      You don't have to keep watching. You can go build other stuff while you wait.
+                                                      <br />
+                                                      Check back in 10 or 15 minutes, and/or hit the button:
+                                                    </p>
+
+                                                    {notifyPermissionDenied[itemReferenceId] ? (
+                                                      <div className="inline-block rounded-md bg-gray-700/50 border border-gray-600 px-4 py-2">
+                                                        <p className="text-gray-400 text-sm">Check back in 10-15 minutes</p>
+                                                      </div>
+                                                    ) : notifyRequested[itemReferenceId] ? (
+                                                      <div className="inline-block rounded-md bg-indigo-900/40 border border-indigo-600/50 px-4 py-2">
+                                                        <p className="text-indigo-300 text-sm">We'll try to notify you</p>
+                                                        <p className="text-indigo-300 text-sm">when the charts are ready</p>
+                                                      </div>
+                                                    ) : (
+                                                      <div className="flex justify-center">
+                                                        <Button
+                                                          size="sm"
+                                                          onClick={() => handleNotifyMe(itemReferenceId)}
+                                                          className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                                                          title="Get notified on this device when the charts are ready for this item."
+                                                        >
+                                                          <Bell className="h-3 w-3 mr-1" />
+                                                          Notify me
+                                                        </Button>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                  )}
+
+                                                  <div className="flex justify-center pt-1">
                                                     <Button
                                                       variant="outline"
                                                       size="sm"
@@ -4577,7 +4863,8 @@ export const PracticePage = () => {
                                       }
                                     }, 100);
                                   }}
-                                  className="min-w-48"
+                                  disabled={!!autocreateProgress[itemReferenceId] && autocreateProgress[itemReferenceId] !== 'complete'}
+                                  className="min-w-48 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   + Add new chord
                                 </Button>
@@ -4587,7 +4874,8 @@ export const PracticePage = () => {
                                 <Button
                                   variant="default"
                                   onClick={() => addNewSection(itemReferenceId)}
-                                  className="min-w-48"
+                                  disabled={!!autocreateProgress[itemReferenceId] && autocreateProgress[itemReferenceId] !== 'complete'}
+                                  className="min-w-48 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   + Add new section
                                 </Button>
@@ -4598,14 +4886,15 @@ export const PracticePage = () => {
                                 <Button
                                   variant="default"
                                   onClick={() => handleOpenCopyFromModal(itemReferenceId)}
-                                  className="flex-1"
+                                  disabled={!!autocreateProgress[itemReferenceId] && autocreateProgress[itemReferenceId] !== 'complete'}
+                                  className="flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   Copy chord charts from other song
                                 </Button>
                                 <Button
                                   variant="default"
                                   onClick={() => handleOpenCopyModal(itemReferenceId)}
-                                  disabled={!chordCharts[itemReferenceId] || chordCharts[itemReferenceId].length === 0}
+                                  disabled={(!chordCharts[itemReferenceId] || chordCharts[itemReferenceId].length === 0) || (!!autocreateProgress[itemReferenceId] && autocreateProgress[itemReferenceId] !== 'complete')}
                                   className="flex-1 bg-purple-700 text-purple-300 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   Copy chord charts to other song
@@ -5218,6 +5507,152 @@ export const PracticePage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Notification info modal */}
+      <Dialog open={showNotifyInfoModal} onOpenChange={setShowNotifyInfoModal}>
+        <DialogContent modalName="autocreate-notify-info" className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Notifications enabled</DialogTitle>
+            <DialogDescription>
+              You can go to other pages and check back in 10 or 15 minutes.
+              <br /><br />
+              We'll try to notify you on this device when the chord charts are ready.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end">
+            <Button onClick={() => setShowNotifyInfoModal(false)}>
+              Ok
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Queue gate modal - shown when user tries to start a second visual analysis */}
+      <Dialog open={showQueueGateModal} onOpenChange={setShowQueueGateModal}>
+        <DialogContent modalName="autocreate-queue-gate" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>One at a time</DialogTitle>
+            <DialogDescription asChild>
+              <div>
+                <p>
+                  Sorry, we can only handle one pdf or image at a time, and you still have{' '}
+                  <button
+                    className="text-blue-400 hover:text-blue-300 underline cursor-pointer bg-transparent border-none p-0 font-inherit"
+                    onClick={() => {
+                      setShowQueueGateModal(false);
+                      setShowQueueActiveItemModal(true);
+                    }}
+                  >
+                    one running
+                  </button>
+                  . You can still build chord charts with YouTube lesson URLs, or build charts manually on other items while you wait.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end">
+            <Button onClick={() => setShowQueueGateModal(false)}>
+              Ok
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Queue active item modal - shows which item is currently processing */}
+      <Dialog open={showQueueActiveItemModal} onOpenChange={setShowQueueActiveItemModal}>
+        <DialogContent modalName="autocreate-queue-active-item" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>In progress</DialogTitle>
+            <DialogDescription asChild>
+              <div>
+                {(() => {
+                  const activeVisual = autocreateStore.getActiveVisualAnalysis();
+                  return activeVisual ? (
+                    <p>
+                      Currently creating chord charts for: <strong>{activeVisual.itemName}</strong>
+                    </p>
+                  ) : (
+                    <p>No visual analysis currently running.</p>
+                  );
+                })()}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowQueueActiveItemModal(false)}>
+              Keep waiting
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const activeVisual = autocreateStore.getActiveVisualAnalysis();
+                if (activeVisual) {
+                  setShowQueueActiveItemModal(false);
+                  handleShowCancelConfirmation(activeVisual.itemId);
+                }
+              }}
+            >
+              Cancel autocreate
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Effort selector modal - shown before starting visual analysis */}
+      <Dialog open={showEffortSelector} onOpenChange={(open) => {
+        if (!open) {
+          setShowEffortSelector(false);
+          setPendingEffortItemId(null);
+        }
+      }}>
+        <DialogContent modalName="autocreate-effort-selector" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pick one:</DialogTitle>
+            <DialogDescription className="sr-only">Choose quality vs speed for chord chart creation</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+              onClick={() => setSelectedEffort('low')}>
+              <input type="radio" name="effort" value="low"
+                checked={selectedEffort === 'low'}
+                onChange={() => setSelectedEffort('low')}
+                className="text-indigo-500 focus:ring-indigo-500" />
+              <div>
+                <span className="text-white">Get charts sooner, with a lot of errors</span>
+                <span className="text-gray-400 text-sm ml-2">(~2 to 5 mins)</span>
+              </div>
+            </label>
+            <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+              onClick={() => setSelectedEffort('medium')}>
+              <input type="radio" name="effort" value="medium"
+                checked={selectedEffort === 'medium'}
+                onChange={() => setSelectedEffort('medium')}
+                className="text-indigo-500 focus:ring-indigo-500" />
+              <div>
+                <span className="text-white">Split the difference</span>
+                <span className="text-gray-400 text-sm ml-2">(~5 to 15 mins)</span>
+              </div>
+            </label>
+            <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+              onClick={() => setSelectedEffort('high')}>
+              <input type="radio" name="effort" value="high"
+                checked={selectedEffort === 'high'}
+                onChange={() => setSelectedEffort('high')}
+                className="text-indigo-500 focus:ring-indigo-500" />
+              <div>
+                <span className="text-white">Wait longer for fewer errors</span>
+                <span className="text-gray-400 text-sm ml-2">(~20 to 40 mins)</span>
+              </div>
+            </label>
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={handleEffortConfirm}>
+              <Wand className="h-4 w-4 mr-2" />
+              Create charts
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Timer Sound Info Modal - shown first time user starts timer each session */}
       <AlertDialog open={showSoundPromptModal} onOpenChange={(open) => {

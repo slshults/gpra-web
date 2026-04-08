@@ -431,10 +431,10 @@ def chord_chart(chart_id):
             return jsonify({"error": "Request must be JSON"}), 400
 
         # Debug logging for line break feature
-        app.logger.info(f"[LINE BREAK DEBUG] Received PUT for chart {chart_id}: hasLineBreakAfter={request.json.get('hasLineBreakAfter')}")
+        app.logger.debug(f"[LINE BREAK DEBUG] Received PUT for chart {chart_id}: hasLineBreakAfter={request.json.get('hasLineBreakAfter')}")
         updated_chart = data_layer.update_chord_chart(chart_id, request.json)
         if updated_chart:
-            app.logger.info(f"[LINE BREAK DEBUG] Returning updated chart: hasLineBreakAfter={updated_chart.get('hasLineBreakAfter')}")
+            app.logger.debug(f"[LINE BREAK DEBUG] Returning updated chart: hasLineBreakAfter={updated_chart.get('hasLineBreakAfter')}")
         return jsonify(updated_chart) if updated_chart else ('', 404)
         
     elif request.method == 'DELETE':
@@ -812,6 +812,11 @@ def autocreate_chord_charts():
         if not uploaded_files:
             return jsonify({'error': 'No valid file found'}), 400
             
+        # Read effort level for visual analysis (low/medium/high)
+        effort_level = request.form.get('effortLevel', 'medium')
+        if effort_level not in ('low', 'medium', 'high'):
+            effort_level = 'medium'
+
         # Check if user provided a choice for mixed content
         user_choice = request.form.get('userChoice')
         if user_choice:
@@ -879,7 +884,7 @@ def autocreate_chord_charts():
         app.logger.debug("Sending files to Claude for analysis")
 
         # Process with simplified autocreate logic
-        analysis_result = analyze_files_with_claude(client, uploaded_files, item_id, user_id)
+        analysis_result = analyze_files_with_claude(client, uploaded_files, item_id, user_id, effort_level=effort_level)
         app.logger.info(f"[AUTOCREATE] Claude analysis completed, result type: {type(analysis_result)}")
 
         # Increment usage counter after successful API call (only for non-byoClaude users)
@@ -3899,7 +3904,7 @@ Analyze the files below:"""
             "analysis": {"error": str(e)}
         }
 
-def analyze_files_with_claude(client, uploaded_files, item_id, user_id=None):
+def analyze_files_with_claude(client, uploaded_files, item_id, user_id=None, effort_level='medium'):
     """Analyze files and route to appropriate processing function (complete sheets version)"""
     try:
         app.logger.info(f"[AUTOCREATE] analyze_files_with_claude called with {len(uploaded_files)} files for item {item_id}")
@@ -3916,7 +3921,7 @@ def analyze_files_with_claude(client, uploaded_files, item_id, user_id=None):
             # Skip detection, go straight to processing
             if forced_type == 'chord_charts':
                 app.logger.info(f"[AUTOCREATE] Processing as chord charts (user choice)")
-                return process_chord_charts_directly(client, uploaded_files, item_id, user_id=user_id)
+                return process_chord_charts_directly(client, uploaded_files, item_id, user_id=user_id, effort_level=effort_level)
             elif forced_type == 'chord_names':
                 app.logger.info(f"[AUTOCREATE] Processing as chord names (user choice)")
                 return process_chord_names_with_lyrics(client, uploaded_files, item_id, user_id=user_id)
@@ -3942,7 +3947,7 @@ def analyze_files_with_claude(client, uploaded_files, item_id, user_id=None):
 
         # Step 3: Process files based on detected type
         if primary_type == 'chord_charts':
-            return process_chord_charts_directly(client, uploaded_files, item_id, user_id=user_id)
+            return process_chord_charts_directly(client, uploaded_files, item_id, user_id=user_id, effort_level=effort_level)
         elif primary_type == 'chord_names':
             # Check if this is a YouTube transcript
             is_youtube_transcript = any(file_data.get('name') == 'youtube_transcript.txt' for file_data in uploaded_files)
@@ -4414,7 +4419,7 @@ def handle_crop(image, x1, y1, x2, y2):
     ]
 
 
-def process_chord_charts_directly(client, uploaded_files, item_id, user_id=None):
+def process_chord_charts_directly(client, uploaded_files, item_id, user_id=None, effort_level='medium'):
     """Process files containing chord charts for direct import using crop tool for precision"""
     import time
     import json
@@ -4523,7 +4528,7 @@ Output as JSON:
             return {'error': 'Failed to parse layout survey response'}
 
         try:
-            survey_data = json.loads(survey_json_match.group(1) if '```' in survey_text else survey_json_match.group(0))
+            survey_data = json.loads(survey_json_match.group(1) if survey_json_match.lastindex else survey_json_match.group(0))
         except json.JSONDecodeError:
             return {'error': 'Invalid JSON in layout survey response'}
 
@@ -4559,6 +4564,16 @@ Output JSON array of the chords you read:
 frets = [string 6, string 5, string 4, string 3, string 2, string 1] (low to high)
 -1 = muted (X), 0 = open (O), 1+ = fretted"""
 
+        # Effort config: low=fast/rough, medium=balanced, high=thorough/slow
+        # High uses manual budget_tokens to guarantee text output room (adaptive spirals on complex crops)
+        effort_configs = {
+            'low':    {'max_tokens': 8000,  'thinking': {"type": "adaptive"}, 'output_config': {"effort": "low"}},
+            'medium': {'max_tokens': 16000, 'thinking': {"type": "adaptive"}, 'output_config': {"effort": "medium"}},
+            'high':   {'max_tokens': 64000, 'thinking': {"type": "enabled", "budget_tokens": 48000}},
+        }
+        effort_config = effort_configs[effort_level]
+        app.logger.info(f"[AUTOCREATE-CROP] Using effort={effort_level}, max_tokens={effort_config['max_tokens']}")
+
         for i, row in enumerate(rows):
             x1 = row.get('x1', 0)
             y1 = row.get('y1', 0)
@@ -4583,12 +4598,11 @@ frets = [string 6, string 5, string 4, string 3, string 2, string 1] (low to hig
                 continue
 
             # Stateless call — only sends this one crop + the read prompt
-            # Low effort thinking — brief reasoning for each chord, won't spiral
-            row_response = client.messages.create(
+
+            api_kwargs = dict(
                 model="claude-opus-4-6",
-                max_tokens=16000,
-                thinking={"type": "adaptive"},
-                output_config={"effort": "medium"},
+                max_tokens=effort_config['max_tokens'],
+                thinking=effort_config['thinking'],
                 messages=[{
                     "role": "user",
                     "content": [
@@ -4597,6 +4611,16 @@ frets = [string 6, string 5, string 4, string 3, string 2, string 1] (low to hig
                     ]
                 }]
             )
+            # Only add output_config for adaptive modes (not compatible with manual budget_tokens)
+            if 'output_config' in effort_config:
+                api_kwargs['output_config'] = effort_config['output_config']
+
+            # High effort requires streaming (API enforces it for long-running requests)
+            if effort_level == 'high':
+                with client.messages.stream(**api_kwargs) as stream:
+                    row_response = stream.get_final_message()
+            else:
+                row_response = client.messages.create(**api_kwargs)
 
             if hasattr(row_response, 'usage'):
                 total_input_tokens += row_response.usage.input_tokens
@@ -4616,7 +4640,7 @@ frets = [string 6, string 5, string 4, string 3, string 2, string 1] (low to hig
                 row_json_match = re.search(r'\[.*\]', row_text, re.DOTALL)
             if row_json_match:
                 try:
-                    row_chords = json.loads(row_json_match.group(1) if '```' in row_text else row_json_match.group(0))
+                    row_chords = json.loads(row_json_match.group(1) if row_json_match.lastindex else row_json_match.group(0))
                     if isinstance(row_chords, list):
                         for chord in row_chords:
                             chord['section'] = section
