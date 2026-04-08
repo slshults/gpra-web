@@ -55,8 +55,9 @@ const findSimilarSongs = (sourceTitle, allItems, sourceItemId) => {
   });
 };
 
+import { autocreateStore, fireAutocreateNotification } from '@utils/autocreateStore';
 import { Button } from '@ui/button';
-import { Check, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer } from 'lucide-react';
+import { Check, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer, Bell } from 'lucide-react';
 import { ChordChartEditor } from './ChordChartEditor';
 import ApiErrorModal, { resetRateLimitBackoff } from './ApiErrorModal';
 import AutocreateSuccessModal from './AutocreateSuccessModal';
@@ -386,6 +387,28 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   const [manualInputErrors, setManualInputErrors] = useState({});
   const [isDragActive, setIsDragActive] = useState({});
 
+  // Notification UX state
+  const [notifyRequested, setNotifyRequested] = useState({});
+  const [showNotifyInfoModal, setShowNotifyInfoModal] = useState(false);
+  const [notifyPermissionDenied, setNotifyPermissionDenied] = useState({});
+
+  // Queue gating state
+  const [showQueueGateModal, setShowQueueGateModal] = useState(false);
+  const [showQueueActiveItemModal, setShowQueueActiveItemModal] = useState(false);
+
+  // Effort selector state
+  const [showEffortSelector, setShowEffortSelector] = useState(false);
+  const [selectedEffort, setSelectedEffort] = useState('medium');
+
+  // Mixed content and unsupported format modals
+  const [showMixedContentModal, setShowMixedContentModal] = useState(false);
+  const [mixedContentData, setMixedContentData] = useState(null);
+  const [showUnsupportedFormatModal, setShowUnsupportedFormatModal] = useState(false);
+  const [unsupportedFormatData, setUnsupportedFormatData] = useState(null);
+
+  // Mount tracking ref for safe state updates from async operations
+  const isMountedRef = useRef(false);
+
   // Abort controller for cancelling requests (copied from PracticePage)
   const [autocreateAbortController, setAutocreateAbortController] = useState({});
   // Rotating processing messages for entertainment (copied from PracticePage)
@@ -489,6 +512,65 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
     return () => clearInterval(interval);
   }, [autocreateProgress, processingMessages]);
 
+  // Mount/unmount tracking + restore state from autocreateStore
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    // Restore any active requests from the module-level store for this item
+    const activeEntry = autocreateStore.getActive(itemId);
+    if (activeEntry) {
+      setAutocreateProgress(prev => ({ ...prev, [itemId]: 'processing' }));
+      setShowAutocreateZone(prev => ({ ...prev, [itemId]: true }));
+      if (activeEntry.notifyRequested) {
+        setNotifyRequested(prev => ({ ...prev, [itemId]: true }));
+      }
+    }
+
+    // Consume any completed requests for this item
+    const completed = autocreateStore.consumeCompleted(itemId);
+    if (completed) {
+      if (completed.status === 'success') {
+        const result = completed.result;
+        setAutocreateSuccessData({
+          itemName: result.itemName,
+          chordCount: result.chordCount || 0,
+          contentType: result.contentType || 'auto-detected',
+          uploadedFileNames: result.uploadedFileNames || '',
+          isVisionAnalysis: true
+        });
+        setShowAutocreateSuccessModal(true);
+        // Refresh chord charts for this item
+        (async () => {
+          try {
+            const response = await fetch(`/api/items/${itemId}/chord-charts`);
+            if (response.ok) {
+              const charts = await response.json();
+              if (isMountedRef.current) {
+                setChordCharts(prev => ({ ...prev, [itemId]: charts }));
+                setChordSections(prev => ({ ...prev, [itemId]: buildSectionsFromCharts(charts) }));
+              }
+            }
+          } catch (e) {
+            debugLog('AUTOCREATE', 'Failed to refresh charts on remount:', e);
+          }
+        })();
+      } else if (completed.status === 'error') {
+        setApiError({ message: completed.result?.error || 'Autocreate failed. Please try again.' });
+        setShowApiErrorModal(true);
+      }
+      // Clean up progress state
+      setAutocreateProgress(prev => {
+        const newState = { ...prev };
+        delete newState[itemId];
+        return newState;
+      });
+      setShowAutocreateZone(prev => ({ ...prev, [itemId]: false }));
+    }
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Copy modal: Detect items with existing charts when selection changes (copied from PracticePage)
   useEffect(() => {
@@ -1140,23 +1222,186 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
     setUploadedFiles(prev => ({ ...prev, [itemId]: Array.from(files) }));
   };
 
-  const handleProcessFiles = async (itemId) => {
-    const files = uploadedFiles[itemId] || [];
-    const youtubeUrl = youtubeUrls[itemId]?.trim();
-    const manualChords = manualChordInput[itemId]?.trim();
+  const handleNotifyMe = async (notifyItemId) => {
+    const itemName = itemTitle || `Item ${notifyItemId}`;
 
-    debugLog('AUTOCREATE', `handleProcessFiles called for item ${itemId}, files:`, files.length, 'youtubeUrl:', youtubeUrl, 'manualChords:', manualChords);
+    // Track the event
+    trackChordChartEvent('autocreate_notification_requested', itemName);
+
+    // Check current permission status
+    if (typeof Notification === 'undefined') {
+      setNotifyPermissionDenied(prev => ({ ...prev, [notifyItemId]: true }));
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      trackChordChartEvent('autocreate_notification_granted', itemName);
+      autocreateStore.setNotifyRequested(notifyItemId);
+      setNotifyRequested(prev => ({ ...prev, [notifyItemId]: true }));
+      setShowNotifyInfoModal(true);
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      trackChordChartEvent('autocreate_notification_denied', itemName);
+      setNotifyPermissionDenied(prev => ({ ...prev, [notifyItemId]: true }));
+      return;
+    }
+
+    // Request permission
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        trackChordChartEvent('autocreate_notification_granted', itemName);
+        autocreateStore.setNotifyRequested(notifyItemId);
+        setNotifyRequested(prev => ({ ...prev, [notifyItemId]: true }));
+        setShowNotifyInfoModal(true);
+      } else {
+        trackChordChartEvent('autocreate_notification_denied', itemName);
+        setNotifyPermissionDenied(prev => ({ ...prev, [notifyItemId]: true }));
+      }
+    } catch (e) {
+      debugLog('NOTIFY', 'Permission request failed:', e);
+      trackChordChartEvent('autocreate_notification_denied', itemName);
+      setNotifyPermissionDenied(prev => ({ ...prev, [notifyItemId]: true }));
+    }
+  };
+
+  const handleEffortConfirm = () => {
+    const files = uploadedFiles[itemId] || [];
+    const itemName = itemTitle || `Item ${itemId}`;
+    trackChordChartEvent('autocreate_effort_selected', itemName, { effort_level: selectedEffort });
+    setShowEffortSelector(false);
+    handleFileDrop(itemId, files, selectedEffort);
+  };
+
+  const handleMixedContentChoice = async (contentType) => {
+    if (!mixedContentData) return;
+
+    const { itemId: mixedItemId, files } = mixedContentData;
+
+    debugLog('AUTOCREATE', `handleMixedContentChoice called with contentType: ${contentType}, itemId: ${mixedItemId}, files:`, files.length);
+
+    try {
+      if (isMountedRef.current) {
+        setAutocreateProgress(prev => ({ ...prev, [mixedItemId]: 'processing' }));
+        setShowMixedContentModal(false);
+      }
+
+      // Create FormData and add user choice
+      const formData = new FormData();
+      files.forEach((file, index) => {
+        const byteCharacters = atob(file.data);
+        const byteNumbers = Array.from({ length: byteCharacters.length });
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const reconstructedFile = new File([byteArray], file.name, { type: file.media_type });
+        formData.append(`file${index}`, reconstructedFile);
+      });
+      formData.append('itemId', mixedItemId);
+      formData.append('userChoice', contentType);
+      formData.append('effortLevel', selectedEffort);
+
+      const response = await fetch('/api/autocreate-chord-charts', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to process files';
+        try {
+          const errorData = await response.json();
+          if (errorData.error) errorMessage = errorData.error;
+          if (errorData.requires_api_key) {
+            throw new Error('API_KEY_REQUIRED: ' + errorMessage);
+          }
+        } catch (parseError) {
+          if (!parseError.message.startsWith('API_KEY_REQUIRED')) {
+            console.warn('Could not parse error response:', parseError);
+          } else {
+            throw parseError;
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      resetRateLimitBackoff();
+
+      const itemName = itemTitle || `Item ${mixedItemId}`;
+      trackChordChartEvent('autocreated', itemName, {
+        file_count: result.file_count || 0,
+        content_type: result.content_type || contentType,
+        uploaded_file_names: result.uploaded_file_names || ''
+      });
+
+      if (isMountedRef.current) {
+        setAutocreateSuccessData({
+          itemName,
+          chordCount: result.chord_count || 0,
+          contentType: result.content_type || contentType,
+          uploadedFileNames: result.uploaded_file_names || '',
+          isVisionAnalysis: contentType === 'chord_charts'
+        });
+        setShowAutocreateSuccessModal(true);
+
+        // Refresh chord charts
+        const chartsResponse = await fetch(`/api/items/${mixedItemId}/chord-charts`);
+        if (chartsResponse.ok) {
+          const charts = await chartsResponse.json();
+          setChordCharts(prev => ({ ...prev, [mixedItemId]: charts }));
+          setChordSections(prev => ({ ...prev, [mixedItemId]: buildSectionsFromCharts(charts) }));
+        }
+
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            setAutocreateProgress(prev => {
+              const newState = { ...prev };
+              delete newState[mixedItemId];
+              return newState;
+            });
+            setShowAutocreateZone(prev => ({ ...prev, [mixedItemId]: false }));
+          }
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Error processing mixed content choice:', error);
+      if (isMountedRef.current) {
+        const errorMsg = error.message || error.toString();
+        if (errorMsg.startsWith('API_KEY_REQUIRED: ')) {
+          setApiError({ message: errorMsg.replace('API_KEY_REQUIRED: ', ''), requiresApiKey: true });
+        } else {
+          setApiError({ message: errorMsg });
+        }
+        setShowApiErrorModal(true);
+        setAutocreateProgress(prev => {
+          const newState = { ...prev };
+          delete newState[mixedItemId];
+          return newState;
+        });
+      }
+    }
+  };
+
+  const handleProcessFiles = async (processItemId) => {
+    const files = uploadedFiles[processItemId] || [];
+    const youtubeUrl = youtubeUrls[processItemId]?.trim();
+    const manualChords = manualChordInput[processItemId]?.trim();
+
+    debugLog('AUTOCREATE', `handleProcessFiles called for item ${processItemId}, files:`, files.length, 'youtubeUrl:', youtubeUrl, 'manualChords:', manualChords);
 
     // Handle YouTube URL if provided
     if (youtubeUrl) {
-      await handleYouTubeUrl(itemId, youtubeUrl);
+      await handleYouTubeUrl(processItemId, youtubeUrl);
       return;
     }
 
     // Handle manual chord input if provided
     if (manualChords) {
-      if (validateManualChordInput(manualChords, itemId)) {
-        await handleManualChordInput(itemId, manualChords);
+      if (validateManualChordInput(manualChords, processItemId)) {
+        await handleManualChordInput(processItemId, manualChords);
         return;
       } else {
         return; // Stop processing if validation fails
@@ -1169,7 +1414,18 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       return;
     }
 
-    await handleFileDrop(itemId, files);
+    // Queue gate: only one visual analysis at a time
+    const activeVisual = autocreateStore.getActiveVisualAnalysis();
+    if (activeVisual && activeVisual.itemId !== processItemId) {
+      const itemName = itemTitle || `Item ${processItemId}`;
+      trackChordChartEvent('autocreate_queue_gate_hit', itemName);
+      setShowQueueGateModal(true);
+      return;
+    }
+
+    // Show effort selector before starting visual analysis
+    setSelectedEffort('medium');
+    setShowEffortSelector(true);
   };
 
   const handleManualChordInput = async (itemId, chordInput) => {
@@ -1448,160 +1704,261 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
   };
 
-  const handleFileDrop = async (itemId, files) => {
-    try {
-      setAutocreateProgress(prev => ({ ...prev, [itemId]: 'uploading' }));
+  const handleFileDrop = (dropItemId, files, effortLevel = 'medium') => {
+    if (!files || files.length === 0) return;
 
-      // Create abort controller for this request (copied from PracticePage)
-      const abortController = new AbortController();
-      setAutocreateAbortController(prev => ({ ...prev, [itemId]: abortController }));
+    // Validate file count
+    if (files.length > 5) {
+      alert('Maximum 5 files allowed. Please select fewer files.');
+      return;
+    }
 
-      const formData = new FormData();
-      files.forEach((file, index) => {
-        formData.append(`file${index}`, file);
-      });
+    // Get item name for notifications before starting
+    const itemName = itemTitle || `Item ${dropItemId}`;
 
-      formData.append('itemId', itemId);
+    // Flag to prevent processing timer from firing after error
+    let hasErrorOccurred = false;
+    let processingTimer = null;
 
-      // Show uploading for minimum 2 seconds, then switch to processing (copied from PracticePage)
-      const minDisplayTime = 2000;
-      let hasErrorOccurred = false;
-      const processingTimer = setTimeout(() => {
-        if (!hasErrorOccurred) {
-          setAutocreateProgress(prev => ({ ...prev, [itemId]: 'processing' }));
+    setAutocreateProgress(prev => ({ ...prev, [dropItemId]: 'uploading' }));
+
+    // Create abort controller for this request
+    const abortController = new AbortController();
+    setAutocreateAbortController(prev => ({ ...prev, [dropItemId]: abortController }));
+
+    // Register in module-level store (persists across unmount/remount)
+    autocreateStore.startRequest(dropItemId, itemName, abortController, 'visual_analysis');
+
+    const formData = new FormData();
+    Array.from(files).forEach((file, index) => {
+      formData.append(`file${index}`, file);
+    });
+    formData.append('itemId', dropItemId);
+    formData.append('effortLevel', effortLevel);
+
+    // Show uploading for minimum 2 seconds, then switch to processing
+    const minDisplayTime = 2000;
+
+    processingTimer = setTimeout(() => {
+      if (!hasErrorOccurred) {
+        if (isMountedRef.current) {
+          setAutocreateProgress(prev => ({ ...prev, [dropItemId]: 'processing' }));
         }
-      }, minDisplayTime);
+      }
+    }, minDisplayTime);
 
-      const response = await fetch('/api/autocreate-chord-charts', {
-        method: 'POST',
-        body: formData,
-        signal: abortController.signal
-      });
-
-      if (response.ok) {
-        // Reset rate limit backoff on success
-        resetRateLimitBackoff();
-        setAutocreateProgress(prev => ({ ...prev, [itemId]: 'complete' }));
-
-        // Refresh chord charts
-        const chartsResponse = await fetch(`/api/items/${itemId}/chord-charts`);
-        const charts = await chartsResponse.json();
-
-        setChordCharts(prev => ({
-          ...prev,
-          [itemId]: charts
-        }));
-
-        setChordSections(prev => ({
-          ...prev,
-          [itemId]: buildSectionsFromCharts(charts)
-        }));
-
-        // Clear inputs
-        setUploadedFiles(prev => ({ ...prev, [itemId]: [] }));
-
-        trackChordChartEvent('autocreate_completed', { itemId, fileCount: files.length });
-
-        // Show success modal
-        const itemDetails = getItemDetails(itemId);
-        const fileNames = files.map(f => f.name).join(', ');
-        setAutocreateSuccessData({
-          itemName: itemDetails?.C || `Item ${itemId}`,
-          chordCount: charts.length,
-          contentType: 'auto-detected',
-          uploadedFileNames: fileNames,
-          isVisionAnalysis: false
-        });
-        setShowAutocreateSuccessModal(true);
-
-        // Clean up abort controller (copied from PracticePage)
-        setAutocreateAbortController(prev => {
-          const newState = { ...prev };
-          delete newState[itemId];
-          return newState;
-        });
-
-        setTimeout(() => {
-          setAutocreateProgress(prev => ({ ...prev, [itemId]: null }));
-          setShowAutocreateZone(prev => ({ ...prev, [itemId]: false }));
-        }, 2000);
-
-      } else {
-        // Prevent the processing timer from firing after error
-        hasErrorOccurred = true;
-        clearTimeout(processingTimer);
-
-        // Parse error response
-        let errorMessage = `Failed to create chord charts: ${response.statusText}`;
-        try {
-          const errorData = await response.json();
-          if (errorData.error) {
-            errorMessage = errorData.error;
-          }
-          // Check if requires API key
-          if (errorData.requires_api_key) {
-            // Clear progress state before showing modal
+    // Use Promise chain instead of await so it runs even if component unmounts
+    fetch('/api/autocreate-chord-charts', {
+      method: 'POST',
+      body: formData,
+      signal: abortController.signal
+    })
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(errorData => {
+            throw new Error(errorData.error || 'Failed to process files');
+          });
+        }
+        return response.json();
+      })
+      .then(result => {
+        // Check if user needs to choose between mixed content types
+        if (result.needs_user_choice) {
+          autocreateStore.clearRequest(dropItemId);
+          if (isMountedRef.current) {
+            setMixedContentData({
+              itemId: dropItemId,
+              options: result.mixed_content_options || [],
+              files: result.files || []
+            });
+            setShowMixedContentModal(true);
             setAutocreateProgress(prev => {
               const newState = { ...prev };
-              delete newState[itemId];
+              delete newState[dropItemId];
               return newState;
             });
-            // Show API key required modal
-            setApiError({
-              message: errorMessage,
-              requiresApiKey: true
-            });
-            setShowApiErrorModal(true);
-            // Clean up abort controller
-            setAutocreateAbortController(prev => {
-              const newState = { ...prev };
-              delete newState[itemId];
-              return newState;
-            });
-            return;
           }
-        } catch (parseError) {
-          console.warn('Could not parse error response:', parseError);
+          return;
         }
 
-        // Show generic error modal for other errors
-        setApiError({ message: errorMessage });
-        setShowApiErrorModal(true);
-        // Clear progress immediately for 429/rate limit errors so user is back at clean state
-        setAutocreateProgress(prev => {
-          const newState = { ...prev };
-          delete newState[itemId];
-          return newState;
+        // Check for unsupported file formats
+        if (result.error === 'unsupported_format') {
+          autocreateStore.clearRequest(dropItemId);
+          if (isMountedRef.current) {
+            setUnsupportedFormatData({
+              message: result.message,
+              title: result.title
+            });
+            setShowUnsupportedFormatModal(true);
+            setAutocreateProgress(prev => {
+              const newState = { ...prev };
+              delete newState[dropItemId];
+              return newState;
+            });
+          }
+          return;
+        }
+
+        // Reset rate limit backoff on success
+        resetRateLimitBackoff();
+        if (processingTimer) clearTimeout(processingTimer);
+
+        // Track autocreate chord charts success
+        trackChordChartEvent('autocreated', itemName, {
+          file_count: result.file_count || 0,
+          content_type: result.content_type || 'auto-detected',
+          uploaded_file_names: result.uploaded_file_names || ''
         });
 
-        // Clean up abort controller on error (copied from PracticePage)
-        setAutocreateAbortController(prev => {
-          const newState = { ...prev };
-          delete newState[itemId];
-          return newState;
+        // Fire browser notification if user opted in (works even when unmounted)
+        const storeEntry = autocreateStore.getActive(dropItemId);
+        if (storeEntry?.notifyRequested) {
+          fireAutocreateNotification(
+            'Chord charts ready!',
+            `${itemName} has new chord charts.`
+          );
+        }
+
+        // Update module-level store with success
+        autocreateStore.completeRequest(dropItemId, 'success', {
+          itemName,
+          chordCount: result.chord_count || 0,
+          contentType: result.content_type || 'auto-detected',
+          uploadedFileNames: result.uploaded_file_names || '',
+          isVisionAnalysis: result.content_type === 'chord_charts' || result.used_vision_analysis === true || (!result.content_type && result.used_vision_analysis !== false)
         });
-      }
 
-    } catch (error) {
-      // Prevent the processing timer from firing after error
-      hasErrorOccurred = true;
-      clearTimeout(processingTimer);
+        // Only update React state if component is still mounted
+        if (isMountedRef.current) {
+          setAutocreateProgress(prev => ({ ...prev, [dropItemId]: 'complete' }));
 
-      console.error('Error processing files:', error);
-      // Clear progress immediately so user is back at clean state
-      setAutocreateProgress(prev => {
-        const newState = { ...prev };
-        delete newState[itemId];
-        return newState;
+          setAutocreateSuccessData({
+            itemName,
+            chordCount: result.chord_count || 0,
+            contentType: result.content_type || 'auto-detected',
+            uploadedFileNames: result.uploaded_file_names || '',
+            isVisionAnalysis: result.content_type === 'chord_charts' || result.used_vision_analysis === true || (!result.content_type && result.used_vision_analysis !== false)
+          });
+          setShowAutocreateSuccessModal(true);
+
+          // Force refresh chord charts for this item
+          fetch(`/api/items/${dropItemId}/chord-charts`)
+            .then(resp => resp.ok ? resp.json() : Promise.reject('Failed to fetch charts'))
+            .then(charts => {
+              if (isMountedRef.current) {
+                setChordCharts(prev => ({ ...prev, [dropItemId]: charts }));
+                setChordSections(prev => ({ ...prev, [dropItemId]: buildSectionsFromCharts(charts) }));
+              }
+            })
+            .catch(err => console.error('Failed to refresh chord charts after autocreate:', err));
+
+          // Clear progress and close autocreate zone after a delay
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              setAutocreateProgress(prev => {
+                const newState = { ...prev };
+                delete newState[dropItemId];
+                return newState;
+              });
+              setShowAutocreateZone(prev => ({ ...prev, [dropItemId]: false }));
+              setAutocreateAbortController(prev => {
+                const newState = { ...prev };
+                delete newState[dropItemId];
+                return newState;
+              });
+              setUploadedFiles(prev => {
+                const newState = { ...prev };
+                delete newState[dropItemId];
+                return newState;
+              });
+              setNotifyRequested(prev => {
+                const newState = { ...prev };
+                delete newState[dropItemId];
+                return newState;
+              });
+            }
+          }, 5000);
+        }
+      })
+      .catch(error => {
+        // Prevent the processing timer from firing after error
+        hasErrorOccurred = true;
+        if (processingTimer) clearTimeout(processingTimer);
+
+        if (error.name === 'AbortError') {
+          debugLog('AUTOCREATE', 'Request was cancelled by user');
+          autocreateStore.cancelRequest(dropItemId);
+          return;
+        }
+
+        console.error('Error in autocreate:', error);
+
+        const errorMsg = error.message || error.toString();
+
+        // Fire error notification if user opted in (works even when unmounted)
+        const storeEntry = autocreateStore.getActive(dropItemId);
+        if (storeEntry?.notifyRequested) {
+          fireAutocreateNotification(
+            'Autocreate failed',
+            `Autocreate failed for ${itemName}. Please try again.`
+          );
+        }
+
+        // Update module-level store with error
+        autocreateStore.completeRequest(dropItemId, 'error', { error: errorMsg });
+
+        // Only update React state if component is still mounted
+        if (!isMountedRef.current) return;
+
+        // Check for API key required error first
+        if (errorMsg.startsWith('API_KEY_REQUIRED: ')) {
+          const message = errorMsg.replace('API_KEY_REQUIRED: ', '');
+          setApiError({
+            message: message,
+            requiresApiKey: true
+          });
+          setShowApiErrorModal(true);
+          setAutocreateProgress(prev => {
+            const newState = { ...prev };
+            delete newState[dropItemId];
+            return newState;
+          });
+        } else if (errorMsg.includes('529') || errorMsg.includes('overloaded') ||
+            errorMsg.includes('429') || errorMsg.includes('rate limit') ||
+            errorMsg.includes('500') || errorMsg.includes('502') || errorMsg.includes('503') ||
+            errorMsg.includes('timeout')) {
+          setApiError(error);
+          setShowApiErrorModal(true);
+          setAutocreateProgress(prev => {
+            const newState = { ...prev };
+            delete newState[dropItemId];
+            return newState;
+          });
+        } else {
+          setAutocreateProgress(prev => ({ ...prev, [dropItemId]: 'error' }));
+        }
+
+        // Clear error state after delay (only for generic errors)
+        if (!(errorMsg.includes('529') || errorMsg.includes('overloaded') ||
+              errorMsg.includes('429') || errorMsg.includes('rate limit') ||
+              errorMsg.includes('500') || errorMsg.includes('502') || errorMsg.includes('503') ||
+              errorMsg.includes('timeout'))) {
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              setAutocreateProgress(prev => {
+                const newState = { ...prev };
+                delete newState[dropItemId];
+                return newState;
+              });
+              setAutocreateAbortController(prev => {
+                const newState = { ...prev };
+                delete newState[dropItemId];
+                return newState;
+              });
+            }
+          }, 5000);
+        }
       });
-
-      // Clean up abort controller on error (copied from PracticePage)
-      setAutocreateAbortController(prev => {
-        const newState = { ...prev };
-        delete newState[itemId];
-        return newState;
-      });
-    }
   };
 
   // Autocreate functions (copied from PracticePage)
@@ -1659,37 +2016,49 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   };
 
   // Cancel autocreate functionality (copied from PracticePage)
-  const handleCancelAutocreate = (itemId) => {
+  const handleCancelAutocreate = (cancelItemId) => {
     // Cancel the request if it's in progress
-    if (autocreateAbortController[itemId]) {
-      autocreateAbortController[itemId].abort();
+    if (autocreateAbortController[cancelItemId]) {
+      autocreateAbortController[cancelItemId].abort();
     }
+    // Also cancel in the module-level store
+    autocreateStore.cancelRequest(cancelItemId);
 
     // Reset all state for this item
     setAutocreateProgress(prev => {
       const newState = { ...prev };
-      delete newState[itemId];
+      delete newState[cancelItemId];
       return newState;
     });
     setAutocreateAbortController(prev => {
       const newState = { ...prev };
-      delete newState[itemId];
+      delete newState[cancelItemId];
       return newState;
     });
     setUploadedFiles(prev => {
       const newState = { ...prev };
-      delete newState[itemId];
+      delete newState[cancelItemId];
+      return newState;
+    });
+    setNotifyRequested(prev => {
+      const newState = { ...prev };
+      delete newState[cancelItemId];
+      return newState;
+    });
+    setNotifyPermissionDenied(prev => {
+      const newState = { ...prev };
+      delete newState[cancelItemId];
       return newState;
     });
     setYoutubeUrls(prev => ({
       ...prev,
-      [itemId]: ''
+      [cancelItemId]: ''
     }));
     setManualChordInput(prev => ({
       ...prev,
-      [itemId]: ''
+      [cancelItemId]: ''
     }));
-    setShowAutocreateZone(prev => ({ ...prev, [itemId]: false }));
+    setShowAutocreateZone(prev => ({ ...prev, [cancelItemId]: false }));
   };
 
   // Copy FROM modal: Open modal and load chord chart data for all items
@@ -2186,9 +2555,19 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                                       onDrop={(e) => {
                                         e.preventDefault();
                                         setIsDragActive(prev => ({ ...prev, [itemReferenceId]: false }));
+                                        const activeVisual = autocreateStore.getActiveVisualAnalysis();
+                                        if (activeVisual && activeVisual.itemId !== itemReferenceId) {
+                                          setShowQueueGateModal(true);
+                                          return;
+                                        }
                                         handleSingleFileDrop(itemReferenceId, e.dataTransfer.files);
                                       }}
                                       onClick={() => {
+                                        const activeVisual = autocreateStore.getActiveVisualAnalysis();
+                                        if (activeVisual && activeVisual.itemId !== itemReferenceId) {
+                                          setShowQueueGateModal(true);
+                                          return;
+                                        }
                                         const input = document.createElement('input');
                                         input.type = 'file';
                                         input.multiple = true;
@@ -2386,24 +2765,60 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                                   </div>
                                 )}
                                 {progress === 'processing' && (
-                                  <div className="space-y-3">
+                                  <div className="space-y-3" role="status" aria-live="polite">
                                     <div className="flex items-center justify-center space-x-2">
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500"></div>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500" aria-hidden="true"></div>
                                       <div className="flex items-center">
                                         <span className="text-white">{processingMessages[processingMessageIndex]}</span>
-                                        <div className="ml-2 animate-spin">⚙️</div>
+                                        <div className="ml-2 animate-spin" aria-hidden="true">⚙️</div>
                                       </div>
                                     </div>
-                                    <br />
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleShowCancelConfirmation(itemReferenceId)}
-                                      className="text-gray-400 hover:text-gray-200 border-gray-600"
-                                    >
-                                      <X className="h-3 w-3 mr-1" />
-                                      Cancel
-                                    </Button>
+
+                                    {/* Notification UX - only shows for visual analysis */}
+                                    {autocreateStore.getActive(itemReferenceId) && (
+                                    <div className="mt-4 text-center space-y-3">
+                                      <p className="text-gray-400 text-sm px-4">
+                                        You don't have to keep watching. You can go build other stuff while you wait.
+                                        <br />
+                                        Check back in 10 or 15 minutes, and/or hit the button:
+                                      </p>
+
+                                      {notifyPermissionDenied[itemReferenceId] ? (
+                                        <div className="inline-block rounded-md bg-gray-700/50 border border-gray-600 px-4 py-2">
+                                          <p className="text-gray-400 text-sm">Check back in 10-15 minutes</p>
+                                        </div>
+                                      ) : notifyRequested[itemReferenceId] ? (
+                                        <div className="inline-block rounded-md bg-indigo-900/40 border border-indigo-600/50 px-4 py-2">
+                                          <p className="text-indigo-300 text-sm">We'll try to notify you</p>
+                                          <p className="text-indigo-300 text-sm">when the charts are ready</p>
+                                        </div>
+                                      ) : (
+                                        <div className="flex justify-center">
+                                          <Button
+                                            size="sm"
+                                            onClick={() => handleNotifyMe(itemReferenceId)}
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                                            title="Get notified on this device when the charts are ready for this item."
+                                          >
+                                            <Bell className="h-3 w-3 mr-1" />
+                                            Notify me
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </div>
+                                    )}
+
+                                    <div className="flex justify-center pt-1">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleShowCancelConfirmation(itemReferenceId)}
+                                        className="text-gray-400 hover:text-gray-200 border-gray-600"
+                                      >
+                                        <X className="h-3 w-3 mr-1" />
+                                        Cancel
+                                      </Button>
+                                    </div>
                                   </div>
                                 )}
                                 {progress === 'complete' && (
@@ -2483,6 +2898,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                 <div className="mb-4 flex justify-center">
                   <Button
                     variant="default"
+                    disabled={!!autocreateProgress[itemReferenceId] && autocreateProgress[itemReferenceId] !== 'complete'}
                     onClick={() => {
                       setScrollBackContext({
                         itemId: itemReferenceId,
@@ -2496,7 +2912,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                         }
                       }, 100);
                     }}
-                    className="min-w-48"
+                    className="min-w-48 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     + Add new chord
                   </Button>
@@ -2505,8 +2921,9 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                 <div className="mb-4 flex justify-center">
                   <Button
                     variant="default"
+                    disabled={!!autocreateProgress[itemReferenceId] && autocreateProgress[itemReferenceId] !== 'complete'}
                     onClick={() => addNewSection(itemReferenceId)}
-                    className="min-w-48"
+                    className="min-w-48 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     + Add new section
                   </Button>
@@ -2516,15 +2933,16 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                 <div className="flex flex-col sm:flex-row gap-2 mb-4 max-w-2xl mx-auto">
                   <Button
                     variant="default"
+                    disabled={!!autocreateProgress[itemReferenceId] && autocreateProgress[itemReferenceId] !== 'complete'}
                     onClick={() => handleOpenCopyFromModal(itemReferenceId)}
-                    className="flex-1"
+                    className="flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Copy chord charts from other song
                   </Button>
                   <Button
                     variant="default"
                     onClick={() => handleOpenCopyModal(itemReferenceId)}
-                    disabled={!chordCharts[itemReferenceId] || chordCharts[itemReferenceId].length === 0}
+                    disabled={(!chordCharts[itemReferenceId] || chordCharts[itemReferenceId].length === 0) || (!!autocreateProgress[itemReferenceId] && autocreateProgress[itemReferenceId] !== 'complete')}
                     className="flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Copy chord charts to other song
@@ -2642,6 +3060,212 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
           }}
           autocreateData={autocreateSuccessData}
         />
+
+        {/* Notification info modal */}
+        <Dialog open={showNotifyInfoModal} onOpenChange={setShowNotifyInfoModal}>
+          <DialogContent modalName="autocreate-notify-info-modal" className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Notifications enabled</DialogTitle>
+              <DialogDescription>
+                You can go to other pages and check back in 10 or 15 minutes.
+                <br /><br />
+                We'll try to notify you on this device when the chord charts are ready.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end">
+              <Button onClick={() => setShowNotifyInfoModal(false)}>
+                Ok
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Queue gate modal - shown when user tries to start a second visual analysis */}
+        <Dialog open={showQueueGateModal} onOpenChange={setShowQueueGateModal}>
+          <DialogContent modalName="autocreate-queue-gate-modal" className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>One at a time</DialogTitle>
+              <DialogDescription asChild>
+                <div>
+                  <p>
+                    Sorry, we can only handle one pdf or image at a time, and you still have{' '}
+                    <button
+                      className="text-blue-400 hover:text-blue-300 underline cursor-pointer bg-transparent border-none p-0 font-inherit"
+                      onClick={() => {
+                        setShowQueueGateModal(false);
+                        setShowQueueActiveItemModal(true);
+                      }}
+                    >
+                      one running
+                    </button>
+                    . You can still build chord charts with YouTube lesson URLs, or build charts manually on other items while you wait.
+                  </p>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end">
+              <Button onClick={() => setShowQueueGateModal(false)}>
+                Ok
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Queue active item modal - shows which item is currently processing */}
+        <Dialog open={showQueueActiveItemModal} onOpenChange={setShowQueueActiveItemModal}>
+          <DialogContent modalName="autocreate-queue-active-item-modal" className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>In progress</DialogTitle>
+              <DialogDescription asChild>
+                <div>
+                  {(() => {
+                    const activeVisual = autocreateStore.getActiveVisualAnalysis();
+                    return activeVisual ? (
+                      <p>
+                        Currently creating chord charts for: <strong>{activeVisual.itemName}</strong>
+                      </p>
+                    ) : (
+                      <p>No visual analysis currently running.</p>
+                    );
+                  })()}
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowQueueActiveItemModal(false)}>
+                Keep waiting
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  const activeVisual = autocreateStore.getActiveVisualAnalysis();
+                  if (activeVisual) {
+                    setShowQueueActiveItemModal(false);
+                    handleShowCancelConfirmation(activeVisual.itemId);
+                  }
+                }}
+              >
+                Cancel autocreate
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Effort selector modal - shown before starting visual analysis */}
+        <Dialog open={showEffortSelector} onOpenChange={(open) => {
+          if (!open) {
+            setShowEffortSelector(false);
+          }
+        }}>
+          <DialogContent modalName="autocreate-effort-selector-modal" className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Pick one:</DialogTitle>
+              <DialogDescription className="sr-only">Choose quality vs speed for chord chart creation</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+                onClick={() => setSelectedEffort('low')}>
+                <input type="radio" name="effort-modal" value="low"
+                  checked={selectedEffort === 'low'}
+                  onChange={() => setSelectedEffort('low')}
+                  className="text-indigo-500 focus:ring-indigo-500" />
+                <div>
+                  <span className="text-white">Get charts sooner, with a lot of errors</span>
+                  <span className="text-gray-400 text-sm ml-2">(~2 to 5 mins)</span>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+                onClick={() => setSelectedEffort('medium')}>
+                <input type="radio" name="effort-modal" value="medium"
+                  checked={selectedEffort === 'medium'}
+                  onChange={() => setSelectedEffort('medium')}
+                  className="text-indigo-500 focus:ring-indigo-500" />
+                <div>
+                  <span className="text-white">Split the difference</span>
+                  <span className="text-gray-400 text-sm ml-2">(~5 to 15 mins)</span>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+                onClick={() => setSelectedEffort('high')}>
+                <input type="radio" name="effort-modal" value="high"
+                  checked={selectedEffort === 'high'}
+                  onChange={() => setSelectedEffort('high')}
+                  className="text-indigo-500 focus:ring-indigo-500" />
+                <div>
+                  <span className="text-white">Wait longer for fewer errors</span>
+                  <span className="text-gray-400 text-sm ml-2">(~20 to 40 mins)</span>
+                </div>
+              </label>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleEffortConfirm}>
+                <Wand className="h-4 w-4 mr-2" />
+                Create charts
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Mixed content modal */}
+        <AlertDialog open={showMixedContentModal} onOpenChange={setShowMixedContentModal}>
+          <AlertDialogContent className="w-80 min-h-[600px]">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center space-x-2">
+                <AlertTriangle className="h-5 w-5 text-blue-500" />
+                <span>Mixed Content Detected</span>
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Your file contains both chord names and chord charts. How would you like to process it?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-4 my-8">
+              <AlertDialogAction
+                onClick={() => handleMixedContentChoice('chord_names')}
+                className="w-full h-auto p-6 flex flex-col items-center bg-slate-700 hover:bg-slate-600 text-white"
+              >
+                <div className="font-medium">Process Chord Names</div>
+                <div className="text-sm text-slate-300 mt-1">(standard tuning)</div>
+              </AlertDialogAction>
+              <AlertDialogAction
+                onClick={() => handleMixedContentChoice('chord_charts')}
+                className="w-full p-4 bg-slate-700 hover:bg-slate-600 text-white"
+              >
+                Import chord charts
+              </AlertDialogAction>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                setShowMixedContentModal(false);
+                setMixedContentData(null);
+              }}>
+                Cancel
+              </AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Unsupported format modal */}
+        <AlertDialog open={showUnsupportedFormatModal} onOpenChange={setShowUnsupportedFormatModal}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center space-x-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                <span>{unsupportedFormatData?.title || 'Format Not Supported'}</span>
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {unsupportedFormatData?.message || 'Sorry, we can only build chord charts. This file format is not supported.'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => {
+                setShowUnsupportedFormatModal(false);
+                setUnsupportedFormatData(null);
+              }}>
+                OK
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
 
