@@ -17,6 +17,7 @@ import DeletionBanner from '@components/DeletionBanner';
 import ImpersonationBanner from '@components/ImpersonationBanner';
 import KofiWidget from '@components/KofiWidget';
 import AutocreateWatcher from '@components/AutocreateWatcher';
+import StatsPage from '@components/StatsPage';
 import { useLightweightItems } from '@hooks/useLightweightItems';
 import { setUserContext } from './utils/analytics';
 
@@ -28,7 +29,7 @@ const ItemsPage = () => {
   return <PracticeItemsList items={items} onItemsChange={refreshItems} />;
 };
 
-const PageContent = () => {
+const PageContent = ({ userStatus }) => {
   const { activePage } = useNavigation();
 
   switch (activePage) {
@@ -38,6 +39,8 @@ const PageContent = () => {
       return <RoutinesPage />;
     case 'Items':
       return <ItemsPage />;
+    case 'Stats':
+      return <StatsPage userStatus={userStatus} />;
     case 'Imports':
       return <ImportsPage />;
     case 'Account':
@@ -176,7 +179,7 @@ const App = () => {
           />
         )}
 
-        <PageContent />
+        <PageContent userStatus={userStatus} />
       </div>
 
       {/* Footer */}

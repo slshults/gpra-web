@@ -298,6 +298,65 @@ def create_instrumented_anthropic_client(api_key: str, user_id: Optional[int] = 
         return anthropic.Anthropic(api_key=api_key)
 
 
+def call_posthog_endpoint(endpoint_name: str, variables: Dict[str, Any]) -> Optional[list]:
+    """
+    Call a PostHog SQL Endpoint and return results as a list of dicts.
+
+    PostHog Endpoints are pre-defined SQL queries with variables, executed via
+    the PostHog API. Each returns columnar data that we reshape into rows.
+
+    Args:
+        endpoint_name: The endpoint slug (e.g. 'user_practice_summary')
+        variables: Dict of variable names/values to pass to the endpoint
+
+    Returns:
+        List of dicts (one per result row), or None on any failure.
+        For a single-row endpoint, returns a list with one dict.
+    """
+    import requests
+
+    api_key = os.getenv('POSTHOG_PERSONAL_API_KEY')
+    project_id = os.getenv('POSTHOG_PROJECT_ID')
+
+    if not api_key or not project_id:
+        logger.error("PostHog Endpoints not configured: missing POSTHOG_PERSONAL_API_KEY or POSTHOG_PROJECT_ID")
+        return None
+
+    url = f"https://us.posthog.com/api/projects/{project_id}/endpoints/{endpoint_name}/run/"
+
+    try:
+        resp = requests.post(
+            url,
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json',
+            },
+            json={'variables': variables, 'refresh': 'cache'},
+            timeout=10,
+        )
+        resp.raise_for_status()
+
+        data = resp.json()
+        columns = data.get('columns', [])
+        results = data.get('results', [])
+
+        # Reshape array-of-arrays into list of dicts
+        return [dict(zip(columns, row)) for row in results]
+
+    except requests.exceptions.Timeout:
+        logger.warning(f"PostHog Endpoint '{endpoint_name}' timed out")
+        return None
+    except requests.exceptions.ConnectionError:
+        logger.warning(f"PostHog Endpoint '{endpoint_name}' connection failed")
+        return None
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"PostHog Endpoint '{endpoint_name}' HTTP error: {e.response.status_code} - {e.response.text[:200]}")
+        return None
+    except Exception as e:
+        logger.error(f"PostHog Endpoint '{endpoint_name}' unexpected error: {str(e)}")
+        return None
+
+
 def shutdown():
     """
     Shutdown PostHog client (flush pending events).

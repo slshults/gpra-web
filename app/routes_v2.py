@@ -7082,3 +7082,115 @@ def unsubscribe_inactivity_emails(token):
             </p>
         """
         return html_template.format(content=content), 500
+
+
+# ============================================================================
+# Practice Stats (PostHog Endpoints)
+# ============================================================================
+
+PRACTICE_STATS_PERIODS = {
+    'today': 1,
+    'week': 7,
+    'month': 30,
+    'year': 365,
+    'all': 3650,
+}
+
+@app.route('/api/user/practice-stats', methods=['GET'])
+def get_practice_stats():
+    """
+    Fetch practice statistics for the current user via PostHog Endpoints.
+
+    Calls three PostHog SQL Endpoints (summary, daily breakdown, top items)
+    and returns the combined results.
+
+    Query params:
+        period: 'today', 'week', 'month', 'year', 'all' (default: 'week')
+
+    Returns:
+        {
+            "summary": {"days_practiced": N, "items_completed": N, ...},
+            "daily": [{"practice_date": "2026-04-01", ...}, ...],
+            "top_items": [{"item_name": "...", ...}, ...],
+            "period": "week"
+        }
+
+    Errors:
+        401 - Not authenticated
+        403 - Free tier (stats require a paid subscription)
+        503 - PostHog unavailable
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    # Tier gating: free tier users cannot access stats
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        subscription = db.execute(text("""
+            SELECT tier FROM subscriptions WHERE user_id = :user_id
+        """), {'user_id': current_user.id}).fetchone()
+        tier = subscription[0] if subscription else 'free'
+    finally:
+        db.close()
+        SessionLocal.remove()
+
+    if tier == 'free':
+        return jsonify({"error": "Stats require a paid subscription"}), 403
+
+    # Parse period
+    period = request.args.get('period', 'week')
+    if period not in PRACTICE_STATS_PERIODS:
+        return jsonify({"error": f"Invalid period. Must be one of: {', '.join(PRACTICE_STATS_PERIODS.keys())}"}), 400
+
+    days_back = PRACTICE_STATS_PERIODS[period]
+
+    # Get PostHog distinct_id for this user
+    from app.utils.posthog_client import get_posthog_distinct_id, call_posthog_endpoint
+    distinct_id = get_posthog_distinct_id(current_user.id, current_user.email)
+
+    variables = {'distinct_id': distinct_id, 'days_back': days_back}
+
+    # DEBUG: log what we're about to send to PostHog
+    import logging as _logging
+    _stats_logger = _logging.getLogger(__name__)
+    _stats_logger.info(
+        f"[practice-stats] period={period} days_back={days_back} "
+        f"(type={type(days_back).__name__}) distinct_id={distinct_id} variables={variables}"
+    )
+
+    # Call all three endpoints
+    summary_rows = call_posthog_endpoint('user_practice_summary', variables)
+    daily_rows = call_posthog_endpoint('user_daily_practice', variables)
+    top_items_rows = call_posthog_endpoint('user_top_items', variables)
+
+    # DEBUG: log raw responses from PostHog
+    _stats_logger.info(
+        f"[practice-stats] summary_rows={summary_rows!r}"
+    )
+    _stats_logger.info(
+        f"[practice-stats] daily_rows ({len(daily_rows) if daily_rows else 0} rows)={daily_rows!r}"
+    )
+    _stats_logger.info(
+        f"[practice-stats] top_items_rows ({len(top_items_rows) if top_items_rows else 0} rows)={top_items_rows!r}"
+    )
+
+    # If all three failed, PostHog is likely down
+    if summary_rows is None and daily_rows is None and top_items_rows is None:
+        return jsonify({"error": "Practice stats are temporarily unavailable"}), 503
+
+    # Build response — use empty defaults for any individual failures
+    summary = summary_rows[0] if summary_rows else {
+        'days_practiced': 0,
+        'items_completed': 0,
+        'timers_started': 0,
+        'total_practice_seconds': 0,
+        'avg_item_seconds': 0,
+    }
+
+    return jsonify({
+        "summary": summary,
+        "daily": daily_rows or [],
+        "top_items": top_items_rows or [],
+        "period": period,
+    })
