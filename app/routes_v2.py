@@ -7151,29 +7151,10 @@ def get_practice_stats():
 
     variables = {'distinct_id': distinct_id, 'days_back': days_back}
 
-    # DEBUG: log what we're about to send to PostHog
-    import logging as _logging
-    _stats_logger = _logging.getLogger(__name__)
-    _stats_logger.info(
-        f"[practice-stats] period={period} days_back={days_back} "
-        f"(type={type(days_back).__name__}) distinct_id={distinct_id} variables={variables}"
-    )
-
     # Call all three endpoints
     summary_rows = call_posthog_endpoint('user_practice_summary', variables)
     daily_rows = call_posthog_endpoint('user_daily_practice', variables)
     top_items_rows = call_posthog_endpoint('user_top_items', variables)
-
-    # DEBUG: log raw responses from PostHog
-    _stats_logger.info(
-        f"[practice-stats] summary_rows={summary_rows!r}"
-    )
-    _stats_logger.info(
-        f"[practice-stats] daily_rows ({len(daily_rows) if daily_rows else 0} rows)={daily_rows!r}"
-    )
-    _stats_logger.info(
-        f"[practice-stats] top_items_rows ({len(top_items_rows) if top_items_rows else 0} rows)={top_items_rows!r}"
-    )
 
     # If all three failed, PostHog is likely down
     if summary_rows is None and daily_rows is None and top_items_rows is None:

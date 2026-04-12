@@ -140,7 +140,7 @@ const StatsPage = ({ userStatus }) => {
       {!loading && !error && data && (
         <>
           <StatCards summary={data.summary} />
-          <DailyPracticeChart data={data.daily} />
+          {period !== 'today' && <DailyPracticeChart data={data.daily} />}
           <TopItemsChart data={data.top_items} />
         </>
       )}

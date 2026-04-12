@@ -1,17 +1,9 @@
 import React from 'react';
 import { Card, CardContent } from '@ui/card';
 import { Clock, Calendar, CheckCircle, Timer } from 'lucide-react';
+import { formatDuration } from '@components/stats/formatters';
 
-const formatDuration = (totalSeconds) => {
-  if (!totalSeconds || totalSeconds === 0) return '—';
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.round((totalSeconds % 3600) / 60);
-  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours}h`;
-  return `${minutes}m`;
-};
-
-const formatCount = (v) => (v ? v : '—');
+const formatCount = (v) => v || '—';
 
 const statConfig = [
   { key: 'total_practice_seconds', label: 'Total practice time', icon: Clock, format: formatDuration },
