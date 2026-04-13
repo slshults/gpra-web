@@ -7,11 +7,14 @@ import { useNavigation } from '@contexts/NavigationContext';
 
 const NavMenu = ({ className, userStatus, onUnpluggedAttempt }) => {
   const { activePage, setActivePage } = useNavigation();
-  const navItems = ['Practice', 'Routines', 'Items'];
+  const isFree = userStatus?.tier === 'free';
+  const navItems = isFree
+    ? ['Practice', 'Routines', 'Items']
+    : ['Practice', 'Routines', 'Items', 'Stats'];
 
   const handleNavClick = (item) => {
     // Check if user is in unplugged mode and trying to access restricted pages
-    if (userStatus?.unplugged_mode && (item === 'Routines' || item === 'Items')) {
+    if (userStatus?.unplugged_mode && (item === 'Routines' || item === 'Items' || item === 'Stats')) {
       // Prevent navigation and show modal
       onUnpluggedAttempt?.(item);
       return;

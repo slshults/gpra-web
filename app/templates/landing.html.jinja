@@ -34,7 +34,7 @@
     <script>
         (function() {
             var hash = window.location.hash.slice(1).split('?')[0];
-            var validPages = ['Practice', 'Routines', 'Items', 'Account'];
+            var validPages = ['Practice', 'Routines', 'Items', 'Stats', 'Account'];
             if (hash && validPages.indexOf(hash) === -1) {
                 window.location.replace('/invalid-route-404');
             }

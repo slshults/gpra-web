@@ -9,7 +9,7 @@ export const NavigationProvider = ({ children }) => {
   const getInitialPage = () => {
     // First check URL hash
     let hash = window.location.hash.slice(1).split('?')[0]; // Remove the # and any query params
-    const validPages = ['Practice', 'Routines', 'Items', 'Account'];
+    const validPages = ['Practice', 'Routines', 'Items', 'Stats', 'Account'];
 
     // If there's a hash but it's not a valid page, trigger 404
     if (hash && !validPages.includes(hash)) {
@@ -73,7 +73,7 @@ export const NavigationProvider = ({ children }) => {
   // Hide on Practice, Routines, Items to avoid cluttering the practice UI
   // Two-pronged approach: CSS hides widget by default (no flash), JS controls body class + API
   useEffect(() => {
-    const hideOnPages = ['Practice', 'Routines', 'Items'];
+    const hideOnPages = ['Practice', 'Routines', 'Items', 'Stats'];
     const shouldShow = !hideOnPages.includes(activePage);
 
     // Immediately update body class (CSS handles visibility, no flash)
