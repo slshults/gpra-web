@@ -1,7 +1,7 @@
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@ui/card';
-import { formatMinutes, formatAxisMinutes } from '@components/stats/formatters';
+import { formatDuration, formatAxisMinutes } from '@components/stats/formatters';
 
 const formatDate = (dateStr) => {
   if (!dateStr || typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
@@ -17,7 +17,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return (
     <div className="bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-sm shadow-lg">
       <p className="text-gray-300 mb-1">{formatDate(label)}</p>
-      <p className="text-orange-400 font-medium">{formatMinutes(payload[0].value)}</p>
+      <p className="text-orange-400 font-medium">{formatDuration(payload[0].payload.total_seconds)}</p>
     </div>
   );
 };
@@ -42,7 +42,7 @@ const DailyPracticeChart = ({ data }) => {
   }));
 
   return (
-    <Card className="bg-gray-800 border-gray-700">
+    <Card className="bg-gray-800 border-gray-700 ph-no-capture">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg text-white">Daily practice</CardTitle>
       </CardHeader>

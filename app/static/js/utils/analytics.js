@@ -327,6 +327,26 @@ export const trackActiveRoutine = (routineName, additionalProperties = {}) => {
 };
 
 /**
+ * Track Practice Stats page events
+ * Passes through $set / $set_once top-level fields for person properties.
+ * @param {string} eventName - Event name (snake_case past tense)
+ * @param {Object} properties - Event properties (may include $set / $set_once)
+ */
+export const trackStatsEvent = (eventName, properties = {}) => {
+  if (typeof window !== 'undefined' && window.posthog) {
+    const { $set, $set_once, ...rest } = properties;
+    const payload = {
+      ...userContext, // Auto-include user_id and subscription_tier
+      ...rest
+    };
+    if ($set) payload.$set = $set;
+    if ($set_once) payload.$set_once = $set_once;
+
+    window.posthog.capture(eventName, payload);
+  }
+};
+
+/**
  * Debug helper to log events to console in development
  * @param {string} eventName - Name of the event
  * @param {Object} properties - Event properties
@@ -349,5 +369,6 @@ export default {
   trackRoutineOperation,
   trackContentUpdate,
   trackSongbookLinkClick,
-  trackActiveRoutine
+  trackActiveRoutine,
+  trackStatsEvent
 };

@@ -7,6 +7,7 @@ import DailyPracticeChart from '@components/stats/DailyPracticeChart';
 import TopItemsChart from '@components/stats/TopItemsChart';
 import { Loader2 } from 'lucide-react';
 import { debugLog } from '@utils/logging';
+import { trackStatsEvent } from '@utils/analytics';
 
 const PERIODS = [
   { value: 'today', label: 'Today' },
@@ -23,19 +24,35 @@ const StatsPage = ({ userStatus }) => {
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
   const hasTrackedView = useRef(false);
+  const hasTrackedUpsell = useRef(false);
 
-  // Track page view once on mount
+  const isFreeTier = userStatus?.tier === 'free';
+
+  // Track page view once on mount (paid tiers only)
   useEffect(() => {
-    if (!hasTrackedView.current && window.posthog) {
+    if (isFreeTier) return;
+    if (!hasTrackedView.current) {
       hasTrackedView.current = true;
-      window.posthog.capture('practice_stats_viewed', {
+      const now = new Date().toISOString();
+      trackStatsEvent('practice_stats_viewed', {
         initial_period: period,
+        $set: { last_stats_viewed_at: now },
+        $set_once: { first_stats_viewed_at: now },
       });
     }
-  }, []);
+  }, [isFreeTier]);
+
+  // Track upsell shown once when free-tier user lands on Stats
+  useEffect(() => {
+    if (isFreeTier && !hasTrackedUpsell.current) {
+      hasTrackedUpsell.current = true;
+      trackStatsEvent('practice_stats_upsell_shown');
+    }
+  }, [isFreeTier]);
 
   // Fetch stats whenever period changes
   useEffect(() => {
+    if (isFreeTier) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -50,6 +67,12 @@ const StatsPage = ({ userStatus }) => {
           setData(json);
           setLoading(false);
           debugLog('Stats', 'Fetched stats for period:', period, json);
+          trackStatsEvent('practice_stats_data_loaded', {
+            period,
+            has_data: (json.daily?.length ?? 0) > 0,
+            top_items_count: json.top_items?.length ?? 0,
+            total_practice_seconds: json.summary?.total_practice_seconds ?? 0,
+          });
         }
       })
       .catch((err) => {
@@ -57,24 +80,34 @@ const StatsPage = ({ userStatus }) => {
           setError(err.message);
           setLoading(false);
           debugLog('Stats', 'Fetch error:', err.message);
+          trackStatsEvent('practice_stats_load_failed', {
+            period,
+            error_message: err.message,
+          });
         }
       });
 
     return () => { cancelled = true; };
-  }, [period, retryCount]);
+  }, [period, retryCount, isFreeTier]);
 
   const handlePeriodChange = (newPeriod) => {
     setPeriod(newPeriod);
-    if (window.posthog) {
-      window.posthog.capture('practice_stats_period_changed', {
-        from_period: period,
-        to_period: newPeriod,
-      });
-    }
+    trackStatsEvent('practice_stats_period_changed', {
+      from_period: period,
+      to_period: newPeriod,
+    });
+  };
+
+  const handleRetry = () => {
+    trackStatsEvent('practice_stats_retry_clicked', {
+      period,
+      retry_count: retryCount + 1,
+    });
+    setRetryCount((c) => c + 1);
   };
 
   // Free tier upsell
-  if (userStatus?.tier === 'free') {
+  if (isFreeTier) {
     return (
       <div className="max-w-2xl mx-auto mt-8 text-center">
         <Card className="bg-gray-800 border-gray-700">
@@ -85,6 +118,7 @@ const StatsPage = ({ userStatus }) => {
             </p>
             <Button
               onClick={() => {
+                trackStatsEvent('practice_stats_upsell_clicked', { action: 'view_plans' });
                 window.location.hash = 'Account';
               }}
               className="bg-orange-500 hover:bg-orange-600 text-white"
@@ -129,7 +163,7 @@ const StatsPage = ({ userStatus }) => {
             <Button
               variant="ghost"
               className="mt-3 text-orange-400 hover:text-orange-300"
-              onClick={() => setRetryCount((c) => c + 1)}
+              onClick={handleRetry}
             >
               Try again
             </Button>

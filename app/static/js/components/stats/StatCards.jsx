@@ -18,7 +18,7 @@ const StatCards = ({ summary }) => {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {statConfig.map(({ key, label, icon: Icon, format }) => (
-        <Card key={key} className="bg-gray-800 border-gray-700">
+        <Card key={key} className="bg-gray-800 border-gray-700 ph-no-capture">
           <CardContent className="p-4 flex flex-col items-center text-center gap-1">
             <Icon className="h-5 w-5 text-orange-400 mb-1" />
             <span className="text-2xl font-bold text-white">{format(summary[key])}</span>

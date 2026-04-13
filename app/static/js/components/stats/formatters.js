@@ -10,16 +10,6 @@ export const formatDuration = (totalSeconds) => {
   return `${minutes}m`;
 };
 
-export const formatMinutes = (seconds) => {
-  const mins = Math.round((seconds || 0) / 60);
-  if (mins >= 60) {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return m > 0 ? `${h}h ${m}m` : `${h}h`;
-  }
-  return `${mins}m`;
-};
-
 // Chart axis tick formatter. Input is already in minutes.
 export const formatAxisMinutes = (mins) => {
   if (mins >= 60) {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@ui/card';
-import { formatMinutes, formatAxisMinutes } from '@components/stats/formatters';
+import { formatDuration, formatAxisMinutes } from '@components/stats/formatters';
 
 const CustomTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
@@ -9,7 +9,7 @@ const CustomTooltip = ({ active, payload }) => {
   return (
     <div className="bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-sm shadow-lg">
       <p className="text-white font-medium mb-1">{data.item_name}</p>
-      <p className="text-orange-400">{formatMinutes(data.total_seconds)}</p>
+      <p className="text-orange-400">{formatDuration(data.total_seconds)}</p>
       <p className="text-gray-400">{data.practice_count} sessions</p>
     </div>
   );
@@ -38,7 +38,7 @@ const TopItemsChart = ({ data }) => {
   const chartHeight = Math.max(200, chartData.length * 40 + 40);
 
   return (
-    <Card className="bg-gray-800 border-gray-700">
+    <Card className="bg-gray-800 border-gray-700 ph-no-capture">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg text-white">Most practiced items</CardTitle>
       </CardHeader>
