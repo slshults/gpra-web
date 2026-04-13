@@ -4009,12 +4009,11 @@ export const PracticePage = () => {
             <div className="relative mt-1" ref={shortcutsHelpRef}>
               <button
                 onClick={() => setShowShortcutsHelp(prev => !prev)}
-                className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-orange-400 transition-colors"
+                className="flex items-center text-sm text-gray-400 hover:text-orange-400 transition-colors"
                 title="Keyboard shortcuts"
                 aria-label="Show keyboard shortcuts"
               >
                 <Keyboard className="h-4 w-4" />
-                <span className="hidden sm:inline">Shortcuts</span>
               </button>
               {showShortcutsHelp && (
                 <div className="absolute top-8 left-0 z-50 bg-gray-800 border border-gray-600 rounded-lg p-4 shadow-xl w-64">

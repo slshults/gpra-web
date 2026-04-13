@@ -67,6 +67,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
       routinesLimit: 1,
       price: 0,
       autocreate: false,
+      practiceStats: false,
       description: 'Get started with basic features',
       byocNote: 'BYOClaude (enter your own Anthropic API key) for autocreated chord charts',
     },
@@ -77,6 +78,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
       routinesLimit: 2,
       price: 1,
       autocreate: false,
+      practiceStats: true,
       description: 'A little more room to grow',
       byocNote: 'BYOClaude (enter your own Anthropic API key) for autocreated chord charts',
     },
@@ -87,6 +89,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
       routinesLimit: 5,
       price: 3,
       autocreate: false,
+      practiceStats: true,
       description: 'More items and routines',
       byocNote: 'BYOClaude (enter your own Anthropic API key) for autocreated chord charts',
     },
@@ -97,6 +100,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
       routinesLimit: 10,
       price: 6,
       autocreate: true,
+      practiceStats: true,
       description: 'Includes Autocreate for chord charts',
     },
     {
@@ -106,6 +110,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
       routinesLimit: 25,
       price: 12,
       autocreate: true,
+      practiceStats: true,
       description: 'Even more items and routines',
     },
     {
@@ -115,6 +120,7 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
       routinesLimit: 50,
       price: 20,
       autocreate: true,
+      practiceStats: true,
       description: 'Goes to 11',
     },
   ];
@@ -517,6 +523,12 @@ const PricingSection = ({ currentTier = 'free', onSubscriptionChange }) => {
                     <li className="flex items-start gap-2">
                       <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
                       <span className="font-medium text-orange-400">Includes Autocreate for chord charts</span>
+                    </li>
+                  )}
+                  {tier.practiceStats && (
+                    <li className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                      <span>Stats dashboard</span>
                     </li>
                   )}
                 </ul>
