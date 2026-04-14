@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, GripVertical, Copy, Check, ExternalLink } from 'lucide-react';
+import RowActionTipModal from './RowActionTipModal';
 import { trackItemOperation } from '../utils/analytics';
 import { Card, CardHeader, CardTitle, CardContent } from '@ui/card';
 import { Button } from '@ui/button';
@@ -36,7 +37,7 @@ import {
 } from "@ui/alert-dialog";
 
 // Split out item component for better state isolation
-const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts }) => {
+const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts, onRowTipClick }) => {
   const {
     attributes,
     listeners,
@@ -70,12 +71,20 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts }) 
         <div {...attributes} {...listeners} className="flex-shrink-0" aria-label="Drag to reorder item" data-ph-capture-attribute-drag="item-drag-handle">
           <GripVertical className="h-6 w-6 text-gray-500 mr-2 sm:mr-4 cursor-move" aria-hidden="true" />
         </div>
-        <span className="text-base sm:text-xl">{item['C']}</span>
+        <div
+          className="flex-1 min-w-0 cursor-pointer"
+          onClick={onRowTipClick}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowTipClick?.(); } }}
+        >
+          <span className="text-base sm:text-xl">{item['C']}</span>
+        </div>
       </div>
       <div className="flex space-x-3 justify-end sm:justify-start flex-shrink-0">
         <Button
           variant="ghost"
-          size="lg"
+          size="icon"
           onClick={() => onEdit(item)}
           className="hover:bg-gray-700"
           title="Edit item"
@@ -86,7 +95,7 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts }) 
         </Button>
         <Button
           variant="ghost"
-          size="lg"
+          size="icon"
           onClick={() => onOpenChordCharts(item['B'], item['C'])}
           className="text-blue-400 hover:text-blue-300 hover:bg-gray-700"
           title="Add or edit chord charts"
@@ -97,7 +106,7 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts }) 
         </Button>
         <Button
           variant="ghost"
-          size="lg"
+          size="icon"
           onClick={handleDelete}
           className="text-red-500 hover:text-red-400 hover:bg-gray-700"
           title="Delete this item and remove it from all routines"
@@ -135,6 +144,13 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
   const [chordChartsModalOpen, setChordChartsModalOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [selectedItemTitle, setSelectedItemTitle] = useState('');
+
+  // Row action tip modal state
+  const [showItemRowTip, setShowItemRowTip] = useState(false);
+  const handleItemRowTipClick = () => {
+    setShowItemRowTip(true);
+    window.posthog?.capture('row_action_tip_shown', { row_type: 'item' });
+  };
 
   // Auto-open chord charts modal from AutocreateWatcher navigation
   useEffect(() => {
@@ -327,6 +343,7 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
                     onEdit={handleEditClick}
                     onDelete={handleDelete}
                     onOpenChordCharts={handleOpenChordCharts}
+                    onRowTipClick={handleItemRowTipClick}
                   />
                 ))}
               </div>
@@ -372,6 +389,20 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
         onClose={() => setChordChartsModalOpen(false)}
         itemId={selectedItemId}
         itemTitle={selectedItemTitle}
+      />
+
+      <RowActionTipModal
+        open={showItemRowTip}
+        onOpenChange={setShowItemRowTip}
+        modalName="Item row tips"
+        title="Working with items"
+        description="How to:"
+        tips={[
+          { icon: <GripVertical className="h-4 w-4 text-gray-400" />, label: 'Drag handle on the left to reorder' },
+          { icon: <Pencil className="h-4 w-4" />, label: 'Pencil icon to edit' },
+          { icon: <ChordIcon className="h-4 w-4 text-blue-400" />, label: 'Chord chart icon to create or edit chord charts' },
+          { icon: <Trash2 className="h-4 w-4 text-red-500" />, label: 'Trash can to delete' },
+        ]}
       />
 
       <Dialog open={showFirstItemGuide} onOpenChange={setShowFirstItemGuide}>

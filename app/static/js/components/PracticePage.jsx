@@ -25,6 +25,7 @@ import { ChordChartEditor } from './ChordChartEditor';
 import { RoutineEditor } from '@components/RoutineEditor';
 import ApiErrorModal, { resetRateLimitBackoff } from './ApiErrorModal';
 import AutocreateSuccessModal from './AutocreateSuccessModal';
+import RowActionTipModal from './RowActionTipModal';
 import { serverDebug, serverInfo, debugLog } from '../utils/logging';
 import {
   AlertDialog,
@@ -501,7 +502,14 @@ export const PracticePage = () => {
   );
   const [focusedItemIndex, setFocusedItemIndex] = useState(-1);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  const [showPracticePageTip, setShowPracticePageTip] = useState(false);
   const shortcutsHelpRef = useRef(null);
+
+  const openPracticePageTip = useCallback(() => {
+    if (!routine?.name) return;
+    setShowPracticePageTip(true);
+    window.posthog?.capture('row_action_tip_shown', { row_type: 'practice_page_routine' });
+  }, [routine?.name]);
 
   // Key bindings for help popover display (shared structure with AccountSettings)
   const shortcutBindings = {
@@ -4004,7 +4012,19 @@ export const PracticePage = () => {
               <Pencil size={16} />
             </button>
           )}
-          <h1 className="text-3xl font-bold">{routine?.name}</h1>
+          <h1
+            className={`text-3xl font-bold${routine?.name ? ' cursor-pointer' : ''}`}
+            onClick={openPracticePageTip}
+            role={routine?.name ? 'button' : undefined}
+            tabIndex={routine?.name ? 0 : undefined}
+            onKeyDown={(e) => {
+              if (!routine?.name) return;
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openPracticePageTip();
+              }
+            }}
+          >{routine?.name}</h1>
           {keyboardLayout !== 'off' && (
             <div className="relative mt-1" ref={shortcutsHelpRef}>
               <button
@@ -5683,6 +5703,19 @@ export const PracticePage = () => {
           setAutocreateSuccessData(null);
         }}
         autocreateData={autocreateSuccessData}
+      />
+
+      <RowActionTipModal
+        open={showPracticePageTip}
+        onOpenChange={setShowPracticePageTip}
+        modalName="Practice page tips"
+        title="This is the practice page"
+        description="This is your currently active routine and the items in it."
+        tips={[
+          { icon: <Pencil className="h-4 w-4 text-gray-400" />, label: 'Click the pencil icon above the routine name to add or remove items' },
+          { icon: <ChevronRight className="h-4 w-4 text-gray-400" />, label: 'Click an item to expand it for the timer, chord charts, and notes' },
+          { icon: <Check className="h-4 w-4 text-green-500" />, label: 'Check items off as you practice to track your progress' },
+        ]}
       />
 
       {/* Folder Path Copy Modal */}

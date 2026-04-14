@@ -129,8 +129,14 @@ const App = () => {
       {/* Global autocreate completion watcher - shows modal when user is on a different page */}
       <AutocreateWatcher />
 
-      {/* Ko-fi floating widget - shown only for free/dollarstore/basic tiers */}
-      {userStatus?.tier && <KofiWidget currentTier={userStatus.tier} />}
+      {/* Ko-fi floating widget - shown only for free/dollarstore/basic tiers, and not on Practice/Routines/Items/Stats */}
+      {userStatus?.tier &&
+        activePage !== 'Practice' &&
+        activePage !== 'Routines' &&
+        activePage !== 'Items' &&
+        activePage !== 'Stats' && (
+          <KofiWidget currentTier={userStatus.tier} />
+        )}
 
       {/* Lapsed Subscription Modal */}
       <LapsedSubscriptionModal
