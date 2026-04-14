@@ -7,6 +7,7 @@ import { Plus, Pencil, X, CheckCircle2, GripVertical, Search } from 'lucide-reac
 import { RoutineEditor } from './RoutineEditor';
 import ChordChartsModal from './ChordChartsModal';
 import TierLimitModal from './TierLimitModal';
+import RowActionTipModal from './RowActionTipModal';
 import { ChordIcon } from './icons/ChordIcon';
 import {
   DndContext,
@@ -45,7 +46,7 @@ import {
 } from "@/components/ui/dialog";
 
 // Sortable item component for active routine items
-const SortableItem = React.memo(({ item, itemDetails, handleOpenChordCharts }) => {
+const SortableItem = React.memo(({ item, itemDetails, handleOpenChordCharts, onRowTipClick }) => {
   const {
     attributes,
     listeners,
@@ -69,11 +70,19 @@ const SortableItem = React.memo(({ item, itemDetails, handleOpenChordCharts }) =
         isDragging ? 'bg-gray-700' : 'bg-gray-800'
       }`}
     >
-      <div className="flex items-center">
+      <div className="flex items-center flex-1 min-w-0">
         <div {...attributes} {...listeners} aria-label="Drag to reorder item" data-ph-capture-attribute-drag="routine-item-drag-handle">
           <GripVertical className="h-5 w-5 text-gray-500 mr-4 cursor-move" aria-hidden="true" />
         </div>
-        <span className="text-lg">{itemDetails?.['C'] || `Item ${item.routineEntry?.['B'] || item['B']}`}</span>
+        <div
+          className="flex-1 min-w-0 cursor-pointer"
+          onClick={onRowTipClick}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowTipClick?.(); } }}
+        >
+          <span className="text-lg">{itemDetails?.['C'] || `Item ${item.routineEntry?.['B'] || item['B']}`}</span>
+        </div>
       </div>
       <div className="flex items-center gap-2">
         <Button
@@ -99,7 +108,7 @@ const SortableItem = React.memo(({ item, itemDetails, handleOpenChordCharts }) =
 });
 
 // Add SortableInactiveRoutine component near the top with other components
-const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, handleEditClick, handleDeleteClick }) => {
+const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, handleEditClick, handleDeleteClick, onRowTipClick }) => {
   const {
     attributes,
     listeners,
@@ -123,18 +132,26 @@ const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, ha
         isDragging ? 'bg-gray-700' : 'bg-gray-800'
       } rounded-lg`}
     >
-      <div className="flex items-center">
+      <div className="flex items-center flex-1 min-w-0">
         <div {...attributes} {...listeners} aria-label="Drag to reorder routine" data-ph-capture-attribute-drag="routine-drag-handle">
           <GripVertical className="h-5 w-5 text-gray-500 mr-4 cursor-move" aria-hidden="true" />
         </div>
-        <span>{routine.name}</span>
+        <div
+          className="flex-1 min-w-0 cursor-pointer"
+          onClick={onRowTipClick}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowTipClick?.(); } }}
+        >
+          <span>{routine.name}</span>
+        </div>
       </div>
       <div className="flex space-x-2">
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
           onClick={() => handleActivateRoutine(routine.ID)}
-          className="text-green-500 hover:text-green-400"
+          className="text-green-500 hover:text-green-400 border border-green-500 sm:border-0"
           title="Make this the active routine"
           data-ph-capture-attribute-button="activate-routine"
         >
@@ -143,7 +160,7 @@ const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, ha
         </Button>
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
           onClick={() => handleEditClick(routine)}
           className="text-blue-500 hover:text-blue-400"
           title="Edit routine"
@@ -154,7 +171,7 @@ const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, ha
         </Button>
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
           className="text-red-500 hover:text-red-400"
           onClick={() => handleDeleteClick(routine.ID)}
           title="Delete this routine"
@@ -199,6 +216,14 @@ const RoutinesPage = () => {
   // Debounce timer for routine order updates
   const routineOrderDebounceRef = useRef(null);
   const pendingRoutineOrderRef = useRef(null);
+
+  // First-visit Routines guidance modal
+  const [showFirstRoutineGuide, setShowFirstRoutineGuide] = useState(false);
+
+  // Row action tip modals
+  const [showActiveItemTip, setShowActiveItemTip] = useState(false);
+  const [showInactiveRoutineTip, setShowInactiveRoutineTip] = useState(false);
+  const [showActiveRoutineCardTip, setShowActiveRoutineCardTip] = useState(false);
 
   const activeRoutine = useMemo(() => routines.find(r => r.active), [routines]);
   const inactiveRoutines = useMemo(() => 
@@ -628,6 +653,30 @@ const RoutinesPage = () => {
     }
   }, [checking, fetchRoutines]);
 
+  // First-visit guidance: check localStorage and show once per browser
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (localStorage.getItem('gpra_first_routine_guidance_shown') === 'true') return;
+    setShowFirstRoutineGuide(true);
+    localStorage.setItem('gpra_first_routine_guidance_shown', 'true');
+    window.posthog?.capture('first_routine_guidance_shown');
+  }, [isAuthenticated]);
+
+  const handleActiveItemTipClick = useCallback(() => {
+    setShowActiveItemTip(true);
+    window.posthog?.capture('row_action_tip_shown', { row_type: 'active_routine_item' });
+  }, []);
+
+  const handleInactiveRoutineTipClick = useCallback(() => {
+    setShowInactiveRoutineTip(true);
+    window.posthog?.capture('row_action_tip_shown', { row_type: 'inactive_routine' });
+  }, []);
+
+  const handleActiveRoutineCardTipClick = useCallback(() => {
+    setShowActiveRoutineCardTip(true);
+    window.posthog?.capture('row_action_tip_shown', { row_type: 'active_routine_card' });
+  }, []);
+
   // Cleanup debounce timer on unmount
   useEffect(() => {
     return () => {
@@ -681,22 +730,38 @@ const RoutinesPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Active Routine Section */}
         <Card className="bg-gray-900 text-gray-100" data-tour="routines-items">
-          <CardHeader>
+          <CardHeader
+            onClick={activeRoutine ? handleActiveRoutineCardTipClick : undefined}
+            role={activeRoutine ? 'button' : undefined}
+            tabIndex={activeRoutine ? 0 : undefined}
+            onKeyDown={activeRoutine ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleActiveRoutineCardTipClick(); } } : undefined}
+            className={activeRoutine ? 'cursor-pointer' : undefined}
+          >
             <CardTitle>Current active routine</CardTitle>
           </CardHeader>
           <CardContent>
             {isAuthenticated ? (
               activeRoutine ? (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div
+                    className="flex items-center justify-between cursor-pointer"
+                    onClick={handleActiveRoutineCardTipClick}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleActiveRoutineCardTipClick(); } }}
+                  >
                     <span className="flex items-center">
                       <CheckCircle2 className="h-5 w-5 text-green-500 mr-2" aria-hidden="true" />
                       {activeRoutine.name}
                     </span>
-                    <div className="flex space-x-2" data-tour="edit-routine-icon">
+                    <div
+                      className="flex space-x-2"
+                      data-tour="edit-routine-icon"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
                         onClick={() => handleEditClick(activeRoutine)}
                         className="text-blue-500 hover:text-blue-400"
                         title="Edit routine"
@@ -706,7 +771,7 @@ const RoutinesPage = () => {
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
                         onClick={() => handleDeactivateRoutine(activeRoutine.ID)}
                         className="text-gray-400 hover:text-gray-200"
                         title="Deactivate this routine"
@@ -718,9 +783,9 @@ const RoutinesPage = () => {
                   </div>
 
                   {activeRoutineItems.length > 0 ? (
-                    <p className="text-sm text-gray-500 mt-2">(use drag and drop handles on the left to change order of items)</p>
+                    <p className="text-sm text-gray-500 mt-2 ph-no-capture">(use drag and drop handles on the left to change order of items)</p>
                   ) : (
-                    <p className="text-sm text-gray-500 mt-2 flex items-center gap-1">
+                    <p className="text-sm text-gray-500 mt-2 flex items-center gap-1 ph-no-capture">
                       (click the <Pencil className="h-4 w-4" /> to add items)
                     </p>
                   )}
@@ -741,6 +806,7 @@ const RoutinesPage = () => {
                             item={item}
                             itemDetails={item.itemDetails}
                             handleOpenChordCharts={handleOpenChordCharts}
+                            onRowTipClick={handleActiveItemTipClick}
                           />
                         ))}
                       </div>
@@ -748,10 +814,10 @@ const RoutinesPage = () => {
                   </DndContext>
                 </div>
               ) : (
-                <div className="text-gray-400">No active routine selected</div>
+                <div className="text-gray-400 ph-no-capture">No active routine selected</div>
               )
             ) : (
-              <div className="text-gray-400">Please log in to manage routines</div>
+              <div className="text-gray-400 ph-no-capture">Please log in to manage routines</div>
             )}
           </CardContent>
         </Card>
@@ -759,7 +825,7 @@ const RoutinesPage = () => {
         {/* Inactive Routines Section */}
         <Card className="bg-gray-900 text-gray-100">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Routines</CardTitle>
+            <CardTitle className="ph-no-capture">Routines</CardTitle>
             {isAuthenticated && (
               <div data-tour="new-routine-input">
                 <Button
@@ -798,15 +864,21 @@ const RoutinesPage = () => {
                           key={routine.ID}
                           className="flex items-center justify-between p-3 bg-gray-800 rounded-lg"
                         >
-                          <div className="flex items-center">
+                          <div
+                            className="flex items-center flex-1 min-w-0 cursor-pointer"
+                            onClick={handleInactiveRoutineTipClick}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleInactiveRoutineTipClick(); } }}
+                          >
                             <span>{routine.name}</span>
                           </div>
                           <div className="flex space-x-2">
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
                               onClick={() => handleActivateRoutine(routine.ID)}
-                              className="text-green-500 hover:text-green-400"
+                              className="text-green-500 hover:text-green-400 border border-green-500 sm:border-0"
                               title="Make this the active routine"
                               data-ph-capture-attribute-button="activate-routine"
                             >
@@ -815,7 +887,7 @@ const RoutinesPage = () => {
                             </Button>
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
                               onClick={() => handleEditClick(routine)}
                               className="text-blue-500 hover:text-blue-400"
                               title="Edit routine"
@@ -826,7 +898,7 @@ const RoutinesPage = () => {
                             </Button>
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
                               className="text-red-500 hover:text-red-400"
                               onClick={() => handleDeleteClick(routine.ID)}
                               title="Delete this routine"
@@ -839,7 +911,7 @@ const RoutinesPage = () => {
                         </div>
                       ))}
                       {filteredInactiveRoutines.length === 0 && (
-                        <div className="text-gray-500 text-sm text-center py-2">No routines match your search</div>
+                        <div className="text-gray-500 text-sm text-center py-2 ph-no-capture">No routines match your search</div>
                       )}
                     </div>
                   ) : (
@@ -861,6 +933,7 @@ const RoutinesPage = () => {
                               handleActivateRoutine={handleActivateRoutine}
                               handleEditClick={handleEditClick}
                               handleDeleteClick={handleDeleteClick}
+                              onRowTipClick={handleInactiveRoutineTipClick}
                             />
                           ))}
                         </div>
@@ -870,7 +943,7 @@ const RoutinesPage = () => {
                 </div>
               </>
             ) : (
-              <div className="text-gray-400">Please log in to manage routines</div>
+              <div className="text-gray-400 ph-no-capture">Please log in to manage routines</div>
             )}
           </CardContent>
         </Card>
@@ -975,6 +1048,78 @@ const RoutinesPage = () => {
         currentTier={tierLimitData.currentTier}
         currentCount={tierLimitData.currentCount}
         limitAmount={tierLimitData.limitAmount}
+      />
+
+      <Dialog
+        open={showFirstRoutineGuide}
+        onOpenChange={(isOpen) => {
+          setShowFirstRoutineGuide(isOpen);
+          if (!isOpen) {
+            window.posthog?.capture('first_routine_guidance_dismissed');
+          }
+        }}
+      >
+        <DialogContent modalName="First routine guidance">
+          <DialogHeader>
+            <DialogTitle>Welcome to Routines!</DialogTitle>
+            <DialogDescription>
+              Click the <Pencil className="inline h-4 w-4" /> on the Demo routine to rename and add items to it.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => {
+              setShowFirstRoutineGuide(false);
+              window.posthog?.capture('first_routine_guidance_dismissed');
+            }}>Got it</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <RowActionTipModal
+        open={showActiveItemTip}
+        onOpenChange={setShowActiveItemTip}
+        modalName="Active routine item tips"
+        title="Items on the active routine"
+        description="The basics:"
+        tips={[
+          { icon: <Pencil className="h-4 w-4 text-blue-400" />, label: 'Use the pencil icon to the right of the routine name, at the top of this column, to add items to this routine' },
+          { icon: <GripVertical className="h-4 w-4 text-gray-400" />, label: 'Use the drag handle on the left of items to reorder' },
+          { icon: <ChordIcon className="h-4 w-4 text-blue-400" />, label: 'Click the chord chart icon to create or edit chord charts for that item' },
+        ]}
+      />
+
+      <RowActionTipModal
+        open={showInactiveRoutineTip}
+        onOpenChange={setShowInactiveRoutineTip}
+        modalName="Inactive routine tips"
+        title="Working with routines"
+        description="How to:"
+        tips={[
+          { icon: <Plus className="h-4 w-4 text-green-500" />, label: 'Click the + icon to make this the active routine' },
+          { icon: <Pencil className="h-4 w-4 text-blue-400" />, label: 'Pencil icon to edit this routine' },
+          { icon: <X className="h-4 w-4 text-red-500" />, label: 'X icon to delete' },
+          { icon: <GripVertical className="h-4 w-4 text-gray-400" />, label: 'Drag handle on the left to reorder' },
+        ]}
+      />
+
+      <RowActionTipModal
+        open={showActiveRoutineCardTip}
+        onOpenChange={setShowActiveRoutineCardTip}
+        modalName="Active routine card tips"
+        title="This is your currently active routine, containing the items below"
+        description="It's the one you'll see on the Practice page."
+        tips={[
+          { icon: <Pencil className="h-4 w-4 text-blue-400" />, label: 'Click the pencil icon to the right of the routine name to add or remove items' },
+          {
+            icon: <Plus className="h-4 w-4 text-green-500" />,
+            label: (
+              <>
+                <span className="hidden sm:inline">To change the active routine, click the + on a routine in the righthand column.</span>
+                <span className="sm:hidden">To change the active routine, scroll down below the items to click + on a routine.</span>
+              </>
+            ),
+          },
+        ]}
       />
     </>
   );

@@ -805,7 +805,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
                   tryAutofill(title);
                 }
               }}
-              placeholder="Enter chord name (e.g. Am, C7) then hit 'Enter'"
+              placeholder="Enter the chord name, then hit 'Enter'"
               className="bg-gray-900"
               disabled={isLoadingChord}
             />
