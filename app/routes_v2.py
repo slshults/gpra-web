@@ -1160,6 +1160,26 @@ def auth_status():
         from app.utils.posthog_client import get_posthog_distinct_id
         posthog_distinct_id = get_posthog_distinct_id(current_user.id, current_user.email)
 
+        # Compute autocreate access: tier-gated OR user has their own API key (byoClaude)
+        autocreate_enabled = False
+        has_anthropic_api_key = False
+        try:
+            from app.subscription_tiers import SUBSCRIPTION_TIERS
+            tier_config = SUBSCRIPTION_TIERS.get(tier, {})
+            tier_has_autocreate = bool(tier_config.get('autocreate_enabled', False))
+
+            with DatabaseTransaction() as tx_key:
+                key_row = tx_key.execute(text("""
+                    SELECT encrypted_anthropic_api_key IS NOT NULL AS has_key
+                    FROM ab_user
+                    WHERE id = :user_id
+                """), {"user_id": current_user.id}).fetchone()
+                has_anthropic_api_key = bool(key_row and key_row[0])
+
+            autocreate_enabled = tier_has_autocreate or has_anthropic_api_key
+        except Exception as e:
+            app.logger.error(f"Error computing autocreate access for user {current_user.id}: {e}")
+
         # Check for active impersonation session
         is_impersonating = bool(session.get('original_admin_id'))
         original_admin_username = None
@@ -1192,6 +1212,8 @@ def auth_status():
             "prorated_refund_amount": prorated_refund_amount,
             "impersonating": is_impersonating,
             "original_admin_username": original_admin_username,
+            "autocreate_enabled": autocreate_enabled,
+            "has_anthropic_api_key": has_anthropic_api_key,
             "mode": "flask-appbuilder"
         })
     else:
@@ -4809,6 +4831,169 @@ def copy_chord_charts_route():
     except Exception as e:
         app.logger.error(f"Error copying chord charts: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/chord-charts/from-names', methods=['POST'])
+def create_chord_charts_from_names():
+    """Claude-free chord chart creation: parse typed chord names and look them up in common_chords.
+
+    No external API calls, no tier gating (gating is UI-side).
+    Request body: {"itemId": <id>, "text": "<chord names, newlines for line breaks>"}
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        if not request.is_json:
+            return jsonify({"error": "Request must be JSON"}), 400
+
+        data = request.json or {}
+        item_id = data.get('itemId')
+        text_input = data.get('text')
+
+        if item_id is None or text_input is None:
+            return jsonify({"error": "itemId and text are required"}), 400
+
+        text_input = str(text_input)
+        if not text_input.strip():
+            return jsonify({"error": "Please enter at least one chord name"}), 400
+
+        user_id = current_user.id
+        app.logger.info(f"[FROM_NAMES] Request from user {user_id} for item {item_id}, text length {len(text_input)}")
+
+        # Validation regex — must match frontend's per-token check
+        import re
+        chord_token_re = re.compile(r'^[A-Ga-g][A-Za-z0-9#b\u266d\u266f/]*$')
+
+        # Normalize newlines, split into lines
+        normalized = text_input.replace('\r\n', '\n').replace('\r', '\n')
+        raw_lines = normalized.split('\n')
+
+        # Parse: per line, split on whitespace + commas; mark last token with lineBreakAfter
+        parsed_chords = []  # list of {'name': str, 'lineBreakAfter': bool, 'valid': bool}
+        for line in raw_lines:
+            line = line.strip()
+            if not line:
+                continue
+            tokens = [t for t in re.split(r'[,\s]+', line) if t]
+            if not tokens:
+                continue
+            for idx, tok in enumerate(tokens):
+                is_last_in_line = (idx == len(tokens) - 1)
+                parsed_chords.append({
+                    'name': tok,
+                    'lineBreakAfter': is_last_in_line,
+                    'valid': bool(chord_token_re.match(tok)),
+                })
+
+        app.logger.info(f"[FROM_NAMES] Parsed {len(parsed_chords)} tokens ({sum(1 for c in parsed_chords if c['valid'])} valid-shaped, {sum(1 for c in parsed_chords if not c['valid'])} invalid-shaped)")
+
+        if not parsed_chords:
+            return jsonify({
+                "error": "No chord names found. Type chord names separated by spaces, commas, or newlines (e.g., G C Am F)"
+            }), 400
+
+        # Load CommonChords for lookup
+        common_chords = data_layer.get_common_chords_efficiently()
+        chord_lookup = {}
+        for cc in common_chords:
+            key = cc['title'].strip().upper()
+            chord_lookup[key] = cc
+        app.logger.info(f"[FROM_NAMES] Loaded {len(common_chords)} common chords for lookup")
+
+        chord_charts_data = []
+        missing_chord_names = []
+
+        # Process ALL parsed tokens uniformly: valid+found → shape; anything else → empty chart with typed name.
+        # The frontend renders a "click to create manually" overlay on empty charts.
+        for order, chord in enumerate(parsed_chords):
+            typed_name = chord['name']
+            lookup_key = typed_name.strip().upper() if chord['valid'] else None
+            line_break_after = chord['lineBreakAfter']
+
+            if lookup_key and lookup_key in chord_lookup:
+                common_chord = chord_lookup[lookup_key]
+                # Filter fingers to fret > 0 only (matches autocreate behavior)
+                raw_fingers = common_chord.get('fingers') or []
+                filtered_fingers = []
+                for finger in raw_fingers:
+                    if isinstance(finger, list) and len(finger) >= 2 and finger[1] > 0:
+                        filtered_fingers.append(finger)
+
+                tuning = common_chord.get('tuning')
+                if not isinstance(tuning, list):
+                    tuning = ['E', 'A', 'D', 'G', 'B', 'E']
+
+                chord_data = {
+                    'fingers': filtered_fingers,
+                    'barres': common_chord.get('barres', []),
+                    'tuning': tuning,
+                    'numFrets': common_chord.get('numFrets', 5),
+                    'numStrings': common_chord.get('numStrings', 6),
+                    'capo': common_chord.get('capo', 0),
+                    'openStrings': common_chord.get('openStrings', []),
+                    'mutedStrings': common_chord.get('mutedStrings', []),
+                    'startingFret': common_chord.get('startingFret', 1),
+                    'sectionId': 'section-main',
+                    'sectionLabel': 'Main',
+                    'sectionRepeatCount': '',
+                    'lineBreakAfter': line_break_after,
+                }
+            else:
+                missing_chord_names.append(typed_name)
+                chord_data = {
+                    'fingers': [],
+                    'barres': [],
+                    'tuning': ['E', 'A', 'D', 'G', 'B', 'E'],
+                    'sectionId': 'section-main',
+                    'sectionLabel': 'Main',
+                    'sectionRepeatCount': '',
+                    'lineBreakAfter': line_break_after,
+                }
+
+            chord_charts_data.append({
+                'title': typed_name,  # preserve user's exact casing
+                'chord_data': chord_data,
+                'order': order,
+            })
+
+        app.logger.info(f"[FROM_NAMES] Creating {len(chord_charts_data)} chord charts in database ({len(missing_chord_names)} missing: {missing_chord_names})")
+
+        results = data_layer.batch_add_chord_charts(item_id, chord_charts_data)
+        charts_created = len(results) if isinstance(results, list) else len(chord_charts_data)
+
+        # PostHog tracking
+        try:
+            from app.utils.posthog_client import track_event, get_client_ip
+            track_event(
+                user_id=user_id,
+                event_name='chord_charts_from_names_created',
+                properties={
+                    'item_id': item_id,
+                    'chords_requested': len(parsed_chords),
+                    'chords_created': charts_created,
+                    'chords_missing': len(missing_chord_names),
+                    'missing_chord_names': missing_chord_names,
+                },
+                ip=get_client_ip(),
+            )
+        except Exception as e:
+            app.logger.warning(f"[FROM_NAMES] PostHog tracking failed: {e}")
+
+        app.logger.info(f"[FROM_NAMES] Success: created {charts_created} charts for item {item_id}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Successfully created {charts_created} chord charts',
+            'item_id': item_id,
+            'charts_created': charts_created,
+            'chord_charts_created': charts_created,  # alias matching autocreate response shape
+            'missing_chords': missing_chord_names,
+        })
+
+    except Exception as e:
+        app.logger.error(f"[FROM_NAMES] Error creating chord charts from names: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': f'Failed to create chord charts: {str(e)}'}), 500
 
 
 def process_chord_names_from_youtube_transcript(client, uploaded_files, item_id, user_id=None):

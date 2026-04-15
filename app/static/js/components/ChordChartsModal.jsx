@@ -61,6 +61,8 @@ import { Check, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printe
 import { ChordChartEditor } from './ChordChartEditor';
 import ApiErrorModal, { resetRateLimitBackoff } from './ApiErrorModal';
 import AutocreateSuccessModal from './AutocreateSuccessModal';
+import UpsellAutocreateModal from './UpsellAutocreateModal';
+import { useAutocreateAccess } from '@hooks/useAutocreateAccess';
 import { serverDebug, debugLog } from '../utils/logging';
 import {
   AlertDialog,
@@ -286,13 +288,45 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
         </button>
 
         {/* Chord diagram container using SVGuitar (copied sizing from PracticePage) */}
-        <div className="relative w-32 mx-auto flex items-center justify-center overflow-hidden" style={{height: '184px'}}>
+        <div className="relative w-32 mx-auto flex items-center justify-center overflow-hidden rounded" style={{height: '184px'}}>
           <div
             ref={chartRef}
             className="w-full h-full"
           >
             {/* SVGuitar chart will be rendered here */}
           </div>
+          {(() => {
+            const d = chart.chordData || chart;
+            const isVisuallyEmpty = !(d.fingers?.length || d.barres?.length || d.openStrings?.length || d.mutedStrings?.length) && chart.title?.trim();
+            if (!isVisuallyEmpty) return null;
+            const handleOverlayActivate = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowMenu(false);
+              onEdit(chart.id, {
+                title: chart.title,
+                ...chart,
+                sectionId: chart.sectionId,
+                sectionLabel: chart.sectionLabel,
+                sectionRepeatCount: chart.sectionRepeatCount
+              });
+            };
+            return (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={handleOverlayActivate}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') handleOverlayActivate(e);
+                }}
+                className="absolute inset-0 bg-gray-900/80 rounded flex flex-col items-center justify-center text-center px-2 cursor-pointer z-10"
+                aria-label="Create chord chart"
+              >
+                <div className="text-gray-300 text-[10px] leading-tight">No chord shape found</div>
+                <div className="text-white text-xs font-semibold mt-1">Tap to create</div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Chord title */}
@@ -432,6 +466,11 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   const [apiError, setApiError] = useState(null);
   const [showAutocreateSuccessModal, setShowAutocreateSuccessModal] = useState(false);
   const [autocreateSuccessData, setAutocreateSuccessData] = useState(null);
+
+  // Autocreate access gating (free tier without API key -> Claudeless UX)
+  const { autocreateEnabled, loading: autocreateAccessLoading } = useAutocreateAccess();
+  const showDisabledAutocreate = !autocreateAccessLoading && !autocreateEnabled;
+  const [upsellModal, setUpsellModal] = useState({ open: false, trigger: null });
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancellingItemId, setCancellingItemId] = useState(null);
 
@@ -1401,7 +1440,12 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
     // Handle manual chord input if provided
     if (manualChords) {
       if (validateManualChordInput(manualChords, processItemId)) {
-        await handleManualChordInput(processItemId, manualChords);
+        if (showDisabledAutocreate) {
+          // Claudeless path — look up names in common_chords library
+          await handleFromNamesSubmit(processItemId, manualChords);
+        } else {
+          await handleManualChordInput(processItemId, manualChords);
+        }
         return;
       } else {
         return; // Stop processing if validation fails
@@ -1552,6 +1596,96 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       setTimeout(() => {
         setAutocreateProgress(prev => ({ ...prev, [itemId]: null }));
       }, 3000);
+    }
+  };
+
+  // Claudeless path for free-tier users without an API key: looks up chord
+  // names in the common_chords library and creates blank charts for unknowns.
+  const handleFromNamesSubmit = async (itemId, chordInput) => {
+    debugLog('AUTOCREATE', `Claudeless from-names submit for item ${itemId}:`, chordInput);
+
+    const chordCountEstimate = chordInput
+      .split(/[\s,\n\r]+/)
+      .filter(word => /^[A-Ga-g][A-Za-z0-9#b♭♯/]*$/.test(word.trim()))
+      .length;
+    const hasLinebreaks = /[\n\r]/.test(chordInput);
+
+    trackChordChartEvent('chord_charts_from_names_submitted', itemTitle || `Item ${itemId}`, {
+      chord_count_estimate: chordCountEstimate,
+      has_linebreaks: hasLinebreaks
+    });
+
+    setAutocreateProgress(prev => ({ ...prev, [itemId]: 'processing' }));
+
+    try {
+      const response = await fetch('/api/chord-charts/from-names', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, text: chordInput })
+      });
+
+      if (!response.ok) {
+        let errorMessage = `Failed to create chord charts: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) errorMessage = errorData.error;
+        } catch (e) {
+          // ignore parse failure
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      debugLog('AUTOCREATE', 'from-names result:', result);
+
+      resetRateLimitBackoff();
+
+      // Refresh chord charts UI state
+      const chartResponse = await fetch(`/api/items/${itemId}/chord-charts`);
+      const charts = await chartResponse.json();
+
+      setChordCharts(prev => ({ ...prev, [itemId]: charts }));
+      setChordSections(prev => ({ ...prev, [itemId]: buildSectionsFromCharts(charts) }));
+
+      // Clear the manual input
+      setManualChordInput(prev => ({ ...prev, [itemId]: '' }));
+
+      const missingChords = result.missing_chords || [];
+      if (missingChords.length > 0) {
+        trackChordChartEvent('chord_charts_from_names_chord_missed', itemTitle || `Item ${itemId}`, {
+          missing_count: missingChords.length,
+          missing_names: missingChords
+        });
+        const missingCount = missingChords.length;
+        alert(`Created ${result.charts_created ?? result.chord_charts_created ?? charts.length} chord charts. ${missingCount} chord${missingCount === 1 ? '' : 's'} didn't match shapes in our library — tap any blank chart to fill it in.`);
+      }
+
+      setAutocreateProgress(prev => ({ ...prev, [itemId]: 'complete' }));
+
+      const itemDetails = getItemDetails(itemId);
+      setAutocreateSuccessData({
+        itemName: itemDetails?.C || `Item ${itemId}`,
+        chordCount: result.charts_created ?? result.chord_charts_created ?? charts.length,
+        contentType: 'chord_names',
+        uploadedFileNames: 'Manual entry',
+        isVisionAnalysis: false
+      });
+      setShowAutocreateSuccessModal(true);
+
+      setTimeout(() => {
+        setAutocreateProgress(prev => ({ ...prev, [itemId]: null }));
+        setShowAutocreateZone(prev => ({ ...prev, [itemId]: false }));
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error in handleFromNamesSubmit:', error);
+      setApiError({ message: error.message || 'Failed to create chord charts. Please try again.' });
+      setShowApiErrorModal(true);
+      setAutocreateProgress(prev => {
+        const newState = { ...prev };
+        delete newState[itemId];
+        return newState;
+      });
     }
   };
 
@@ -2528,73 +2662,94 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                                     <div className="text-center mb-2">
                                       <p className="text-gray-400 text-sm font-medium">Upload files</p>
                                     </div>
-                                    <div
-                                      className={`flex-1 p-4 border-2 border-dashed rounded-lg transition-colors cursor-pointer ${
-                                        isDragActive[itemReferenceId]
-                                          ? 'border-gray-500 bg-gray-800/20'
-                                          : 'border-gray-600 hover:border-gray-500 bg-gray-800/10'
-                                      }`}
-                                      onDragOver={(e) => {
-                                        e.preventDefault();
-                                        setIsDragActive(prev => {
-                                          if (prev[itemReferenceId] !== true) {
-                                            return { ...prev, [itemReferenceId]: true };
-                                          }
-                                          return prev;
-                                        });
-                                      }}
-                                      onDragLeave={(e) => {
-                                        e.preventDefault();
-                                        setIsDragActive(prev => {
-                                          if (prev[itemReferenceId] !== false) {
-                                            return { ...prev, [itemReferenceId]: false };
-                                          }
-                                          return prev;
-                                        });
-                                      }}
-                                      onDrop={(e) => {
-                                        e.preventDefault();
-                                        setIsDragActive(prev => ({ ...prev, [itemReferenceId]: false }));
-                                        const activeVisual = autocreateStore.getActiveVisualAnalysis();
-                                        if (activeVisual && activeVisual.itemId !== itemReferenceId) {
-                                          setShowQueueGateModal(true);
-                                          return;
-                                        }
-                                        handleSingleFileDrop(itemReferenceId, e.dataTransfer.files);
-                                      }}
-                                      onClick={() => {
-                                        const activeVisual = autocreateStore.getActiveVisualAnalysis();
-                                        if (activeVisual && activeVisual.itemId !== itemReferenceId) {
-                                          setShowQueueGateModal(true);
-                                          return;
-                                        }
-                                        const input = document.createElement('input');
-                                        input.type = 'file';
-                                        input.multiple = true;
-                                        input.accept = '.pdf,.png,.jpg,.jpeg';
-                                        input.onchange = (e) => handleSingleFileDrop(itemReferenceId, e.target.files);
-                                        input.click();
-                                      }}
-                                    >
-                                      <div className="text-center">
-                                        <Upload className={`h-12 w-12 mx-auto mb-2 ${
-                                          uploadedFiles[itemReferenceId] && uploadedFiles[itemReferenceId].length > 0 ? 'text-gray-300' : 'text-gray-400'
-                                        }`} />
-                                        <p className={`text-sm font-medium mb-2 ${
-                                          uploadedFiles[itemReferenceId] && uploadedFiles[itemReferenceId].length > 0 ? 'text-gray-200' : 'text-gray-300'
-                                        }`}>Drop files or click</p>
-                                        <p className="text-gray-400 text-xs mb-2">
-                                          PDFs, images • 5mb max
-                                        </p>
-                                        {uploadedFiles[itemReferenceId] && uploadedFiles[itemReferenceId].length > 0 && (
-                                          <div>
-                                            <p className="text-gray-300 text-xs font-medium mb-1">
-                                              {uploadedFiles[itemReferenceId].length} file(s)
-                                            </p>
-                                          </div>
-                                        )}
+                                    {showDisabledAutocreate ? (
+                                      <div
+                                        className="flex-1 p-4 border-2 border-dashed rounded-lg opacity-50 cursor-not-allowed border-gray-600 bg-gray-800/10 relative"
+                                        onDragOver={(e) => { e.preventDefault(); }}
+                                        onDrop={(e) => {
+                                          e.preventDefault();
+                                          setUpsellModal({ open: true, trigger: 'upload' });
+                                        }}
+                                        onClick={() => setUpsellModal({ open: true, trigger: 'upload' })}
+                                      >
+                                        <div className="text-center">
+                                          <Upload className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                                          <p className="text-sm font-medium mb-2 text-gray-300">Drop files or click</p>
+                                          <p className="text-gray-400 text-xs mb-2">PDFs, images • 5mb max</p>
+                                          <span className="inline-block mt-1 text-[10px] uppercase tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded px-2 py-0.5">
+                                            Upgrade required
+                                          </span>
+                                        </div>
                                       </div>
-                                    </div>
+                                    ) : (
+                                      <div
+                                        className={`flex-1 p-4 border-2 border-dashed rounded-lg transition-colors cursor-pointer ${
+                                          isDragActive[itemReferenceId]
+                                            ? 'border-gray-500 bg-gray-800/20'
+                                            : 'border-gray-600 hover:border-gray-500 bg-gray-800/10'
+                                        }`}
+                                        onDragOver={(e) => {
+                                          e.preventDefault();
+                                          setIsDragActive(prev => {
+                                            if (prev[itemReferenceId] !== true) {
+                                              return { ...prev, [itemReferenceId]: true };
+                                            }
+                                            return prev;
+                                          });
+                                        }}
+                                        onDragLeave={(e) => {
+                                          e.preventDefault();
+                                          setIsDragActive(prev => {
+                                            if (prev[itemReferenceId] !== false) {
+                                              return { ...prev, [itemReferenceId]: false };
+                                            }
+                                            return prev;
+                                          });
+                                        }}
+                                        onDrop={(e) => {
+                                          e.preventDefault();
+                                          setIsDragActive(prev => ({ ...prev, [itemReferenceId]: false }));
+                                          const activeVisual = autocreateStore.getActiveVisualAnalysis();
+                                          if (activeVisual && activeVisual.itemId !== itemReferenceId) {
+                                            setShowQueueGateModal(true);
+                                            return;
+                                          }
+                                          handleSingleFileDrop(itemReferenceId, e.dataTransfer.files);
+                                        }}
+                                        onClick={() => {
+                                          const activeVisual = autocreateStore.getActiveVisualAnalysis();
+                                          if (activeVisual && activeVisual.itemId !== itemReferenceId) {
+                                            setShowQueueGateModal(true);
+                                            return;
+                                          }
+                                          const input = document.createElement('input');
+                                          input.type = 'file';
+                                          input.multiple = true;
+                                          input.accept = '.pdf,.png,.jpg,.jpeg';
+                                          input.onchange = (e) => handleSingleFileDrop(itemReferenceId, e.target.files);
+                                          input.click();
+                                        }}
+                                      >
+                                        <div className="text-center">
+                                          <Upload className={`h-12 w-12 mx-auto mb-2 ${
+                                            uploadedFiles[itemReferenceId] && uploadedFiles[itemReferenceId].length > 0 ? 'text-gray-300' : 'text-gray-400'
+                                          }`} />
+                                          <p className={`text-sm font-medium mb-2 ${
+                                            uploadedFiles[itemReferenceId] && uploadedFiles[itemReferenceId].length > 0 ? 'text-gray-200' : 'text-gray-300'
+                                          }`}>Drop files or click</p>
+                                          <p className="text-gray-400 text-xs mb-2">
+                                            PDFs, images • 5mb max
+                                          </p>
+                                          {uploadedFiles[itemReferenceId] && uploadedFiles[itemReferenceId].length > 0 && (
+                                            <div>
+                                              <p className="text-gray-300 text-xs font-medium mb-1">
+                                                {uploadedFiles[itemReferenceId].length} file(s)
+                                              </p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
 
                                   {/* Column 2: YouTube URL - wrapped in form for Enter key support */}
@@ -2603,30 +2758,53 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                                       <p className="text-gray-400 text-sm font-medium">YouTube guitar lesson</p>
                                       <p className="text-gray-500 text-xs">(video must have a transcript)</p>
                                     </div>
-                                    <form
-                                      className="flex-1 flex flex-col justify-center"
-                                      onSubmit={(e) => {
-                                        e.preventDefault();
-                                        if (youtubeUrls[itemReferenceId]?.trim()) {
-                                          handleProcessFiles(itemReferenceId);
-                                        }
-                                      }}
-                                    >
-                                      <input
-                                        type="url"
-                                        placeholder="Paste YouTube URL"
-                                        value={youtubeUrls[itemReferenceId] || ''}
-                                        onChange={(e) => {
-                                          const sanitizedValue = e.target.value.replace(/[<>"']/g, '');
-                                          setYoutubeUrls(prev => ({
-                                            ...prev,
-                                            [itemReferenceId]: sanitizedValue
-                                          }));
+                                    {showDisabledAutocreate ? (
+                                      <div
+                                        className="flex-1 flex flex-col justify-center opacity-50 cursor-not-allowed"
+                                        onClick={() => setUpsellModal({ open: true, trigger: 'youtube' })}
+                                      >
+                                        <input
+                                          type="url"
+                                          placeholder="Paste YouTube URL"
+                                          readOnly
+                                          onFocus={(e) => {
+                                            e.target.blur();
+                                            setUpsellModal({ open: true, trigger: 'youtube' });
+                                          }}
+                                          className="w-full p-3 bg-gray-700 text-white rounded border-2 border-gray-600 text-sm cursor-not-allowed"
+                                        />
+                                        <div className="text-center mt-2">
+                                          <span className="inline-block text-[10px] uppercase tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded px-2 py-0.5">
+                                            Upgrade required
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <form
+                                        className="flex-1 flex flex-col justify-center"
+                                        onSubmit={(e) => {
+                                          e.preventDefault();
+                                          if (youtubeUrls[itemReferenceId]?.trim()) {
+                                            handleProcessFiles(itemReferenceId);
+                                          }
                                         }}
-                                        maxLength={500}
-                                        className="w-full p-3 bg-gray-700 text-white rounded border-2 border-gray-600 focus:border-gray-500 text-sm"
-                                      />
-                                    </form>
+                                      >
+                                        <input
+                                          type="url"
+                                          placeholder="Paste YouTube URL"
+                                          value={youtubeUrls[itemReferenceId] || ''}
+                                          onChange={(e) => {
+                                            const sanitizedValue = e.target.value.replace(/[<>"']/g, '');
+                                            setYoutubeUrls(prev => ({
+                                              ...prev,
+                                              [itemReferenceId]: sanitizedValue
+                                            }));
+                                          }}
+                                          maxLength={500}
+                                          className="w-full p-3 bg-gray-700 text-white rounded border-2 border-gray-600 focus:border-gray-500 text-sm"
+                                        />
+                                      </form>
+                                    )}
                                   </div>
 
                                   {/* Column 3: Manual Chord Input */}
@@ -2636,7 +2814,9 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                                     </div>
                                     <div className="flex-1 flex flex-col justify-center relative">
                                       <textarea
-                                        placeholder="Enter song section names and chord names, like this:&#10;Intro&#10;Am7 Em/A E7sus&#10;Verse&#10;C G/B Am (space or comma-separated)"
+                                        placeholder={showDisabledAutocreate
+                                          ? "Type chord names separated commas. 'Enter' for line breaks.\nExample:\nG, C, Am, F\nD, Em, D"
+                                          : "Enter song section names and chord names, like this:\nIntro\nAm7 Em/A E7sus\nVerse\nC G/B Am (space or comma-separated)"}
                                         value={manualChordInput[itemReferenceId] || ''}
                                         onChange={(e) => {
                                           const value = e.target.value;
@@ -2662,6 +2842,11 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                                       {manualInputErrors[itemReferenceId] && (
                                         <div className="mt-1 text-xs text-red-400">
                                           {manualInputErrors[itemReferenceId]}
+                                        </div>
+                                      )}
+                                      {showDisabledAutocreate && (
+                                        <div className="mt-2 text-xs text-gray-400">
+                                          We'll look up each chord in our library of common shapes. Unknown ones get a blank chart you can fill in.
                                         </div>
                                       )}
                                     </div>
@@ -3059,6 +3244,13 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
             setAutocreateSuccessData(null);
           }}
           autocreateData={autocreateSuccessData}
+        />
+
+        {/* Autocreate Upsell Modal (free tier without API key) */}
+        <UpsellAutocreateModal
+          isOpen={upsellModal.open}
+          onClose={() => setUpsellModal({ open: false, trigger: null })}
+          trigger={upsellModal.trigger}
         />
 
         {/* Notification info modal */}

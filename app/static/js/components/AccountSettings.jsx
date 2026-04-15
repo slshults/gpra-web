@@ -110,6 +110,29 @@ const AccountSettings = () => {
     sessionStorage.setItem('accountSettingsCollapsed', JSON.stringify(collapsedCards));
   }, [collapsedCards]);
 
+  // If the user was routed here from the autocreate upsell "Add API key" CTA,
+  // auto-expand and scroll to the API key card.
+  useEffect(() => {
+    let shouldExpand = false;
+    try {
+      if (sessionStorage.getItem('gpra_expand_api_key') === '1') {
+        sessionStorage.removeItem('gpra_expand_api_key');
+        shouldExpand = true;
+      }
+    } catch (e) {
+      // sessionStorage may be unavailable — fall through
+    }
+    if (shouldExpand) {
+      setCollapsedCards(prev => ({ ...prev, apiKey: false }));
+      setTimeout(() => {
+        const el = document.querySelector('[data-tour="api-key-card-header"]');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 150);
+    }
+  }, []);
+
   useEffect(() => {
     // Fetch current API key status, user profile, routine count, and expiration warning
     fetchApiKeyStatus();
