@@ -5117,7 +5117,6 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
             response = client.messages.create(
                 model="claude-opus-4-7",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
-                temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
             )
             llm_end_time = time.time()
@@ -5430,7 +5429,6 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
             response = client.messages.create(
                 model="claude-opus-4-7",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
-                temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
             )
             llm_end_time = time.time()
