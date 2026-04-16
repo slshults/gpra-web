@@ -101,7 +101,7 @@
 - **Test accounts**: imatest1-12 exist with password `t3stP4ss!t3stP4ss!`
 - **Background agent bash permissions**: Background agents can't run psql, sed, or other commands not in the explicit bash whitelist. The permission hooks auto-deny when prompts are unavailable. Background agents also can't use Edit on `~/.claude/` files. Workaround: run these in foreground or do them in main chat.
 - **FAB admin routes**: The actual FAB user list URL is `/users/list/` NOT `/admin/users/list/`.
-- **Opus 4.6 model ID**: Use `claude-opus-4-6` (no date suffix) for the Anthropic API.
+- **Opus 4.7 model ID**: Use `claude-opus-4-7` (no date suffix) for the Anthropic API.
 
 ---
 
