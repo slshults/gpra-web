@@ -4454,22 +4454,54 @@ def process_chord_charts_directly(client, uploaded_files, item_id, user_id=None,
         app.logger.info("Processing chord chart files for direct import (crop tool approach)")
 
         # Phase 1: Survey — send full-page image, get layout + crop coordinates for each row
-        survey_prompt = """Look at this chord chart image. I need you to identify the layout so I can crop individual rows for detailed reading.
+        survey_prompt = """Look at this chord chart image. Identify the layout so I can crop individual rows for detailed reading.
 
-For each ROW of chord diagrams, tell me:
-1. The section label (Intro, Verse, Chorus, etc.) if visible above/before that row
-2. The approximate bounding box as normalized 0-1 coordinates: x1, y1 (top-left) and x2, y2 (bottom-right)
-3. Include the chord name labels above the grids in the crop area
+**Definition of a ROW (critical)**: ONE horizontal line of chord diagrams — a single horizontal strip where multiple chord diagrams sit side-by-side with their TOP edges at roughly the same Y position. A row is NEVER an entire multi-line section.
 
-Also note the tuning if shown anywhere on the page.
+**Follow this procedure step-by-step**:
 
-Output as JSON:
+**Step 1 — COUNT the lines**: Scan the image top to bottom. Count every distinct horizontal line of chord diagrams, regardless of which section each line belongs to. A section with 2 lines of diagrams counts as 2 lines, not 1. Sections are typically separated by section labels (Intro, Verse, Chorus) and whitespace; within a section, adjacent lines may be tightly stacked with only a small vertical gap. State the total count before proceeding.
+
+**Step 2 — PLACE boundaries for EACH counted line** (one row entry per line):
+- y1 = just above that line's chord name labels (e.g., "G", "Am", "Bb6" text sits above each grid)
+- y2 = just below that line's grids and any finger-number text printed below
+- Use the SAME section name for every line within a section (two lines of Verse → two entries labeled `"Verse"`; never `"Verse (cont.)"`, `"Verse 2"`, etc.)
+
+**Step 3 — VALIDATE your output before returning**:
+- Height check: each row's height (y2 - y1) should be roughly **0.08 to 0.15** of page height for a single line of diagrams. **If any row has height > 0.18, you have merged two lines — SPLIT IT into two rows.**
+- Count check: the number of `rows` entries MUST equal your Step 1 count. If it doesn't, revisit.
+- Overlap check: rows MAY have a tiny safety overlap (≤0.02) but must NOT cover the same diagrams as a neighbor.
+- Gap check: between rows in the SAME section, expect small gaps (0.01-0.03) from tight line spacing; between rows in DIFFERENT sections, expect larger gaps (0.03-0.08) from section labels/whitespace. A row covering only whitespace/labels with no diagrams is WRONG — do not produce those.
+
+**Bounding box requirements**:
+- y1 MUST be ABOVE the chord name labels. Clipping labels ruins the downstream read.
+- y2 MUST be BELOW the lowest fret line and finger numbers. Clipping dots ruins the downstream read.
+- x1/x2 typically span full page width (x1=0.0, x2=1.0) unless lines are in distinct columns.
+
+**BAD example (do NOT do this — two Verse lines merged):**
+```json
+{"section": "Verse", "x1": 0.0, "y1": 0.30, "x2": 1.0, "y2": 0.50}   // height 0.20 — TOO TALL, covers 2 lines
+{"section": "Verse", "x1": 0.0, "y1": 0.48, "x2": 1.0, "y2": 0.60}   // phantom row — only captures whitespace below line 2
+```
+
+**GOOD example (two Verse lines split properly):**
+```json
+{"section": "Verse", "x1": 0.0, "y1": 0.30, "x2": 1.0, "y2": 0.40}   // height 0.10 — line 1 only
+{"section": "Verse", "x1": 0.0, "y1": 0.41, "x2": 1.0, "y2": 0.51}   // height 0.10 — line 2 only
+```
+
+Also note the tuning if shown anywhere on the page (e.g., "Dropped C: C-G-C-F-A-D", "EADGBE", "DADGAD", "Drop D"). If no tuning is explicitly shown, assume "EADGBE".
+
+Output as JSON. Example for a sheet with Intro (1 line), Verse (2 lines), Chorus (2 lines) — total 5 lines, so 5 row entries:
 ```json
 {
   "tuning": "EADGBE or whatever is shown",
   "rows": [
-    {"section": "Intro", "x1": 0.0, "y1": 0.0, "x2": 0.9, "y2": 0.2},
-    {"section": "Verse", "x1": 0.0, "y1": 0.2, "x2": 0.9, "y2": 0.4}
+    {"section": "Intro",  "x1": 0.0, "y1": 0.08, "x2": 1.0, "y2": 0.20},
+    {"section": "Verse",  "x1": 0.0, "y1": 0.24, "x2": 1.0, "y2": 0.36},
+    {"section": "Verse",  "x1": 0.0, "y1": 0.37, "x2": 1.0, "y2": 0.49},
+    {"section": "Chorus", "x1": 0.0, "y1": 0.54, "x2": 1.0, "y2": 0.66},
+    {"section": "Chorus", "x1": 0.0, "y1": 0.67, "x2": 1.0, "y2": 0.80}
   ]
 }
 ```"""
@@ -4522,7 +4554,7 @@ Output as JSON:
         total_output_tokens = 0
 
         survey_response = client.messages.create(
-            model="claude-opus-4-6",
+            model="claude-opus-4-7",
             max_tokens=4000,
             messages=[{
                 "role": "user",
@@ -4565,35 +4597,55 @@ Output as JSON:
         app.logger.info("[AUTOCREATE-CROP] Phase 2: Reading chord diagrams from each row")
         all_readings = []
 
-        read_prompt = """Read ALL chord diagrams in this cropped image. This is a VISUAL task — read what you SEE, not what you know.
+        tuning_note = f"Tuning shown on the page: **{detected_tuning}**. This is INFORMATIONAL ONLY — record it verbatim. Tuning does NOT change what the dots look like on the grid. Do not reason about how tuning affects notes, voicings, or chord shapes.\n\n"
 
-IGNORE what any chord "should" look like. These may use non-standard tunings. Read ONLY the dot positions on each grid.
+        read_prompt = """Read chord diagrams from this cropped image.
 
-For each chord diagram, left to right:
-- Read the chord **name** from the label above the grid
-- Check **above the nut** for each string: O = open (0), X = muted (-1)
-- For each **dot on the grid**: count which vertical line it's on (left-to-right: string 6,5,4,3,2,1) and which fret space it occupies (between horizontal lines: nut-to-first = fret 1, first-to-second = fret 2, etc.)
-- Numbers inside dots are FINGER numbers — ignore them for the frets array
+⚠️ THIS IS A MECHANICAL VISUAL COUNTING TASK — NOT A MUSIC THEORY TASK.
 
-Also note the **layout of chords on each line** in the source image. If the next chord appears on a NEW line/row in the original layout, set "lineBreakAfter": true for the current chord. This preserves the source document's line break pattern (e.g., 3 chords on one line, then 2 on the next).
+**DO**: Count horizontal lines (fret wires) and vertical lines (strings). Locate each dot. Record its position on the grid exactly as drawn.
 
-Output JSON array of the chords you read:
+**DO NOT**: Think about what a chord "should" look like. Do not match against standard voicings. Do not reason about how tuning affects notes. Do not invoke any music theory.
+
+**If you find yourself reasoning about music theory, chord voicings, or tuning math — STOP. Just count lines and dots and move on.** Every second spent on theory is wasted; every second spent counting is productive.
+
+""" + tuning_note + """For each chord diagram, left to right:
+
+1. **Chord NAME**: copy the text label above the grid verbatim (e.g., "G", "cadd9", "F#m7", "Bb6"). Do not analyze what the name means.
+
+2. **For each of 6 strings** (reading left-to-right on the grid = strings 6, 5, 4, 3, 2, 1):
+   Each string gets EXACTLY ONE treatment. Look at that string's vertical column and decide:
+   - **Is there a dot ON the grid in that column?** → that string is **fretted**. Count which fret space the dot is in (nut-to-first-line = fret 1, first-line-to-second-line = fret 2, etc.) → record that fret number. Do NOT also look for an X or O above this string — fretted strings do not get X/O markers.
+   - **No dot, but an `X` above the nut in that column?** → muted → record `-1`
+   - **No dot, but an `O` above the nut in that column?** → open → record `0`
+   - **No dot, no X, no O, AND covered by a barre?** → barred → record the barre's fret number
+   - **No dot, no X, no O, no barre?** → treat as open → record `0`
+
+   ⚠️ **IMPORTANT about X/O markers above the nut**: Chord charts only show X/O markers for strings that are NOT fretted. A chord with 3 fretted strings may show only 3 X/O markers above the nut — not 6. The markers are positioned directly above the string columns they refer to (use horizontal alignment to match marker → string). Do NOT try to map a sequence like "× × O  O" to 6 strings as if each symbol must correspond to one string; instead, for each string column independently, look UP and see whether there's an X, O, or neither above it.
+
+3. **Barres** (curved arc or horizontal bar spanning multiple strings at one fret): every string under the barre at that fret is fretted at that fret number. If a string under the barre ALSO has a higher dot (e.g., a finger pressing an additional note on top of the barre), that string takes the higher fret number instead.
+
+4. **Numbers INSIDE dots** are FINGER numbers — useful for the visualDescription but IGNORE them for the frets array.
+
+Also note the **layout of chords on each line**. If the next chord appears on a NEW line/row in the source image, set `"lineBreakAfter": true` on the current chord.
+
+Output JSON array of the chords you read. **Output the JSON as soon as you have counted — do not validate against music theory before outputting.**
+
 ```json
 [
   {"name": "G", "frets": [3, 0, 0, 0, 0, -1], "visualDescription": "String 6: dot fret 3, Strings 5-2: open, String 1: X", "lineBreakAfter": false},
-  {"name": "Am", "frets": [0, 0, 2, 2, 1, 0], "visualDescription": "...", "lineBreakAfter": true}
+  {"name": "Am", "frets": [0, 0, 2, 2, 1, 0], "visualDescription": "Strings 6-5: open, Strings 4-3: dots fret 2, String 2: dot fret 1, String 1: open", "lineBreakAfter": true}
 ]
 ```
 
-frets = [string 6, string 5, string 4, string 3, string 2, string 1] (low to high)
--1 = muted (X), 0 = open (O), 1+ = fretted"""
+frets array = [string 6, string 5, string 4, string 3, string 2, string 1] (low pitch to high pitch)
+-1 = muted (X), 0 = open (O), 1+ = fretted at that fret number"""
 
         # Effort config: low=fast/rough, medium=balanced, high=thorough/slow
-        # High uses manual budget_tokens to guarantee text output room (adaptive spirals on complex crops)
         effort_configs = {
-            'low':    {'max_tokens': 8000,  'thinking': {"type": "adaptive"}, 'output_config': {"effort": "low"}},
-            'medium': {'max_tokens': 16000, 'thinking': {"type": "adaptive"}, 'output_config': {"effort": "medium"}},
-            'high':   {'max_tokens': 64000, 'thinking': {"type": "enabled", "budget_tokens": 48000}},
+            'low':    {'max_tokens': 8000,  'thinking': {"type": "adaptive", "display": "summarized"}, 'output_config': {"effort": "low"}},
+            'medium': {'max_tokens': 16000, 'thinking': {"type": "adaptive", "display": "summarized"}, 'output_config': {"effort": "medium"}},
+            'high':   {'max_tokens': 64000, 'thinking': {"type": "adaptive", "display": "omitted"}, 'output_config': {"effort": "high"}},
         }
         effort_config = effort_configs[effort_level]
         app.logger.info(f"[AUTOCREATE-CROP] Using effort={effort_level}, max_tokens={effort_config['max_tokens']}")
@@ -4624,9 +4676,10 @@ frets = [string 6, string 5, string 4, string 3, string 2, string 1] (low to hig
             # Stateless call — only sends this one crop + the read prompt
 
             api_kwargs = dict(
-                model="claude-opus-4-6",
+                model="claude-opus-4-7",
                 max_tokens=effort_config['max_tokens'],
                 thinking=effort_config['thinking'],
+                output_config=effort_config['output_config'],
                 messages=[{
                     "role": "user",
                     "content": [
@@ -4635,28 +4688,36 @@ frets = [string 6, string 5, string 4, string 3, string 2, string 1] (low to hig
                     ]
                 }]
             )
-            # Only add output_config for adaptive modes (not compatible with manual budget_tokens)
-            if 'output_config' in effort_config:
-                api_kwargs['output_config'] = effort_config['output_config']
 
-            # High effort requires streaming (API enforces it for long-running requests)
-            if effort_level == 'high':
-                with client.messages.stream(**api_kwargs) as stream:
-                    row_response = stream.get_final_message()
-            else:
-                row_response = client.messages.create(**api_kwargs)
+            # High effort requires streaming (API enforces it for long-running requests).
+            # Use a generous per-request timeout — xhigh + deep thinking can gap chunks several minutes apart.
+            row_client = client.with_options(timeout=1800.0) if effort_level == 'high' else client
+            try:
+                if effort_level == 'high':
+                    with row_client.messages.stream(**api_kwargs) as stream:
+                        row_response = stream.get_final_message()
+                else:
+                    row_response = row_client.messages.create(**api_kwargs)
+            except Exception as row_error:
+                app.logger.warning(f"[AUTOCREATE-CROP] Row {i+1}: API call failed ({type(row_error).__name__}: {row_error}). Skipping this row and continuing.")
+                continue
 
             if hasattr(row_response, 'usage'):
                 total_input_tokens += row_response.usage.input_tokens
                 total_output_tokens += row_response.usage.output_tokens
 
-            # Extract text from response
+            # Extract text and thinking summary from response
             row_text = ""
+            thinking_summary = ""
             for block in row_response.content:
                 if block.type == "text":
                     row_text = block.text
+                elif block.type == "thinking":
+                    thinking_summary = getattr(block, "thinking", "") or ""
 
             app.logger.info(f"[AUTOCREATE-CROP] Row {i+1} response: {row_response.usage.output_tokens} output tokens, {len(row_text)} text chars")
+            if thinking_summary:
+                app.logger.info(f"[AUTOCREATE-CROP] Row {i+1} thinking summary ({len(thinking_summary)} chars): {thinking_summary[:800]}{'...' if len(thinking_summary) > 800 else ''}")
 
             # Parse chord readings from this row
             row_json_match = re.search(r'```json\s*(.*?)\s*```', row_text, re.DOTALL)
@@ -4684,17 +4745,40 @@ frets = [string 6, string 5, string 4, string 3, string 2, string 1] (low to hig
 
         app.logger.info(f"[AUTOCREATE-CROP] Phase 2 complete: read {len(all_readings)} total chords in {llm_end_time - llm_start_time:.1f}s")
 
-        # Assemble into the expected output format
-        # Strip "(row N)" suffixes from section labels to merge multi-row sections,
-        # and add line breaks between rows within the same section
+        # Assemble into the expected output format.
+        # Strip suffixes that mean "same section, next line" so they merge into one logical section.
+        # Also drop consecutive-duplicate readings that come from overlapping crops (same name + same frets).
+        def _strip_section_suffix(label):
+            """Normalize a raw survey section label to its base name.
+
+            Strips: '(row N)', '(cont.)', '(continued)', '(line N)', and trailing ' N'/'row N'.
+            """
+            if not label:
+                return 'Chords'
+            cleaned = re.sub(r'\s*\((?:row|line)\s*\d+\)', '', label, flags=re.IGNORECASE)
+            cleaned = re.sub(r'\s*\(cont(?:\.|inued)?\)', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r'\s+(?:row\s*)?\d+$', '', cleaned, flags=re.IGNORECASE).strip()
+            return cleaned or 'Chords'
+
         sections_dict = {}
         prev_raw_label = None
+        duplicates_dropped = 0
         for chord in all_readings:
             raw_label = chord.get('section', 'Chords')
-            # Strip "(row N)" suffix to merge rows into one section
-            base_label = re.sub(r'\s*\(row\s*\d+\)', '', raw_label, flags=re.IGNORECASE).strip()
-            if not base_label:
-                base_label = 'Chords'
+            base_label = _strip_section_suffix(raw_label)
+
+            chord_name = chord.get('name', 'Unknown')
+            chord_frets = chord.get('frets', [])
+
+            # Drop overlap duplicates: same name + same frets as the last chord in this section.
+            existing = sections_dict.get(base_label, [])
+            if existing:
+                last = existing[-1]
+                if last['name'] == chord_name and last['frets'] == chord_frets:
+                    duplicates_dropped += 1
+                    app.logger.debug(f"[AUTOCREATE-CROP] Dropping duplicate reading: {chord_name} (from overlapping crop)")
+                    prev_raw_label = raw_label
+                    continue
 
             if base_label not in sections_dict:
                 sections_dict[base_label] = []
@@ -4702,20 +4786,23 @@ frets = [string 6, string 5, string 4, string 3, string 2, string 1] (low to hig
             # When we move to a new crop row within the same section,
             # mark the last chord of the previous row with a line break
             if prev_raw_label is not None and raw_label != prev_raw_label:
-                prev_base = re.sub(r'\s*\(row\s*\d+\)', '', prev_raw_label, flags=re.IGNORECASE).strip() or 'Chords'
+                prev_base = _strip_section_suffix(prev_raw_label)
                 if prev_base == base_label and sections_dict[base_label]:
                     sections_dict[base_label][-1]['lineBreakAfter'] = True
                     app.logger.debug(f"[AUTOCREATE-CROP] Line break after '{sections_dict[base_label][-1]['name']}' (row transition: {prev_raw_label} → {raw_label})")
 
             sections_dict[base_label].append({
-                "name": chord.get('name', 'Unknown'),
-                "frets": chord.get('frets', []),
+                "name": chord_name,
+                "frets": chord_frets,
                 "sourceType": "chord_chart_direct",
                 "row": len(sections_dict[base_label]),
                 "position": len(sections_dict[base_label]),
                 "lineBreakAfter": chord.get('lineBreakAfter', False)
             })
             prev_raw_label = raw_label
+
+        if duplicates_dropped:
+            app.logger.info(f"[AUTOCREATE-CROP] Dropped {duplicates_dropped} consecutive duplicate reading(s) from overlapping crops")
 
         # Mark last chord in each section with lineBreakAfter
         for section_chords in sections_dict.values():
@@ -4757,7 +4844,7 @@ frets = [string 6, string 5, string 4, string 3, string 2, string 1] (low to hig
         # Track LLM generation with PostHog Analytics
         from app.utils.llm_analytics import llm_analytics
         llm_analytics.track_generation(
-            model="claude-opus-4-6",
+            model="claude-opus-4-7",
             input_messages=[{"role": "user", "content": "Chord chart processing with stateless crops"}],
             output_choices=[{"message": {"content": json.dumps(chord_data)[:500]}}],
             usage={
@@ -5113,11 +5200,10 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
         try:
             import time
             llm_start_time = time.time()
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-6")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-7")
             response = client.messages.create(
-                model="claude-opus-4-6",
+                model="claude-opus-4-7",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
-                temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
             )
             llm_end_time = time.time()
@@ -5140,7 +5226,7 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                 }
 
             track_llm_generation(
-                model="claude-opus-4-6",
+                model="claude-opus-4-7",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from YouTube transcript"
@@ -5175,7 +5261,7 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                 llm_latency = 0
 
             track_llm_generation(
-                model="claude-opus-4-6",
+                model="claude-opus-4-7",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from YouTube transcript"
@@ -5418,19 +5504,18 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                     "text": file_content['data']
                 })
 
-        # Use Opus 4.6 for chord names analysis (complex reasoning for non-standard tunings)
-        app.logger.info(f"[AUTOCREATE] Using Opus 4.6 for chord names analysis")
+        # Use Opus 4.7 for chord names analysis (complex reasoning for non-standard tunings)
+        app.logger.info(f"[AUTOCREATE] Using Opus 4.7 for chord names analysis")
         app.logger.info(f"[AUTOCREATE] Making API call with {len(message_content)} content items")
         app.logger.info(f"[AUTOCREATE] Message content types: {[item.get('type', 'unknown') for item in message_content]}")
 
         try:
             import time
             llm_start_time = time.time()
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-6")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-7")
             response = client.messages.create(
-                model="claude-opus-4-6",
+                model="claude-opus-4-7",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
-                temperature=0.1,
                 messages=[{"role": "user", "content": message_content}]
             )
             llm_end_time = time.time()
@@ -5453,7 +5538,7 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                 }
 
             track_llm_generation(
-                model="claude-opus-4-6",
+                model="claude-opus-4-7",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from lyrics sheet"
@@ -5487,7 +5572,7 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                 llm_latency = 0
 
             track_llm_generation(
-                model="claude-opus-4-6",
+                model="claude-opus-4-7",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from lyrics sheet"
