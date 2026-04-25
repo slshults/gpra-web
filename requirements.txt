@@ -33,6 +33,7 @@ Jinja2==3.1.6
 jiter==0.11.0
 MarkupSafe==3.0.3
 msgspec==0.20.0
+numpy==2.2.6
 oauthlib==3.3.1
 packaging==25.0
 pdf2image==1.17.0
