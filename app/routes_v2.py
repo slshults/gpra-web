@@ -4380,22 +4380,11 @@ If you can't determine sections, use "Main" as the section name.""",
         app.logger.error(f"Error in simple_analyze_files: {str(e)}")
         return {'error': f'Analysis failed: {str(e)}'}
 
-CROP_TOOL = {
-    "name": "crop_image",
-    "description": "Crop a region from the chord chart image to examine it more closely. Use this to zoom into individual chord diagrams for precise dot position reading. Specify normalized coordinates (0-1) for the bounding box.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "x1": {"type": "number", "minimum": 0, "maximum": 1, "description": "Left edge (0=left side, 1=right side)"},
-            "y1": {"type": "number", "minimum": 0, "maximum": 1, "description": "Top edge (0=top, 1=bottom)"},
-            "x2": {"type": "number", "minimum": 0, "maximum": 1, "description": "Right edge (0=left side, 1=right side)"},
-            "y2": {"type": "number", "minimum": 0, "maximum": 1, "description": "Bottom edge (0=top, 1=bottom)"},
-        },
-        "required": ["x1", "y1", "x2", "y2"],
-    },
-}
-
-MAX_CROP_ITERATIONS = 25
+# NOTE: An earlier iteration of autocreate used an agentic tool-use loop with a
+# crop_image tool (CROP_TOOL) and MAX_CROP_ITERATIONS guard. The current architecture
+# calls handle_crop() directly from Python after pixel-based bbox detection, so the
+# tool definition is no longer needed. If reintroducing agentic cropping, add the
+# tool schema back here.
 
 
 def handle_crop(image, x1, y1, x2, y2, upscale=1):
@@ -4461,12 +4450,313 @@ def handle_crop(image, x1, y1, x2, y2, upscale=1):
     ]
 
 
+# Default thresholds used by _detect_diagram_rows_and_bboxes. Exposed at module scope so
+# callers can override per-call (via `overrides` kwarg) without editing the function.
+# All fractions are relative to image width/height. If a real PDF triggers a layout
+# misdetection, tuning these is the first thing to try.
+DIAGRAM_DETECTION_DEFAULTS = {
+    'dark_threshold': 200,       # grayscale value below which a pixel counts as ink
+    'row_min_height_frac': 0.03, # ignore ink bands shorter than this (filters page numbers/noise)
+    'row_gap_min_frac': 0.012,   # minimum quiet gap between rows
+    'col_min_width_frac': 0.02,  # ignore ink columns narrower than this (filters specks)
+    'col_gap_min_frac': 0.003,   # minimum quiet gap between diagrams within a row
+                                 # (was 0.008; lowered after AlmostCutMyHair file showed
+                                 # diagrams with 9px gaps. Drop C has ~75px gaps, so 0.003
+                                 # works for both. Internal grid columns always have ≥1 dark
+                                 # pixel from horizontal fret lines so no fragmentation risk.)
+    'row_pad_frac': 0.01,        # padding added above/below detected row bands
+    'col_pad_frac': 0.005,       # padding added left/right of detected column bands
+}
+
+
+def _detect_diagram_rows_and_bboxes(pil_image, overrides=None, **kwargs):
+    """Detect rows of chord diagrams and per-diagram bounding boxes from pixels.
+
+    Returns: list of rows, each row a list of (x1, y1, x2, y2) tuples in NORMALIZED
+    (0.0-1.0) coordinates, in reading order (top-to-bottom, then left-to-right).
+
+    Strategy:
+      1. Project ink onto the Y axis (sum of dark pixels per row).
+      2. Find horizontal bands of ink separated by quiet whitespace gaps → rows.
+      3. Within each row's y-band, project ink onto the X axis and find
+         vertical bands separated by gaps → individual diagrams.
+    Empirically this is far more reliable than asking the model for coordinates,
+    which it has historically hallucinated by copying example numbers.
+
+    Thresholds are taken from DIAGRAM_DETECTION_DEFAULTS and can be overridden by
+    passing an `overrides` dict or individual kwargs. See DIAGRAM_DETECTION_DEFAULTS
+    for the full list of tunables and their meanings.
+    """
+    import numpy as np
+
+    # Merge overrides: kwargs win over overrides dict, both win over defaults.
+    params = dict(DIAGRAM_DETECTION_DEFAULTS)
+    if overrides:
+        params.update(overrides)
+    params.update(kwargs)
+
+    dark_threshold = params['dark_threshold']
+    row_min_height_frac = params['row_min_height_frac']
+    row_gap_min_frac = params['row_gap_min_frac']
+    col_min_width_frac = params['col_min_width_frac']
+    col_gap_min_frac = params['col_gap_min_frac']
+    row_pad_frac = params['row_pad_frac']
+    col_pad_frac = params['col_pad_frac']
+
+    w, h = pil_image.size
+    gray = np.array(pil_image.convert('L'))
+    ink = gray < dark_threshold  # boolean mask: True where there's ink
+
+    # ---- Step 1: row detection ----
+    row_ink = ink.sum(axis=1)  # ink-pixel count per image row
+    # A row counts as "has ink" if it has more than a tiny noise floor.
+    # Use 1% of (image width) as a noise floor — filters specks but keeps real content.
+    row_noise_floor = max(2, int(w * 0.01))
+    row_has_ink = row_ink > row_noise_floor
+
+    # Group consecutive ink rows into bands, separated by gaps of >= row_gap_min_frac * h.
+    row_gap_min_px = max(2, int(h * row_gap_min_frac))
+    row_min_height_px = max(2, int(h * row_min_height_frac))
+    row_pad_px = max(1, int(h * row_pad_frac))
+
+    row_bands = []  # list of (y1_px, y2_px)
+    in_band = False
+    band_start = 0
+    gap_run = 0
+    for y in range(h):
+        if row_has_ink[y]:
+            if not in_band:
+                in_band = True
+                band_start = y
+            gap_run = 0
+        else:
+            if in_band:
+                gap_run += 1
+                if gap_run >= row_gap_min_px:
+                    band_end = y - gap_run
+                    if (band_end - band_start) >= row_min_height_px:
+                        row_bands.append((band_start, band_end))
+                    in_band = False
+                    gap_run = 0
+    if in_band:
+        band_end = h - 1
+        if (band_end - band_start) >= row_min_height_px:
+            row_bands.append((band_start, band_end))
+
+    # Pad rows vertically (clamped to image bounds).
+    padded_rows = []
+    for (y1_px, y2_px) in row_bands:
+        py1 = max(0, y1_px - row_pad_px)
+        py2 = min(h, y2_px + row_pad_px + 1)
+        padded_rows.append((py1, py2))
+
+    # ---- Step 2: per-diagram detection within each row ----
+    col_gap_min_px = max(2, int(w * col_gap_min_frac))
+    col_min_width_px = max(2, int(w * col_min_width_frac))
+    col_pad_px = max(1, int(w * col_pad_frac))
+    col_noise_floor = max(2, int(h * 0.005))  # tiny — we already filtered to ink rows
+
+    detected_rows = []
+    for (y1_px, y2_px) in padded_rows:
+        row_slice = ink[y1_px:y2_px, :]
+        col_ink = row_slice.sum(axis=0)
+        col_has_ink = col_ink > col_noise_floor
+
+        col_bands = []
+        in_band = False
+        band_start = 0
+        gap_run = 0
+        for x in range(w):
+            if col_has_ink[x]:
+                if not in_band:
+                    in_band = True
+                    band_start = x
+                gap_run = 0
+            else:
+                if in_band:
+                    gap_run += 1
+                    if gap_run >= col_gap_min_px:
+                        band_end = x - gap_run
+                        if (band_end - band_start) >= col_min_width_px:
+                            col_bands.append((band_start, band_end))
+                        in_band = False
+                        gap_run = 0
+        if in_band:
+            band_end = w - 1
+            if (band_end - band_start) >= col_min_width_px:
+                col_bands.append((band_start, band_end))
+
+        # Build normalized bboxes for this row's diagrams.
+        row_bboxes = []
+        for (x1_px, x2_px) in col_bands:
+            px1 = max(0, x1_px - col_pad_px)
+            px2 = min(w, x2_px + col_pad_px + 1)
+            row_bboxes.append((
+                px1 / w,
+                y1_px / h,
+                px2 / w,
+                y2_px / h,
+            ))
+        detected_rows.append(row_bboxes)
+
+    return detected_rows
+
+
+def _extract_json_text(response):
+    """Extract the first text block from a structured-output response and parse as JSON.
+
+    Returns the parsed object, or None if no text block was found / JSON failed to parse.
+    """
+    for block in response.content:
+        if getattr(block, 'type', None) == 'text':
+            try:
+                return json.loads(block.text)
+            except json.JSONDecodeError as e:
+                app.logger.warning(f"[AUTOCREATE-CROP] JSON parse failed on text block ({len(block.text)} chars): {e}")
+                return None
+    return None
+
+
+def _read_one_chord(per_chord_client, source_image, survey_chord, read_prompt, read_schema,
+                    effort_level, effort_config, crop_debug_dir, chord_index, total_chords):
+    """Read a single chord diagram via Phase 2 API call.
+
+    Returns: (chord_record | None, input_tokens, output_tokens)
+      - chord_record is a dict with keys: name, frets, visualDescription, section, row_idx
+      - None is returned on any failure (crop failed, API error, bad JSON, wrong fret count)
+      - token counts are returned even on failure so callers can still aggregate usage
+    """
+    import re
+
+    section = survey_chord.get('section', 'Chords')
+    chord_name = survey_chord.get('name', '')
+    bbox = survey_chord.get('bbox') or {}
+    x1 = bbox.get('x1', 0)
+    y1 = bbox.get('y1', 0)
+    x2 = bbox.get('x2', 1)
+    y2 = bbox.get('y2', 1)
+
+    app.logger.info(
+        f"[AUTOCREATE-CROP] Reading chord {chord_index+1}/{total_chords} '{chord_name}' "
+        f"({section}): bbox=({x1:.3f}, {y1:.3f}, {x2:.3f}, {y2:.3f})"
+    )
+
+    # Crop the chord. Upscale 3x so the model can clearly count thin fret lines —
+    # tight per-diagram crops are often only ~120-180px tall on a 300dpi page,
+    # which is right at the model's discrimination threshold for fret-line counting.
+    crop_result = handle_crop(source_image, x1, y1, x2, y2, upscale=3)
+    crop_image_block = None
+    for block in crop_result:
+        if isinstance(block, dict) and block.get('type') == 'image':
+            crop_image_block = block
+            break
+
+    if not crop_image_block:
+        app.logger.warning(f"[AUTOCREATE-CROP] Failed to crop chord {chord_index+1} '{chord_name}', skipping")
+        return None, 0, 0
+
+    # Diagnostic: save the actual crop sent to the API so we can visually verify
+    if crop_debug_dir:
+        try:
+            safe_name = re.sub(r'[^A-Za-z0-9#♭_-]', '_', chord_name)[:32] or 'chord'
+            crop_path = os.path.join(crop_debug_dir, f"{chord_index+1:02d}_{safe_name}_{section[:16]}.png")
+            with open(crop_path, 'wb') as f:
+                f.write(base64.b64decode(crop_image_block['source']['data']))
+        except Exception as save_err:
+            app.logger.debug(f"[AUTOCREATE-CROP] Could not save crop {chord_index+1}: {save_err}")
+
+    # Stateless call — sends just this one chord crop + the read prompt.
+    # Effort/max_tokens come from effort_config (set per the user's tier above).
+    api_kwargs = dict(
+        model="claude-opus-4-7",
+        max_tokens=effort_config['max_tokens'],
+        thinking=effort_config['thinking'],
+        output_config={
+            **effort_config['output_config'],
+            "format": {"type": "json_schema", "schema": read_schema},
+        },
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": read_prompt, "cache_control": {"type": "ephemeral"}},
+                crop_image_block
+            ]
+        }]
+    )
+
+    try:
+        if effort_level == 'high':
+            with per_chord_client.messages.stream(**api_kwargs) as stream:
+                chord_response = stream.get_final_message()
+        else:
+            chord_response = per_chord_client.messages.create(**api_kwargs)
+    except Exception as chord_error:
+        app.logger.warning(
+            f"[AUTOCREATE-CROP] Chord {chord_index+1} '{chord_name}': API call failed "
+            f"({type(chord_error).__name__}: {chord_error}). Skipping."
+        )
+        return None, 0, 0
+
+    input_tokens = 0
+    output_tokens = 0
+    if hasattr(chord_response, 'usage'):
+        input_tokens = chord_response.usage.input_tokens
+        output_tokens = chord_response.usage.output_tokens
+        cache_read = getattr(chord_response.usage, 'cache_read_input_tokens', 0) or 0
+        cache_create = getattr(chord_response.usage, 'cache_creation_input_tokens', 0) or 0
+        if cache_read or cache_create:
+            app.logger.info(f"[AUTOCREATE-CROP] Chord {chord_index+1} cache: read={cache_read}, create={cache_create}")
+
+    # Extract thinking summary for logging (truncated)
+    thinking_summary = ""
+    for block in chord_response.content:
+        if getattr(block, 'type', None) == "thinking":
+            thinking_summary = getattr(block, "thinking", "") or ""
+            break
+
+    app.logger.info(
+        f"[AUTOCREATE-CROP] Chord {chord_index+1} '{chord_name}' response: "
+        f"{chord_response.usage.output_tokens} output tokens"
+    )
+    if thinking_summary:
+        app.logger.info(
+            f"[AUTOCREATE-CROP] Chord {chord_index+1} thinking ({len(thinking_summary)} chars): "
+            f"{thinking_summary[:400]}{'...' if len(thinking_summary) > 400 else ''}"
+        )
+
+    chord_json = _extract_json_text(chord_response)
+    if not isinstance(chord_json, dict):
+        app.logger.warning(f"[AUTOCREATE-CROP] Chord {chord_index+1} '{chord_name}': no usable JSON extracted")
+        return None, input_tokens, output_tokens
+
+    frets = chord_json.get('frets')
+    if not (isinstance(frets, list) and len(frets) == 6):
+        app.logger.warning(
+            f"[AUTOCREATE-CROP] Chord {chord_index+1} '{chord_name}': dropping — "
+            f"frets has {len(frets) if isinstance(frets, list) else 'no'} entries (need exactly 6)"
+        )
+        return None, input_tokens, output_tokens
+
+    # Synthesize a chord record matching the downstream-expected shape.
+    # row_idx (from pixel detection) lets the assembly step insert lineBreakAfter
+    # when the visual row changes within the same section.
+    chord_record = {
+        'name': chord_name,
+        'frets': frets,
+        'visualDescription': chord_json.get('visualDescription', ''),
+        'section': section,
+        'row_idx': survey_chord.get('row_idx', 0),
+    }
+    app.logger.info(
+        f"[AUTOCREATE-CROP] Chord {chord_index+1} '{chord_name}': read [{','.join(str(f) for f in frets)}]"
+    )
+    return chord_record, input_tokens, output_tokens
+
+
 def process_chord_charts_directly(client, uploaded_files, item_id, user_id=None, effort_level='medium'):
     """Process files containing chord charts for direct import using crop tool for precision"""
     import time
-    import json
     import io
-    import base64
     from pdf2image import convert_from_bytes
     from PIL import Image
 
@@ -4600,17 +4890,6 @@ def process_chord_charts_directly(client, uploaded_files, item_id, user_id=None,
             "additionalProperties": False
         }
 
-        def _extract_json_text(response):
-            """Extract the first text block from a structured-output response and parse as JSON."""
-            for block in response.content:
-                if getattr(block, 'type', None) == 'text':
-                    try:
-                        return json.loads(block.text)
-                    except json.JSONDecodeError as e:
-                        app.logger.warning(f"[AUTOCREATE-CROP] JSON parse failed on text block ({len(block.text)} chars): {e}")
-                        return None
-            return None
-
         app.logger.info("[AUTOCREATE-CROP] Phase 1: Survey — identifying layout and row positions")
         llm_start_time = time.time()
         total_input_tokens = 0
@@ -4639,7 +4918,6 @@ def process_chord_charts_directly(client, uploaded_files, item_id, user_id=None,
 
         app.logger.info(f"[AUTOCREATE-CROP] Phase 1 complete: {survey_response.usage.output_tokens} output tokens")
 
-        import re  # used by diagnostic crop filename sanitization below
         survey_data = _extract_json_text(survey_response)
         if survey_data is None:
             return {'error': 'Failed to parse layout survey response'}
@@ -4661,135 +4939,11 @@ def process_chord_charts_directly(client, uploaded_files, item_id, user_id=None,
         if not named_chords:
             return {'error': 'No chord names returned by survey'}
 
-        # Pixel-based row + per-diagram detection.
-        # Strategy:
-        #   1. Project ink onto the Y axis (sum of dark pixels per row).
-        #   2. Find horizontal bands of ink separated by quiet whitespace gaps → rows.
-        #   3. Within each row's y-band, project ink onto the X axis and find
-        #      vertical bands separated by gaps → individual diagrams.
-        # Empirically this is far more reliable than asking the model for coordinates,
-        # which it has historically hallucinated by copying example numbers.
-        import numpy as np
-
-        def _detect_diagram_rows_and_bboxes(pil_image,
-                                            dark_threshold=200,
-                                            row_min_height_frac=0.03,
-                                            row_gap_min_frac=0.012,
-                                            col_min_width_frac=0.02,
-                                            col_gap_min_frac=0.008,
-                                            row_pad_frac=0.01,
-                                            col_pad_frac=0.005):
-            """Detect rows of chord diagrams and per-diagram bounding boxes.
-
-            Returns: list of rows, each row a list of (x1, y1, x2, y2) tuples in NORMALIZED
-            (0.0-1.0) coordinates, in reading order (top-to-bottom, then left-to-right).
-
-            Tunables (all fractions of page height/width):
-              dark_threshold: grayscale value below which a pixel counts as ink.
-              row_min_height_frac: ignore ink bands shorter than this (filters page numbers/noise).
-              row_gap_min_frac: minimum quiet gap between rows.
-              col_min_width_frac: ignore ink columns narrower than this (filters specks).
-              col_gap_min_frac: minimum quiet gap between diagrams within a row.
-              row_pad_frac, col_pad_frac: padding added to each side of detected bands.
-            """
-            w, h = pil_image.size
-            gray = np.array(pil_image.convert('L'))
-            ink = gray < dark_threshold  # boolean mask: True where there's ink
-
-            # ---- Step 1: row detection ----
-            row_ink = ink.sum(axis=1)  # ink-pixel count per image row
-            # A row counts as "has ink" if it has more than a tiny noise floor.
-            # Use 1% of (image width) as a noise floor — filters specks but keeps real content.
-            row_noise_floor = max(2, int(w * 0.01))
-            row_has_ink = row_ink > row_noise_floor
-
-            # Group consecutive ink rows into bands, separated by gaps of >= row_gap_min_frac * h.
-            row_gap_min_px = max(2, int(h * row_gap_min_frac))
-            row_min_height_px = max(2, int(h * row_min_height_frac))
-            row_pad_px = max(1, int(h * row_pad_frac))
-
-            row_bands = []  # list of (y1_px, y2_px)
-            in_band = False
-            band_start = 0
-            gap_run = 0
-            for y in range(h):
-                if row_has_ink[y]:
-                    if not in_band:
-                        in_band = True
-                        band_start = y
-                    gap_run = 0
-                else:
-                    if in_band:
-                        gap_run += 1
-                        if gap_run >= row_gap_min_px:
-                            band_end = y - gap_run
-                            if (band_end - band_start) >= row_min_height_px:
-                                row_bands.append((band_start, band_end))
-                            in_band = False
-                            gap_run = 0
-            if in_band:
-                band_end = h - 1
-                if (band_end - band_start) >= row_min_height_px:
-                    row_bands.append((band_start, band_end))
-
-            # Pad rows vertically (clamped to image bounds).
-            padded_rows = []
-            for (y1_px, y2_px) in row_bands:
-                py1 = max(0, y1_px - row_pad_px)
-                py2 = min(h, y2_px + row_pad_px + 1)
-                padded_rows.append((py1, py2))
-
-            # ---- Step 2: per-diagram detection within each row ----
-            col_gap_min_px = max(2, int(w * col_gap_min_frac))
-            col_min_width_px = max(2, int(w * col_min_width_frac))
-            col_pad_px = max(1, int(w * col_pad_frac))
-            col_noise_floor = max(2, int(h * 0.005))  # tiny — we already filtered to ink rows
-
-            detected_rows = []
-            for (y1_px, y2_px) in padded_rows:
-                row_slice = ink[y1_px:y2_px, :]
-                col_ink = row_slice.sum(axis=0)
-                col_has_ink = col_ink > col_noise_floor
-
-                col_bands = []
-                in_band = False
-                band_start = 0
-                gap_run = 0
-                for x in range(w):
-                    if col_has_ink[x]:
-                        if not in_band:
-                            in_band = True
-                            band_start = x
-                        gap_run = 0
-                    else:
-                        if in_band:
-                            gap_run += 1
-                            if gap_run >= col_gap_min_px:
-                                band_end = x - gap_run
-                                if (band_end - band_start) >= col_min_width_px:
-                                    col_bands.append((band_start, band_end))
-                                in_band = False
-                                gap_run = 0
-                if in_band:
-                    band_end = w - 1
-                    if (band_end - band_start) >= col_min_width_px:
-                        col_bands.append((band_start, band_end))
-
-                # Build normalized bboxes for this row's diagrams.
-                row_bboxes = []
-                for (x1_px, x2_px) in col_bands:
-                    px1 = max(0, x1_px - col_pad_px)
-                    px2 = min(w, x2_px + col_pad_px + 1)
-                    row_bboxes.append((
-                        px1 / w,
-                        y1_px / h,
-                        px2 / w,
-                        y2_px / h,
-                    ))
-                detected_rows.append(row_bboxes)
-
-            return detected_rows
-
+        # Pixel-based row + per-diagram detection. Implementation lives at module scope
+        # (_detect_diagram_rows_and_bboxes) — empirically far more reliable than asking
+        # the model for coordinates, which it has historically hallucinated by copying
+        # example numbers. See DIAGRAM_DETECTION_DEFAULTS for tunable thresholds; pass
+        # `overrides={...}` if a real PDF triggers a layout misdetection.
         detected_rows = _detect_diagram_rows_and_bboxes(source_image)
         total_detected = sum(len(r) for r in detected_rows)
         app.logger.info(f"[AUTOCREATE-CROP] Pixel-detected {len(detected_rows)} rows, {total_detected} total diagrams")
@@ -4853,15 +5007,12 @@ def process_chord_charts_directly(client, uploaded_files, item_id, user_id=None,
 
         # Phase 2: Read each chord — one focused per-chord crop per API call.
         # The chord name is already known from Phase 1 and is intentionally NOT passed
-        # to Phase 2 — naming the chord triggers standard-voicing substitution. Phase 2
-        # sees only the cropped diagram and reports dot positions.
+        # to Phase 2 — naming the chord triggers standard-voicing substitution from
+        # training memory. Without the name, the model has no choice but to read what's
+        # actually drawn.
         app.logger.info("[AUTOCREATE-CROP] Phase 2: Reading dot positions for each chord (per-chord crops)")
         all_readings = []
 
-        # Per-chord read prompt: model sees ONE cropped diagram, reads dot positions only.
-        # Chord name is NOT passed to the model (deliberately) — naming the chord triggers
-        # standard-voicing substitution from training memory. Without the name, the model
-        # has no choice but to read what's actually drawn.
         read_prompt = """**Read the dot positions in this chord diagram exactly as drawn.** This is a focused crop of a single chord diagram. Your job is to report which strings are fretted at which frets, plus which strings are muted (X) or open (O).
 
 ## ⚠️ FAILURE MODE — Standard Voicing Substitution (READ THIS FIRST)
@@ -4901,9 +5052,20 @@ Examples:
 
 Do not estimate from how "high up" the dot looks. Count lines.
 
-## ⚠️ Ignore all numbers in the diagram
+## ⚠️ Ignore ALL numbers and text annotations on the diagram
 
-Numbers below or beside the grid are FINGER indicators (which finger to press), never fret positions. The TOP of the grid is ALWAYS the nut. Do not "shift" the grid based on any number you see.
+The TOP of the grid is **ALWAYS** the nut. **No exceptions.** Do not "shift" the grid to start at any other fret, regardless of what text or numbers appear in or near the diagram.
+
+Specifically, you MUST IGNORE:
+- **Finger numbers** below the grid (e.g. "1", "2", "3", "1 2 3 1") — indicate which finger to press
+- **Position-marker annotations** like `5fr`, `7fr`, `9fr`, `fr 5`, `5 fr`, `fr.5`, `(5fr)`, etc. — typically printed to the left or right of the grid. Treat these as labels with NO effect on your fret counting. Even though in some chord chart conventions these mean "the top of the grid is fret N," in THIS task you must IGNORE them and treat the top as the nut.
+- **Tuning labels** (e.g. "EADGBE", "DADGAD") that may appear near a diagram
+- **Performance annotations** like "x3", "x4", "repeat", "×2"
+- **Any other text** that is not the chord name
+
+The fret position of every dot is determined SOLELY by counting thin horizontal lines from the top of the grid downward. If the topmost fret-space (between the thick top line and the first thin line) contains a dot, that dot is at fret 1 — even if a "7fr" annotation appears next to the diagram.
+
+This rule may produce readings that differ from how the chord would be physically played; that is intentional and correct for this task. Render exactly what is visually drawn from the top of the grid down.
 
 ## ⚠️ Curved lines (barres)
 
@@ -4954,111 +5116,22 @@ Example output for a diagram with one dot on string 6 at fret 5, with X on strin
         per_chord_client = client.with_options(timeout=300.0)
 
         for i, sc in enumerate(survey_chords):
-            section = sc.get('section', 'Chords')
-            chord_name = sc.get('name', '')
-            bbox = sc.get('bbox') or {}
-            x1 = bbox.get('x1', 0)
-            y1 = bbox.get('y1', 0)
-            x2 = bbox.get('x2', 1)
-            y2 = bbox.get('y2', 1)
-
-            app.logger.info(f"[AUTOCREATE-CROP] Reading chord {i+1}/{len(survey_chords)} '{chord_name}' ({section}): bbox=({x1:.3f}, {y1:.3f}, {x2:.3f}, {y2:.3f})")
-
-            # Crop the chord. Upscale 3x so the model can clearly count thin fret lines —
-            # tight per-diagram crops are often only ~120-180px tall on a 300dpi page,
-            # which is right at the model's discrimination threshold for fret-line counting.
-            crop_result = handle_crop(source_image, x1, y1, x2, y2, upscale=3)
-            crop_image_block = None
-            for block in crop_result:
-                if isinstance(block, dict) and block.get('type') == 'image':
-                    crop_image_block = block
-                    break
-
-            if not crop_image_block:
-                app.logger.warning(f"[AUTOCREATE-CROP] Failed to crop chord {i+1} '{chord_name}', skipping")
-                continue
-
-            # Diagnostic: save the actual crop sent to the API so we can visually verify
-            if crop_debug_dir:
-                try:
-                    safe_name = re.sub(r'[^A-Za-z0-9#♭_-]', '_', chord_name)[:32] or 'chord'
-                    crop_path = os.path.join(crop_debug_dir, f"{i+1:02d}_{safe_name}_{section[:16]}.png")
-                    with open(crop_path, 'wb') as f:
-                        f.write(base64.b64decode(crop_image_block['source']['data']))
-                except Exception as save_err:
-                    app.logger.debug(f"[AUTOCREATE-CROP] Could not save crop {i+1}: {save_err}")
-
-            # Stateless call — sends just this one chord crop + the read prompt.
-            # Crop is small so we use medium effort regardless of the user's tier — per-chord
-            # reads don't need the deeper thinking that complex multi-chord rows did.
-            api_kwargs = dict(
-                model="claude-opus-4-7",
-                max_tokens=effort_config['max_tokens'],
-                thinking=effort_config['thinking'],
-                output_config={
-                    **effort_config['output_config'],
-                    "format": {"type": "json_schema", "schema": read_schema},
-                },
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": read_prompt, "cache_control": {"type": "ephemeral"}},
-                        crop_image_block
-                    ]
-                }]
+            chord_record, in_tokens, out_tokens = _read_one_chord(
+                per_chord_client=per_chord_client,
+                source_image=source_image,
+                survey_chord=sc,
+                read_prompt=read_prompt,
+                read_schema=read_schema,
+                effort_level=effort_level,
+                effort_config=effort_config,
+                crop_debug_dir=crop_debug_dir,
+                chord_index=i,
+                total_chords=len(survey_chords),
             )
-
-            try:
-                if effort_level == 'high':
-                    with per_chord_client.messages.stream(**api_kwargs) as stream:
-                        chord_response = stream.get_final_message()
-                else:
-                    chord_response = per_chord_client.messages.create(**api_kwargs)
-            except Exception as chord_error:
-                app.logger.warning(f"[AUTOCREATE-CROP] Chord {i+1} '{chord_name}': API call failed ({type(chord_error).__name__}: {chord_error}). Skipping.")
-                continue
-
-            if hasattr(chord_response, 'usage'):
-                total_input_tokens += chord_response.usage.input_tokens
-                total_output_tokens += chord_response.usage.output_tokens
-                cache_read = getattr(chord_response.usage, 'cache_read_input_tokens', 0) or 0
-                cache_create = getattr(chord_response.usage, 'cache_creation_input_tokens', 0) or 0
-                if cache_read or cache_create:
-                    app.logger.info(f"[AUTOCREATE-CROP] Chord {i+1} cache: read={cache_read}, create={cache_create}")
-
-            # Extract thinking summary for logging (truncated)
-            thinking_summary = ""
-            for block in chord_response.content:
-                if getattr(block, 'type', None) == "thinking":
-                    thinking_summary = getattr(block, "thinking", "") or ""
-                    break
-
-            app.logger.info(f"[AUTOCREATE-CROP] Chord {i+1} '{chord_name}' response: {chord_response.usage.output_tokens} output tokens")
-            if thinking_summary:
-                app.logger.info(f"[AUTOCREATE-CROP] Chord {i+1} thinking ({len(thinking_summary)} chars): {thinking_summary[:400]}{'...' if len(thinking_summary) > 400 else ''}")
-
-            chord_data = _extract_json_text(chord_response)
-            if not isinstance(chord_data, dict):
-                app.logger.warning(f"[AUTOCREATE-CROP] Chord {i+1} '{chord_name}': no usable JSON extracted")
-                continue
-
-            frets = chord_data.get('frets')
-            if not (isinstance(frets, list) and len(frets) == 6):
-                app.logger.warning(f"[AUTOCREATE-CROP] Chord {i+1} '{chord_name}': dropping — frets has {len(frets) if isinstance(frets, list) else 'no'} entries (need exactly 6)")
-                continue
-
-            # Synthesize a chord record matching the downstream-expected shape.
-            # row_idx (from pixel detection) lets the assembly step insert lineBreakAfter
-            # when the visual row changes within the same section.
-            chord_record = {
-                'name': chord_name,
-                'frets': frets,
-                'visualDescription': chord_data.get('visualDescription', ''),
-                'section': section,
-                'row_idx': sc.get('row_idx', 0),
-            }
-            all_readings.append(chord_record)
-            app.logger.info(f"[AUTOCREATE-CROP] Chord {i+1} '{chord_name}': read [{','.join(str(f) for f in frets)}]")
+            total_input_tokens += in_tokens
+            total_output_tokens += out_tokens
+            if chord_record is not None:
+                all_readings.append(chord_record)
 
         llm_end_time = time.time()
 
@@ -5133,8 +5206,6 @@ Example output for a diagram with one dot on string 6 at fret 5, with X on strin
             "sections": sections_list,
             "totalRows": len(sections_list)
         }
-
-        response_text = json.dumps(chord_data)
 
         # Debug: log lineBreakAfter values for each chord
         for section in sections_list:
@@ -5697,7 +5768,7 @@ def process_chord_names_with_lyrics(client, uploaded_files, item_id, user_id=Non
                     ocr_assessment = assess_ocr_trustworthiness(client, ocr_result['raw_text'], file_data['name'], user_id=user_id)
                     if not ocr_assessment['trustworthy']:
                         app.logger.info(f"[AUTOCREATE] OCR contains gibberish ({ocr_assessment['reason']}), falling back to visual analysis")
-                        # Fall back to Opus 4.1 visual analysis for complex layouts
+                        # Fall back to Opus 4.7 visual analysis for complex layouts
                         return process_chord_charts_directly(client, uploaded_files, item_id, user_id=user_id)
 
                     app.logger.info(f"[AUTOCREATE] OCR text assessed as trustworthy, proceeding with processing")
