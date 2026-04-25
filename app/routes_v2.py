@@ -4621,10 +4621,15 @@ def _read_one_chord(per_chord_client, source_image, survey_chord, read_prompt, r
                     effort_level, effort_config, crop_debug_dir, chord_index, total_chords):
     """Read a single chord diagram via Phase 2 API call.
 
-    Returns: (chord_record | None, input_tokens, output_tokens)
+    Returns: (chord_record | None, input_tokens, output_tokens, was_transient_api_failure)
       - chord_record is a dict with keys: name, frets, visualDescription, section, row_idx
       - None is returned on any failure (crop failed, API error, bad JSON, wrong fret count)
       - token counts are returned even on failure so callers can still aggregate usage
+      - was_transient_api_failure is True only when the API itself failed transiently
+        (overload, rate limit, timeout, connection, 5xx) — used by the caller to surface
+        a "try again" hint to the user. Other failures (bad JSON, wrong fret count, crop
+        problems) do NOT set this flag — those are bugs we want to investigate, not
+        transient issues to retry.
     """
     import re
 
@@ -4653,7 +4658,7 @@ def _read_one_chord(per_chord_client, source_image, survey_chord, read_prompt, r
 
     if not crop_image_block:
         app.logger.warning(f"[AUTOCREATE-CROP] Failed to crop chord {chord_index+1} '{chord_name}', skipping")
-        return None, 0, 0
+        return None, 0, 0, False
 
     # Diagnostic: save the actual crop sent to the API so we can visually verify
     if crop_debug_dir:
@@ -4691,11 +4696,26 @@ def _read_one_chord(per_chord_client, source_image, survey_chord, read_prompt, r
         else:
             chord_response = per_chord_client.messages.create(**api_kwargs)
     except Exception as chord_error:
+        # Detect transient API-side failures (overload, rate limit, timeout, connection,
+        # 5xx). These are worth surfacing to the user as "try again" since they're not
+        # caused by the user's input. Other errors (BadRequest, etc.) are bugs we'd rather
+        # see in logs than in the UI.
+        is_transient_api_failure = isinstance(chord_error, (
+            anthropic.APIStatusError,        # covers overloaded_error, rate_limit_error, 5xx
+            anthropic.APITimeoutError,
+            anthropic.APIConnectionError,
+        )) and not isinstance(chord_error, (
+            anthropic.BadRequestError,
+            anthropic.AuthenticationError,
+            anthropic.PermissionDeniedError,
+            anthropic.NotFoundError,
+        ))
         app.logger.warning(
             f"[AUTOCREATE-CROP] Chord {chord_index+1} '{chord_name}': API call failed "
-            f"({type(chord_error).__name__}: {chord_error}). Skipping."
+            f"({type(chord_error).__name__}: {chord_error}). Skipping. "
+            f"transient_api_failure={is_transient_api_failure}"
         )
-        return None, 0, 0
+        return None, 0, 0, is_transient_api_failure
 
     input_tokens = 0
     output_tokens = 0
@@ -4727,7 +4747,7 @@ def _read_one_chord(per_chord_client, source_image, survey_chord, read_prompt, r
     chord_json = _extract_json_text(chord_response)
     if not isinstance(chord_json, dict):
         app.logger.warning(f"[AUTOCREATE-CROP] Chord {chord_index+1} '{chord_name}': no usable JSON extracted")
-        return None, input_tokens, output_tokens
+        return None, input_tokens, output_tokens, False
 
     frets = chord_json.get('frets')
     if not (isinstance(frets, list) and len(frets) == 6):
@@ -4735,7 +4755,7 @@ def _read_one_chord(per_chord_client, source_image, survey_chord, read_prompt, r
             f"[AUTOCREATE-CROP] Chord {chord_index+1} '{chord_name}': dropping — "
             f"frets has {len(frets) if isinstance(frets, list) else 'no'} entries (need exactly 6)"
         )
-        return None, input_tokens, output_tokens
+        return None, input_tokens, output_tokens, False
 
     # Synthesize a chord record matching the downstream-expected shape.
     # row_idx (from pixel detection) lets the assembly step insert lineBreakAfter
@@ -4750,7 +4770,7 @@ def _read_one_chord(per_chord_client, source_image, survey_chord, read_prompt, r
     app.logger.info(
         f"[AUTOCREATE-CROP] Chord {chord_index+1} '{chord_name}': read [{','.join(str(f) for f in frets)}]"
     )
-    return chord_record, input_tokens, output_tokens
+    return chord_record, input_tokens, output_tokens, False
 
 
 def process_chord_charts_directly(client, uploaded_files, item_id, user_id=None, effort_level='medium'):
@@ -5114,9 +5134,10 @@ Example output for a diagram with one dot on string 6 at fret 5, with X on strin
         app.logger.info(f"[AUTOCREATE-CROP] Using tier={effort_level} (API effort={api_effort}), max_tokens={effort_config['max_tokens']}")
 
         per_chord_client = client.with_options(timeout=300.0)
+        transient_api_failures = 0
 
         for i, sc in enumerate(survey_chords):
-            chord_record, in_tokens, out_tokens = _read_one_chord(
+            chord_record, in_tokens, out_tokens, was_transient = _read_one_chord(
                 per_chord_client=per_chord_client,
                 source_image=source_image,
                 survey_chord=sc,
@@ -5132,6 +5153,8 @@ Example output for a diagram with one dot on string 6 at fret 5, with X on strin
             total_output_tokens += out_tokens
             if chord_record is not None:
                 all_readings.append(chord_record)
+            elif was_transient:
+                transient_api_failures += 1
 
         llm_end_time = time.time()
 
@@ -5247,7 +5270,10 @@ Example output for a diagram with one dot on string 6 at fret 5, with X on strin
             'success': True,
             'charts_created': len(created_charts),
             'analysis': f'Successfully processed chord charts',
-            'uploaded_file_names': filename
+            'uploaded_file_names': filename,
+            # Number of chords that failed due to transient API issues (overload, rate limit,
+            # etc.) — frontend uses this to surface a "try again" hint when > 0.
+            'chord_load_failures': transient_api_failures,
         }
 
     except Exception as e:

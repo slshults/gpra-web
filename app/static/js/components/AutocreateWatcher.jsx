@@ -123,6 +123,11 @@ const AutocreateWatcher = () => {
                     {result.chordCount} chord chart{result.chordCount !== 1 ? 's' : ''} created.
                   </p>
                 )}
+                {result?.chordLoadFailures > 0 && (
+                  <p className="text-sm text-amber-300 bg-amber-900/40 border border-amber-700/60 px-3 py-2 rounded">
+                    {result.chordLoadFailures} chord{result.chordLoadFailures === 1 ? '' : 's'} couldn't get here because there was too much traffic on the way to the venue. Please retry.
+                  </p>
+                )}
               </div>
             ) : (
               <p>
