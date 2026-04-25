@@ -455,8 +455,46 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
     "You could be stretching or something while you wait, couldn't you?",
     "The pyramids weren't built in a day... ",
     "but hey, at least I'm not going to ask you for an email address to send the chord charts to.",
-    "Perfect chord charts take time to craft. These will take less time and they won't be perfect.",
-    "Yeah, I could show you a progress bar, but we both know it would just lie to you"
+    "Perfect chord charts take hours to craft. These will take less time. They won't be perfect.",
+    "Yeah, I could show you a progress bar, but we both know it would just lie to you",
+    "This is taking precisely as long as it needs to take",
+    "Meanwhile, your guitar is getting dusty, just sitting there...",
+    "Quality over speed, as they say in the chord chart business. We'll see which this turns out to be...",
+    "Calculating the optimal finger placement for maximum laziness...",
+    "Teaching AI to read guitar tabs is harder than teaching humans, surprisingly",
+    "Processing at the speed of artisanal chord crafting",
+    "Your patience is being converted into beautiful chord diagrams",
+    "Still faster than drawing the chord charts by hand",
+    "Fun fact: I process thousands of tokens per second, but this still takes a while.",
+    "At least you're not on hold listening to elevator music right now",
+    "I'd apologize for the wait, but I'm kinda busy building your chord charts",
+    "Remember when you had to buy chord books? Yeah, this is still better than that",
+    "I'm doing math that would make your guitar teacher's head spin.",
+    "Analyzing fret positions with the intensity of a guitarist tuning by ear in a loud bar",
+    "If you're wondering why this takes so long: perfectionism. JK, it's because of token processing limits.",
+    "Good news: I found all the chords. Bad news: I'm still drawing the little dots",
+    "Pro tip: This wait time is perfect for questioning the life choices that led you to learning Wonderwall",
+    "Even if I could work faster, where would the suspense be in that?",
+    "Automating what should have been automated decades ago...",
+    "The AI is still thinking. Or maybe procrastinating. Hard to tell, really.",
+    "Breaking news: Local AI still processing, guitarist growing older by the second",
+    "This would go faster if you stopped watching. Seriously, go practice your scales or something.",
+    "You could have practiced barre chords for 2 minutes by now.",
+    "This is not the most interesting thing happening on your screen right now. Probably.",
+    "Currently debating whether that's a Cadd9 or a smudge",
+    "I'm zooming and enhancing like a detective in a crime show, except the crime is your handwriting",
+    "Counting dots on a grid. This is what I went to AI school for.",
+    "If I had fingers, I'd be playing these chords instead of drawing them",
+    "Putting tiny dots on a grid so you don't have to",
+    "String 6, fret 3... string 5, fret 2... string 4... oh sorry, I count out loud when I'm concentrating...",
+    "Top of the grid is the nut. Have to remind myself every time.",
+    "Reading the dots, not what I *think* the chord should be. There's a difference.",
+    "If a chord comes out non-standard, that's probably correct. Probably.",
+    "Counting fret lines... 1, 2, 3... is that a smudge or a fourth line? This is what I went to AI school for.",
+    "Other AI assistants are out there writing poetry. I'm counting fret lines.",
+    "There's a '7fr' in the corner of this one. Pretending I don't see it.",
+    "You can fix any chord in about 4 seconds with the pencil icon, just FYI.",
+    "Six strings, six strings, six strings. Don't let me forget."
   ];
   const [processingMessageIndex, setProcessingMessageIndex] = useState(0);
   const [_messageQueue, setMessageQueue] = useState([]);
@@ -1957,6 +1995,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         autocreateStore.completeRequest(dropItemId, 'success', {
           itemName,
           chordCount: result.chord_count || 0,
+          chordLoadFailures: result.chord_load_failures || 0,
           contentType: result.content_type || 'auto-detected',
           uploadedFileNames: result.uploaded_file_names || '',
           isVisionAnalysis: result.content_type === 'chord_charts' || result.used_vision_analysis === true || (!result.content_type && result.used_vision_analysis !== false)
@@ -1969,6 +2008,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
           setAutocreateSuccessData({
             itemName,
             chordCount: result.chord_count || 0,
+            chordLoadFailures: result.chord_load_failures || 0,
             contentType: result.content_type || 'auto-detected',
             uploadedFileNames: result.uploaded_file_names || '',
             isVisionAnalysis: result.content_type === 'chord_charts' || result.used_vision_analysis === true || (!result.content_type && result.used_vision_analysis !== false)
@@ -3351,41 +3391,53 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         }}>
           <DialogContent modalName="autocreate-effort-selector-modal" className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Pick one:</DialogTitle>
-              <DialogDescription className="sr-only">Choose quality vs speed for chord chart creation</DialogDescription>
+              <DialogTitle>Pick your speed</DialogTitle>
+              <DialogDescription className="text-gray-400 text-sm">
+                You can leave the page to work on other stuff while you wait. Claude will do his best at any setting, but you'll likely need to fix a chart or two when it's done. (tap any chart's pencil icon to fix it.)
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-2">
-              <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+              <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
                 onClick={() => setSelectedEffort('low')}>
                 <input type="radio" name="effort-modal" value="low"
                   checked={selectedEffort === 'low'}
                   onChange={() => setSelectedEffort('low')}
-                  className="text-indigo-500 focus:ring-indigo-500" />
-                <div>
-                  <span className="text-white">Get charts sooner, with a lot of errors</span>
-                  <span className="text-gray-400 text-sm ml-2">(~2 to 5 mins)</span>
+                  className="mt-1 text-indigo-500 focus:ring-indigo-500" />
+                <div className="flex-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-white font-medium">Quick</span>
+                    <span className="text-gray-400 text-sm">~1–2 min</span>
+                  </div>
+                  <div className="text-gray-400 text-xs mt-0.5">Fast and loose. Some finger markers may be in the wrong place, but you can fix them yourself.</div>
                 </div>
               </label>
-              <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+              <label className="flex items-start gap-3 p-3 rounded-lg border border-indigo-500/60 bg-indigo-500/5 hover:border-indigo-400 cursor-pointer transition-colors"
                 onClick={() => setSelectedEffort('medium')}>
                 <input type="radio" name="effort-modal" value="medium"
                   checked={selectedEffort === 'medium'}
                   onChange={() => setSelectedEffort('medium')}
-                  className="text-indigo-500 focus:ring-indigo-500" />
-                <div>
-                  <span className="text-white">Split the difference</span>
-                  <span className="text-gray-400 text-sm ml-2">(~5 to 15 mins)</span>
+                  className="mt-1 text-indigo-500 focus:ring-indigo-500" />
+                <div className="flex-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-white font-medium">Balanced</span>
+                    <span className="text-gray-400 text-sm">~2–5 min</span>
+                    <span className="text-indigo-300 text-xs ml-auto px-2 py-0.5 bg-indigo-500/20 rounded">Recommended</span>
+                  </div>
+                  <div className="text-gray-400 text-xs mt-0.5">Better accuracy, just takes a bit longer.</div>
                 </div>
               </label>
-              <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+              <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
                 onClick={() => setSelectedEffort('high')}>
                 <input type="radio" name="effort-modal" value="high"
                   checked={selectedEffort === 'high'}
                   onChange={() => setSelectedEffort('high')}
-                  className="text-indigo-500 focus:ring-indigo-500" />
-                <div>
-                  <span className="text-white">Wait longer for fewer errors</span>
-                  <span className="text-gray-400 text-sm ml-2">(~20 to 40 mins)</span>
+                  className="mt-1 text-indigo-500 focus:ring-indigo-500" />
+                <div className="flex-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-white font-medium">Thorough</span>
+                    <span className="text-gray-400 text-sm">~5–15 min</span>
+                  </div>
+                  <div className="text-gray-400 text-xs mt-0.5">Thinking goes to 11. Can help with dense or unusual layout, or with crappy image files. Sometimes overthinks it though.</div>
                 </div>
               </label>
             </div>

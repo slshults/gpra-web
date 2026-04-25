@@ -15,6 +15,7 @@ const AutocreateSuccessModal = ({ isOpen, onClose, autocreateData }) => {
   const {
     itemName,
     chordCount,
+    chordLoadFailures = 0,
     contentType,
     uploadedFileNames,
     isVisionAnalysis = false
@@ -97,25 +98,34 @@ const AutocreateSuccessModal = ({ isOpen, onClose, autocreateData }) => {
             {getIcon()}
             {getTitle()}
           </DialogTitle>
-          <DialogDescription className="text-left space-y-1">
-            {getDescription()}
-
-            <div className="bg-gray-800 px-2 py-1 rounded-lg">
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-1">
-                <FileText className="h-4 w-4" />
-                <span>Details</span>
-              </div>
-              <ul className="text-sm text-gray-400">
-                {getDetails().map((detail, index) => (
-                  <li key={index} className="flex items-center gap-1">
-                    <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                    {detail}
-                  </li>
-                ))}
-              </ul>
-            </div>
+          <DialogDescription className="sr-only">
+            Chord chart autocreate finished. {chordLoadFailures > 0 ? `${chordLoadFailures} chord${chordLoadFailures === 1 ? '' : 's'} failed due to API traffic; please retry.` : ''}
           </DialogDescription>
         </DialogHeader>
+        <div className="text-left space-y-2 -mt-2">
+          {getDescription()}
+
+          {chordLoadFailures > 0 && (
+            <div className="bg-amber-900/40 border border-amber-700/60 px-3 py-2 rounded-lg text-amber-200 text-sm">
+              {chordLoadFailures} chord{chordLoadFailures === 1 ? '' : 's'} couldn't get here because there was too much traffic on the way to the venue. Please retry.
+            </div>
+          )}
+
+          <div className="bg-gray-800 px-2 py-1 rounded-lg">
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-1">
+              <FileText className="h-4 w-4" />
+              <span>Details</span>
+            </div>
+            <ul className="text-sm text-gray-400">
+              {getDetails().map((detail, index) => (
+                <li key={index} className="flex items-center gap-1">
+                  <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                  {detail}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
         <div className="flex justify-end gap-2 -mt-2">
           <Button onClick={onClose} variant="outline" className="min-w-20">
             Show me

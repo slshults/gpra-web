@@ -610,7 +610,15 @@ export const PracticePage = () => {
     "Counting dots on a grid. This is what I went to AI school for.",
     "If I had fingers, I'd be playing these chords instead of drawing them",
     "Putting tiny dots on a grid so you don't have to",
-    "String 6, fret 3... string 5, fret 2... string 4... oh sorry, I count out loud when I'm concentrating..."
+    "String 6, fret 3... string 5, fret 2... string 4... oh sorry, I count out loud when I'm concentrating...",
+    "Top of the grid is the nut. Have to remind myself every time.",
+    "Reading the dots, not what I *think* the chord should be. There's a difference.",
+    "If a chord comes out non-standard, that's probably correct. Probably.",
+    "Counting fret lines... 1, 2, 3... is that a smudge or a fourth line? This is what I went to AI school for.",
+    "Other AI assistants are out there writing poetry. I'm counting fret lines.",
+    "There's a '7fr' in the corner of this one. Pretending I don't see it.",
+    "You can fix any chord in about 4 seconds with the pencil icon, just FYI.",
+    "Six strings, six strings, six strings. Don't let me forget."
   ];
 
   // Helper function to group chords into sections based on persisted metadata
@@ -3794,6 +3802,7 @@ export const PracticePage = () => {
         setAutocreateSuccessData({
           itemName,
           chordCount: result.chord_count || 0,
+          chordLoadFailures: result.chord_load_failures || 0,
           contentType: contentType || 'mixed',
           uploadedFileNames: files?.map(f => f.name).join(', ') || '',
           isVisionAnalysis: contentType === 'chord_charts' || result.used_vision_analysis === true
@@ -3981,6 +3990,7 @@ export const PracticePage = () => {
         autocreateStore.completeRequest(itemId, 'success', {
           itemName,
           chordCount: result.chord_count || 0,
+          chordLoadFailures: result.chord_load_failures || 0,
           contentType: result.content_type || 'auto-detected',
           uploadedFileNames: result.uploaded_file_names || '',
           isVisionAnalysis: result.content_type === 'chord_charts' || result.used_vision_analysis === true || (!result.content_type && result.used_vision_analysis !== false)
@@ -3993,6 +4003,7 @@ export const PracticePage = () => {
           setAutocreateSuccessData({
             itemName,
             chordCount: result.chord_count || 0,
+            chordLoadFailures: result.chord_load_failures || 0,
             contentType: result.content_type || 'auto-detected',
             uploadedFileNames: result.uploaded_file_names || '',
             isVisionAnalysis: result.content_type === 'chord_charts' || result.used_vision_analysis === true || (!result.content_type && result.used_vision_analysis !== false)
@@ -5770,41 +5781,53 @@ export const PracticePage = () => {
       }}>
         <DialogContent modalName="autocreate-effort-selector" className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Pick one:</DialogTitle>
-            <DialogDescription className="sr-only">Choose quality vs speed for chord chart creation</DialogDescription>
+            <DialogTitle>Pick your speed</DialogTitle>
+            <DialogDescription className="text-gray-400 text-sm">
+              You can leave the page to work on other stuff while you wait. Claude will do his best at any setting, but you'll likely need to fix a chart or two when it's done. (tap any chart's pencil icon to fix it.)
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+            <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
               onClick={() => setSelectedEffort('low')}>
               <input type="radio" name="effort" value="low"
                 checked={selectedEffort === 'low'}
                 onChange={() => setSelectedEffort('low')}
-                className="text-indigo-500 focus:ring-indigo-500" />
-              <div>
-                <span className="text-white">Get charts sooner, with a lot of errors</span>
-                <span className="text-gray-400 text-sm ml-2">(~2 to 5 mins)</span>
+                className="mt-1 text-indigo-500 focus:ring-indigo-500" />
+              <div className="flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-white font-medium">Quick</span>
+                  <span className="text-gray-400 text-sm">~1–2 min</span>
+                </div>
+                <div className="text-gray-400 text-xs mt-0.5">Fast and loose. Some finger markers may be in the wrong place, but you can fix them yourself.</div>
               </div>
             </label>
-            <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+            <label className="flex items-start gap-3 p-3 rounded-lg border border-indigo-500/60 bg-indigo-500/5 hover:border-indigo-400 cursor-pointer transition-colors"
               onClick={() => setSelectedEffort('medium')}>
               <input type="radio" name="effort" value="medium"
                 checked={selectedEffort === 'medium'}
                 onChange={() => setSelectedEffort('medium')}
-                className="text-indigo-500 focus:ring-indigo-500" />
-              <div>
-                <span className="text-white">Split the difference</span>
-                <span className="text-gray-400 text-sm ml-2">(~5 to 15 mins)</span>
+                className="mt-1 text-indigo-500 focus:ring-indigo-500" />
+              <div className="flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-white font-medium">Balanced</span>
+                  <span className="text-gray-400 text-sm">~2–5 min</span>
+                  <span className="text-indigo-300 text-xs ml-auto px-2 py-0.5 bg-indigo-500/20 rounded">Recommended</span>
+                </div>
+                <div className="text-gray-400 text-xs mt-0.5">Better accuracy, just takes a bit longer.</div>
               </div>
             </label>
-            <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+            <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
               onClick={() => setSelectedEffort('high')}>
               <input type="radio" name="effort" value="high"
                 checked={selectedEffort === 'high'}
                 onChange={() => setSelectedEffort('high')}
-                className="text-indigo-500 focus:ring-indigo-500" />
-              <div>
-                <span className="text-white">Wait longer for fewer errors</span>
-                <span className="text-gray-400 text-sm ml-2">(~20 to 40 mins)</span>
+                className="mt-1 text-indigo-500 focus:ring-indigo-500" />
+              <div className="flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-white font-medium">Thorough</span>
+                  <span className="text-gray-400 text-sm">~5–15 min</span>
+                </div>
+                <div className="text-gray-400 text-xs mt-0.5">Thinking goes to 11. Can help with dense or unusual layout, or with crappy image files. Sometimes overthinks it though.</div>
               </div>
             </label>
           </div>
