@@ -587,7 +587,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
     }, 10000); // 10 seconds
 
     return () => clearInterval(interval);
-  }, [autocreateProgress, processingMessages]);
+  }, [autocreateProgress, processingMessages.length]);
 
   // Mount/unmount tracking + restore state from autocreateStore
   useEffect(() => {
