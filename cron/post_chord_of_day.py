@@ -48,6 +48,11 @@ from app.utils.posthog_client import track_event
 
 COTD_DISTINCT_ID = 'cotd-bot'
 
+# Per-platform hashtag sets — different audiences use different conventions.
+# BlueSky's guitar community uses #guitarsky; Facebook's audience is broader.
+BLUESKY_HASHTAGS = ['#guitar', '#practice', '#chords', '#guitarsky']
+FACEBOOK_HASHTAGS = ['#guitar', '#chords', '#guitarpractice']
+
 log_dir = Path(__file__).parent.parent / 'logs'
 log_dir.mkdir(exist_ok=True)
 
@@ -193,20 +198,26 @@ def post_chord_of_day() -> int:
                 distinct_id=COTD_DISTINCT_ID,
             )
 
-        payload = format_post(result.chord_name, result.common_chord_id)
+        # Build a payload per platform — same chord, same URL, different hashtags.
+        bluesky_payload = format_post(
+            result.chord_name, result.common_chord_id, hashtags=BLUESKY_HASHTAGS,
+        )
+        facebook_payload = format_post(
+            result.chord_name, result.common_chord_id, hashtags=FACEBOOK_HASHTAGS,
+        )
         logger.info(f"Picked chord {result.chord_name} (chord_pool_id={result.chord_pool_id}, cycle={result.cycle_id})")
-        logger.info(f"URL: {payload['url']}")
+        logger.info(f"URL: {bluesky_payload['url']}")
 
         # Post to each platform sequentially. Sequential (not parallel) keeps error
         # sanitization simple and reduces blast radius if one platform's client
         # mishandles the response.
-        bluesky_result = bluesky.post(text=payload['text'], url=payload['url'])
+        bluesky_result = bluesky.post(text=bluesky_payload['text'], url=bluesky_payload['url'])
         if bluesky_result.get('ok'):
             logger.info(f"BlueSky posted: {bluesky_result.get('uri')}")
         else:
             logger.warning(f"BlueSky failed: {bluesky_result.get('error')}")
 
-        facebook_result = facebook.post(message=payload['text'], link=payload['url'])
+        facebook_result = facebook.post(message=facebook_payload['text'], link=facebook_payload['url'])
         if facebook_result.get('ok'):
             logger.info(f"Facebook posted: {facebook_result.get('post_id')}")
         else:
@@ -218,7 +229,8 @@ def post_chord_of_day() -> int:
         )
         logger.info(f"Recorded outcome: status={status}")
 
-        _track_outcome(status, payload, result.chord_pool_id, result.cycle_id,
+        # Either payload works for tracking — chord_name is the same in both.
+        _track_outcome(status, bluesky_payload, result.chord_pool_id, result.cycle_id,
                        bluesky_result, facebook_result)
 
         return 0 if status in ('posted', 'partial') else 1
