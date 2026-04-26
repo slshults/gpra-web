@@ -23,9 +23,16 @@ DEFAULT_TIMEOUT_SECONDS = 30
 
 
 def _safe_error(e: Exception) -> str:
-    """Strip access_token=... values from error messages so we never log them."""
+    """Strip Facebook tokens from error messages so we never log them.
+
+    Two passes:
+      1. `access_token=<value>` query/body fragments — the most common leak path.
+      2. Bare `EAA...`-prefixed tokens — defense in depth for any future code
+         path that stringifies a request body, response, or exception chain.
+    """
     msg = str(e)
     msg = re.sub(r'access_token=[^&\s\'"]+', 'access_token=[REDACTED]', msg, flags=re.IGNORECASE)
+    msg = re.sub(r'EAA[A-Za-z0-9_\-]{50,}', '[REDACTED]', msg)
     if len(msg) > 200:
         msg = msg[:200] + '...'
     return msg
