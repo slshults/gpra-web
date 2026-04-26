@@ -11,6 +11,7 @@ from app.services.daily_chord.formatter import (
     DEFAULT_BASE_URL,
     DEFAULT_HASHTAGS,
     build_share_url,
+    chord_name_for_display,
     format_post,
 )
 
@@ -113,10 +114,11 @@ class FormatPostTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             format_post('   ', 1, base_url='https://example.com')
 
-    def test_curly_quotes_and_special_chars_preserved(self):
-        # Chord names with special characters should round-trip
+    def test_special_chars_in_chord_name_round_trip(self):
+        # Chord names with sharps and flats appear in the text — sharps render
+        # as ♯ (U+266F) to dodge hashtag auto-linkers; 'b' for flats stays as-is.
         post = format_post('F#m7b5', 100, base_url='https://example.com')
-        self.assertIn('F#m7b5', post['text'])
+        self.assertIn('F\u266fm7b5', post['text'])
 
     def test_chord_with_slash_uses_id_url_when_id_given(self):
         # 'C/E' has a '/' but with a real id we should still use ?id=N
@@ -126,6 +128,38 @@ class FormatPostTests(unittest.TestCase):
     def test_chord_with_slash_falls_back_to_encoded_name(self):
         post = format_post('C/E', None, base_url='https://example.com')
         self.assertIn('%2F', post['url'])  # '/' is encoded in the name fallback
+
+    def test_sharp_symbol_substituted_in_post_text(self):
+        # The visible text should use U+266F (♯), not '#', so Bluesky doesn't
+        # auto-link 'A#5' as the hashtag '#5'.
+        post = format_post('A#5', 71, base_url='https://example.com')
+        self.assertIn('A\u266f5', post['text'])
+        self.assertNotIn('A#5', post['text'])
+
+    def test_sharp_substitution_handles_multiple_sharps(self):
+        post = format_post('C#m7#5', 1, base_url='https://example.com')
+        self.assertIn('C\u266fm7\u266f5', post['text'])
+
+    def test_chord_name_in_return_dict_keeps_literal_hash(self):
+        # The chord_name field is for adapters/analytics — keep DB form
+        post = format_post('A#5', 71, base_url='https://example.com')
+        self.assertEqual(post['chord_name'], 'A#5')
+
+    def test_url_id_form_unaffected_by_sharp_substitution(self):
+        post = format_post('A#5', 71, base_url='https://example.com')
+        self.assertEqual(post['url'], 'https://example.com/find-a-chord-chart?id=71')
+
+    def test_url_name_fallback_uses_literal_hash_encoded(self):
+        # When falling back to ?chord=NAME, must use '#' (encoded) so the
+        # server-side common_chords.name lookup still matches.
+        post = format_post('C#m7', None, base_url='https://example.com')
+        self.assertIn('%23', post['url'])  # '#' is %23
+        self.assertNotIn('%E2%99%AF', post['url'])  # ♯ should NOT appear
+
+    def test_chord_name_for_display_helper(self):
+        self.assertEqual(chord_name_for_display('A#5'), 'A\u266f5')
+        self.assertEqual(chord_name_for_display('Cmaj7'), 'Cmaj7')
+        self.assertEqual(chord_name_for_display('C#m7#5'), 'C\u266fm7\u266f5')
 
 
 if __name__ == '__main__':

@@ -59,6 +59,17 @@ def _resolve_hashtags(hashtags: Optional[List[str]]) -> List[str]:
     return list(DEFAULT_HASHTAGS)
 
 
+def chord_name_for_display(chord_name: str) -> str:
+    """Render a chord name with the proper Unicode music-sharp symbol.
+
+    Bluesky (and to a lesser extent Facebook) auto-link any '#word' pattern as
+    a hashtag, which mangles names like 'A#5' or 'C#m7'. Substituting the
+    proper U+266F MUSIC SHARP SIGN sidesteps the auto-linker entirely and is
+    the musically correct symbol anyway.
+    """
+    return chord_name.replace('#', '\u266f')
+
+
 def format_post(
     chord_name: str,
     common_chord_id: Optional[int] = None,
@@ -75,6 +86,10 @@ def format_post(
 
     Returns a dict with `text` (full post), `url` (deep-link), `hashtags` (list),
     and `chord_name` so adapters can reuse the resolved values without re-parsing.
+
+    Note: the visible post text uses the music-sharp symbol (U+266F) in chord
+    names, while `chord_name` (in the return dict) and the `?chord=NAME`
+    URL fallback use the literal '#' since common_chords.name stores it that way.
     """
     if not chord_name or not chord_name.strip():
         raise ValueError("chord_name is required")
@@ -84,10 +99,11 @@ def format_post(
     resolved_hashtags = _resolve_hashtags(hashtags)
 
     url = build_share_url(chord_name, common_chord_id, base_url)
+    display_name = chord_name_for_display(chord_name)
     hashtags_line = ' '.join(resolved_hashtags)
 
     text = (
-        f"Chord of the day: {chord_name}\n"
+        f"Chord of the day: {display_name}\n"
         "\n"
         f"See it here: {url}\n"
         "\n"
