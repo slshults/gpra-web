@@ -43,10 +43,22 @@ check_npm() {
 
 update_pip() {
     echo ""
-    echo -e "${YELLOW}Updating pip packages from pyproject.toml...${NC}"
-    # Only update project dependencies, not all system packages
-    pip install --upgrade -e . 2>/dev/null || pip install --upgrade .
-    echo -e "${GREEN}Pip packages updated!${NC}"
+    echo -e "${YELLOW}Pulling latest from git (lockfile may have changed)...${NC}"
+    git pull --rebase
+
+    echo ""
+    echo -e "${YELLOW}posthog before:${NC}"
+    pip show posthog 2>/dev/null | grep -E "^Version" || echo "  (not installed)"
+
+    echo ""
+    echo -e "${YELLOW}Installing pinned versions from requirements.txt (matches production)...${NC}"
+    pip install -r requirements.txt
+
+    echo ""
+    echo -e "${YELLOW}posthog after:${NC}"
+    pip show posthog 2>/dev/null | grep -E "^Version" || echo "  (not installed)"
+
+    echo -e "${GREEN}Pip packages synced to requirements.txt!${NC}"
 }
 
 update_npm() {
