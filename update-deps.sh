@@ -44,7 +44,7 @@ check_npm() {
 update_pip() {
     echo ""
     echo -e "${YELLOW}Pulling latest from git (lockfile may have changed)...${NC}"
-    git pull --rebase
+    git pull --rebase --autostash
 
     echo ""
     echo -e "${YELLOW}posthog before:${NC}"
@@ -71,7 +71,7 @@ update_npm() {
 pull_latest() {
     echo ""
     echo -e "${YELLOW}Pulling latest from git (includes Dependabot merges)...${NC}"
-    git pull --rebase
+    git pull --rebase --autostash
     echo -e "${GREEN}Git pull complete!${NC}"
 }
 
