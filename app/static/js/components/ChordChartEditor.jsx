@@ -58,7 +58,7 @@ const fetchWithBackoff = async (url, options = {}, maxRetries = 3, onRetry = nul
   throw new Error(`Failed after ${maxRetries} attempts`);
 };
 
-export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = null, insertionContext = null, defaultTuning = 'EADGBE', saveButtonLabel = null, showLineBreak = true }) => {
+export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = null, insertionContext = null, defaultTuning = 'EADGBE', saveButtonLabel = null, showLineBreak = true, initialChordId = null, initialChordName = null }) => {
   const [title, setTitle] = useState('');
   const [startingFret, setStartingFret] = useState(1);
   const [numFrets, setNumFrets] = useState(5);
@@ -204,6 +204,48 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
     }
   };
 
+  // Load a specific common-chord voicing by id (for /find-a-chord-chart?id=N)
+  const loadChordById = async (id) => {
+    try {
+      setIsLoadingChord(true);
+      const response = await fetchWithBackoff(`/api/chord-charts/common/${id}`);
+      if (!response.ok) {
+        // 404 or error: leave editor blank for the user to start fresh
+        return;
+      }
+      const chord = await response.json();
+      setTitle(chord.title || '');
+      setStartingFret(chord.startingFret || 1);
+      setNumFrets(chord.numFrets || 5);
+      setNumStrings(chord.numStrings || 6);
+      setTuning(chord.tuning || defaultTuning);
+      setCapo(chord.capo || 0);
+
+      const fingersData = chord.fingers || [];
+      const normalizedFingers = fingersData.map(finger => {
+        if (Array.isArray(finger)) {
+          const [s, f, num] = finger;
+          return [s, f, num];
+        }
+        if (finger && typeof finger === 'object' && 'string' in finger && 'fret' in finger) {
+          const fingerNum = finger.fingerNumber || finger[2];
+          return [finger.string, finger.fret, fingerNum];
+        }
+        const [s, f, num] = Array.isArray(finger) ? finger : [finger[0], finger[1], finger[2]];
+        return [s, f, num];
+      });
+      setFingers(normalizedFingers);
+      setBarres(chord.barres || []);
+      setOpenStrings(new Set(chord.openStrings || []));
+      setMutedStrings(new Set(chord.mutedStrings || []));
+      setAddLineBreak(false);
+    } catch (error) {
+      console.error('Error loading chord by id:', error);
+    } finally {
+      setIsLoadingChord(false);
+    }
+  };
+
   // Load existing chord data when editing
   useEffect(() => {
     if (editingChordId && itemId) {
@@ -281,6 +323,15 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
       
       loadChordForEditing();
     } else if (editingChordId) {
+    } else if (initialChordId) {
+      // Public chord-finder deep-link: ?id=N — load the precise voicing
+      loadChordById(initialChordId);
+    } else if (initialChordName) {
+      // Public chord-finder deep-link: ?chord=NAME — set the name and trigger
+      // the existing autofill path. setTitle here is the final word on the
+      // title (this branch runs after the reset branch would have).
+      setTitle(initialChordName);
+      tryAutofill(initialChordName);
     } else {
       // Reset form when not editing (new chord)
       setTitle('');
