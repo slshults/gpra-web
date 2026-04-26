@@ -15,6 +15,19 @@ class SafeErrorTests(unittest.TestCase):
         msg = _safe_error(Exception('access_TOKEN=foo'))
         self.assertIn('[REDACTED]', msg)
 
+    def test_redacts_bare_eaa_token(self):
+        # Defense in depth: a bare token (no `access_token=` prefix) leaked
+        # into an exception body should still be redacted.
+        token = 'EAA' + 'X' * 80
+        msg = _safe_error(Exception(f'oauth: {token} expired'))
+        self.assertIn('[REDACTED]', msg)
+        self.assertNotIn(token, msg)
+
+    def test_eaa_redaction_does_not_clobber_short_eaa_strings(self):
+        # 'EAAX' (4 chars total) is too short to be a token; should pass through
+        msg = _safe_error(Exception('user said EAAX which is fine'))
+        self.assertIn('EAAX', msg)
+
     def test_truncates_long_messages(self):
         msg = _safe_error(Exception('x' * 500))
         self.assertLess(len(msg), 220)

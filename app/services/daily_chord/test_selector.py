@@ -133,6 +133,22 @@ class SelectorTests(unittest.TestCase):
         self.assertEqual(current_cycle_id(self.session), 1,
                          "failed rows shouldn't determine the cycle")
 
+    def test_current_cycle_includes_partial_rows(self):
+        # A partial post still landed on at least one platform — its cycle counts.
+        self.session.execute(text("DELETE FROM posted_chords"))
+        pool_id = self.session.execute(
+            text("SELECT id FROM chord_pool ORDER BY id LIMIT 1")
+        ).scalar()
+        self.session.execute(
+            text("""
+                INSERT INTO posted_chords (chord_pool_id, posted_at, status, cycle_id)
+                VALUES (:pid, NOW() - INTERVAL '5 days', 'partial', 4)
+            """),
+            {"pid": pool_id}
+        )
+        self.assertEqual(current_cycle_id(self.session), 4,
+                         "partial rows should determine the cycle (chord already landed on one platform)")
+
     # ---- pool_remaining_in_cycle ----
 
     def test_pool_remaining_full_when_no_posts(self):
@@ -200,6 +216,30 @@ class SelectorTests(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result.chord_pool_id, keep,
                          "should pick the one chord not yet posted in this cycle")
+        self.assertEqual(result.cycle_id, 1)
+
+    def test_pick_skips_partial_rows_in_same_cycle(self):
+        # A partial row should block re-picking in the same cycle (would
+        # duplicate the post on whichever platform succeeded).
+        self.session.execute(text("DELETE FROM posted_chords"))
+        all_ids = [r[0] for r in self.session.execute(
+            text("SELECT id FROM chord_pool ORDER BY id")
+        ).fetchall()]
+        keep = all_ids[-1]
+        # Mark all but one as partial (mix with posted to be thorough)
+        for i, pid in enumerate(all_ids[:-1]):
+            status = 'posted' if i % 2 == 0 else 'partial'
+            self.session.execute(
+                text("""
+                    INSERT INTO posted_chords (chord_pool_id, posted_at, status, cycle_id)
+                    VALUES (:pid, NOW() - INTERVAL '5 days', :status, 1)
+                """),
+                {"pid": pid, "status": status}
+            )
+        result = pick_chord_for_today(self.session)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.chord_pool_id, keep,
+                         "should pick the one chord not yet posted-or-partial in this cycle")
         self.assertEqual(result.cycle_id, 1)
 
     def test_pick_bumps_cycle_when_pool_exhausted(self):

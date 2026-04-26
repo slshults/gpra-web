@@ -44,24 +44,28 @@ def already_posted_today(db_session) -> bool:
 
 
 def current_cycle_id(db_session) -> int:
-    """Highest cycle_id with at least one 'posted' row. Returns 1 if no posts yet."""
+    """Highest cycle_id with at least one posted-or-partial row. Returns 1 if none.
+
+    Includes 'partial' rows because a partial post still landed on at least one
+    platform — the chord is "spent" for this cycle even if one side failed.
+    """
     row = db_session.execute(
         text("""
             SELECT COALESCE(MAX(cycle_id), 1) FROM posted_chords
-            WHERE status = 'posted'
+            WHERE status IN ('posted', 'partial')
         """)
     ).fetchone()
     return int(row[0])
 
 
 def pool_remaining_in_cycle(db_session, cycle_id: int) -> int:
-    """Count of chord_pool rows not yet 'posted' in the given cycle."""
+    """Count of chord_pool rows not yet posted-or-partial-posted in the given cycle."""
     row = db_session.execute(
         text("""
             SELECT COUNT(*) FROM chord_pool
             WHERE id NOT IN (
                 SELECT chord_pool_id FROM posted_chords
-                WHERE status = 'posted' AND cycle_id = :cycle_id
+                WHERE status IN ('posted', 'partial') AND cycle_id = :cycle_id
             )
         """),
         {"cycle_id": cycle_id}
@@ -75,6 +79,11 @@ def pick_chord_for_today(db_session) -> Optional[SelectionResult]:
     Returns None when:
       - already_posted_today() is True (don't double-post)
       - chord_pool is empty (nothing to pick from)
+
+    Excludes both 'posted' and 'partial' rows from the pool — a partial post
+    means the chord already landed on one platform; re-picking it would
+    duplicate that side. 'failed' rows do NOT block: the post never landed
+    anywhere, so the chord is fair game.
 
     Auto-bumps cycle_id when the current cycle is exhausted.
     """
@@ -94,7 +103,7 @@ def pick_chord_for_today(db_session) -> Optional[SelectionResult]:
             SELECT id, chord_name, common_chord_id FROM chord_pool
             WHERE id NOT IN (
                 SELECT chord_pool_id FROM posted_chords
-                WHERE status = 'posted' AND cycle_id = :cycle_id
+                WHERE status IN ('posted', 'partial') AND cycle_id = :cycle_id
             )
             ORDER BY RANDOM()
             LIMIT 1
