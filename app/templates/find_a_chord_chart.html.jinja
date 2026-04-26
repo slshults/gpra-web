@@ -3,20 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% if chord_name %}
+    <title>{{ chord_name }} guitar chord chart | Guitar Practice Routine</title>
+    {% else %}
     <title>Find a guitar chord chart | Guitar Practice Routine</title>
+    {% endif %}
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="icon" type="image/png" sizes="48x48" href="/static/images/favicon-48x48.png">
     <link rel="apple-touch-icon" sizes="192x192" href="/static/images/GPRA-192x192.png">
 
     <!-- Primary Meta Tags -->
+    {% if chord_name %}
+    <meta name="description" content="Free {{ chord_name }} guitar chord chart with fingering and voicing — no account needed.">
+    {% else %}
     <meta name="description" content="Look up guitar chord charts by name. Free, simple chord chart lookup — no account needed.">
+    {% endif %}
     <link rel="canonical" href="https://guitarpracticeroutine.com/find-a-chord-chart">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://guitarpracticeroutine.com/find-a-chord-chart">
+    <meta property="og:url" content="{{ share_url or 'https://guitarpracticeroutine.com/find-a-chord-chart' }}">
+    {% if chord_name %}
+    <meta property="og:title" content="{{ chord_name }} guitar chord chart | Guitar Practice Routine">
+    <meta property="og:description" content="Free {{ chord_name }} guitar chord chart with fingering and voicing — no account needed.">
+    {% else %}
     <meta property="og:title" content="Find a guitar chord chart | Guitar Practice Routine">
     <meta property="og:description" content="Look up guitar chord charts by name. Free, simple chord chart lookup — no account needed.">
+    {% endif %}
     <meta property="og:image" content="https://guitarpracticeroutine.com/static/images/og-strat.png">
 
     <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}">

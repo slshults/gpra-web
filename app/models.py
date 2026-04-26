@@ -349,3 +349,56 @@ class PracticeEvent(Base):
 
     def __repr__(self):
         return f"<PracticeEvent user_id={self.user_id} type={self.event_type} created={self.created_at}>"
+
+
+class ChordPool(Base):
+    """Curated pool of chords eligible for the daily 'Chord of the Day' post.
+
+    common_chord_id may be NULL — in that case the formatter falls back to a
+    search-style URL (?chord=NAME) instead of a precise voicing URL (?id=N).
+    """
+    __tablename__ = 'chord_pool'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    chord_name = Column(Text, nullable=False)
+    # No ForeignKey: common_chords.id lacks PK/UNIQUE constraint in the live DB.
+    # Referential integrity is enforced at the application layer.
+    common_chord_id = Column(Integer, nullable=True)
+    display_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index('idx_chord_pool_display_order', 'display_order', 'id'),
+    )
+
+    def __repr__(self):
+        return f"<ChordPool {self.id}: {self.chord_name}>"
+
+
+class PostedChord(Base):
+    """Audit trail of daily Chord of the Day posts.
+
+    cycle_id increments when the pool exhausts. The selector filters by the
+    current cycle so a chord can be re-posted in a later cycle.
+    """
+    __tablename__ = 'posted_chords'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    chord_pool_id = Column(Integer, ForeignKey('chord_pool.id', ondelete='CASCADE'), nullable=False)
+    posted_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    status = Column(Text, nullable=False)
+    bluesky_uri = Column(Text, nullable=True)
+    facebook_post_id = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    cycle_id = Column(Integer, nullable=False, default=1)
+
+    chord_pool = relationship("ChordPool")
+
+    __table_args__ = (
+        Index('idx_posted_chords_chord_pool_id', 'chord_pool_id'),
+        Index('idx_posted_chords_posted_at', 'posted_at'),
+        Index('idx_posted_chords_status_cycle', 'status', 'cycle_id'),
+    )
+
+    def __repr__(self):
+        return f"<PostedChord {self.id}: chord_pool_id={self.chord_pool_id} status={self.status}>"

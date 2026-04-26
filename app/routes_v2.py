@@ -107,8 +107,54 @@ def why_page():
 
 @app.route('/find-a-chord-chart')
 def find_a_chord_chart():
-    """Public chord chart lookup page - accessible to everyone, no auth required"""
-    return render_template('find_a_chord_chart.html.jinja', posthog_key=posthog_key)
+    """Public chord chart lookup page - accessible to everyone, no auth required.
+
+    Supports deep-link query params for the Chord of the Day social posts:
+      ?id=N      -> precise voicing (preferred, used by the daily-post bot)
+      ?chord=X   -> fall-back name search (the page picks the first match)
+    When either param resolves to a real chord, dynamic OG/title tags reflect
+    the chord name so social-feed link cards aren't all identical.
+    """
+    chord_id = request.args.get('id', type=int)
+    chord_param = (request.args.get('chord') or '').strip()
+    chord_name = None
+
+    if chord_id:
+        with DatabaseTransaction() as db:
+            row = db.execute(
+                text("SELECT name FROM common_chords WHERE id = :id LIMIT 1"),
+                {"id": chord_id}
+            ).fetchone()
+            chord_name = row[0] if row else None
+    elif chord_param:
+        # Only use a DB-resolved name for OG tags so we don't echo arbitrary
+        # user input back to social crawlers. Page UX still works either way.
+        with DatabaseTransaction() as db:
+            row = db.execute(
+                text("""
+                    SELECT name FROM common_chords
+                    WHERE LOWER(name) = LOWER(:name)
+                    ORDER BY order_col NULLS LAST, id
+                    LIMIT 1
+                """),
+                {"name": chord_param}
+            ).fetchone()
+            chord_name = row[0] if row else None
+
+    # Canonical share URL reflects the param actually used (None for the bare page)
+    if chord_id:
+        share_url = url_for('find_a_chord_chart', id=chord_id, _external=True)
+    elif chord_param and chord_name:
+        share_url = url_for('find_a_chord_chart', chord=chord_name, _external=True)
+    else:
+        share_url = url_for('find_a_chord_chart', _external=True)
+
+    return render_template(
+        'find_a_chord_chart.html.jinja',
+        posthog_key=posthog_key,
+        chord_name=chord_name,
+        share_url=share_url,
+    )
 
 @app.route('/pricing')
 def pricing_page():
@@ -3705,6 +3751,69 @@ def search_common_chords():
     except Exception as e:
         app.logger.error(f"Error searching CommonChords: {str(e)}")
         return jsonify({"error": "Failed to search CommonChords"}), 500
+
+
+@app.route('/api/chord-charts/common/<int:chord_id>', methods=['GET'])
+def get_common_chord_by_id(chord_id):
+    """Public — return a single common_chords row by id, normalized like the search endpoint.
+
+    Used by the find-a-chord-chart page to deep-link to a specific voicing via
+    ?id=N (e.g., from Chord of the Day social posts). 404 if id not found.
+    """
+    try:
+        with DatabaseTransaction() as db:
+            row = db.execute(
+                text("""
+                    SELECT id, type, name, chord_data, created_at, order_col
+                    FROM common_chords
+                    WHERE id = :id
+                    LIMIT 1
+                """),
+                {"id": chord_id}
+            ).fetchone()
+
+            if not row:
+                return jsonify({"error": "Chord not found"}), 404
+
+            import json
+            chord_data = json.loads(row[3]) if isinstance(row[3], str) else (row[3] or {})
+
+            raw_fingers = chord_data.get('fingers', [])
+            normalized_fingers = []
+            for finger in raw_fingers:
+                if isinstance(finger, dict):
+                    string_num = finger.get('string')
+                    fret_num = finger.get('fret')
+                    finger_num = finger.get('finger')
+                    if string_num is not None and fret_num is not None:
+                        if finger_num is not None:
+                            normalized_fingers.append([string_num, fret_num, finger_num])
+                        else:
+                            normalized_fingers.append([string_num, fret_num])
+                elif isinstance(finger, list) and len(finger) >= 2:
+                    normalized_fingers.append(finger)
+
+            return jsonify({
+                "id": row[0],
+                "type": row[1],
+                "title": row[2],
+                "created_at": row[4].isoformat() if row[4] else None,
+                "order": row[5],
+                "fingers": normalized_fingers,
+                "barres": chord_data.get("barres", []),
+                "openStrings": chord_data.get("openStrings", []),
+                "mutedStrings": chord_data.get("mutedStrings", []),
+                "startingFret": chord_data.get("startingFret", 1),
+                "numFrets": chord_data.get("numFrets", 5),
+                "numStrings": chord_data.get("numStrings", 6),
+                "tuning": chord_data.get("tuning", "EADGBE"),
+                "capo": chord_data.get("capo", 0),
+            })
+
+    except Exception as e:
+        app.logger.error(f"Error fetching common chord by id={chord_id}: {str(e)}")
+        return jsonify({"error": "Failed to fetch chord"}), 500
+
 
 @app.route('/api/open-folder', methods=['POST'])
 def open_folder():
