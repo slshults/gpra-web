@@ -85,6 +85,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false); // Toggle for advanced settings
   const [selectedFinger, setSelectedFinger] = useState(null); // Track selected finger for number input [string, fret]
   const [addLineBreak, setAddLineBreak] = useState(false); // Whether to add line break after this chord
+  const [chartsInitialized, setChartsInitialized] = useState(false); // Flips true after SVGuitar loads — re-fires the draw effect with the latest state closure
 
   const editorChartRef = useRef(null);
   const resultChartRef = useRef(null);
@@ -377,8 +378,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
     try {
       editorChartRef.current = new window.svguitar.SVGuitarChord('#editor-chart');
       resultChartRef.current = new window.svguitar.SVGuitarChord('#result-chart');
-      updateCharts();
-      setupEditorInteraction();
+      setChartsInitialized(true);
     } catch (error) {
       console.error('Error initializing charts:', error);
     }
@@ -808,7 +808,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
 
   useEffect(() => {
     updateCharts();
-  }, [title, startingFret, numFrets, numStrings, fingers, barres, tuning, openStrings, mutedStrings]);
+  }, [title, startingFret, numFrets, numStrings, fingers, barres, tuning, openStrings, mutedStrings, chartsInitialized]);
 
   // Keyboard event listener for finger numbers
   useEffect(() => {
