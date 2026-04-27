@@ -1524,7 +1524,29 @@ def api_login():
             'login_method': 'email',
             'failure_reason': 'user_not_found'
         }, ip=get_client_ip())
-        return jsonify({"error": "Invalid email/username or password"}), 401
+        return jsonify({
+            "error": "No account found for that email or username.",
+            "reason": "no_account",
+            "signup_url": "/signup"
+        }), 401
+
+    # OAuth-only users have password=NULL — direct them to the right OAuth flow
+    # rather than failing as "invalid password"
+    if user.password is None:
+        provider = 'tidal' if (user.username or '').startswith('tidal_') else 'google'
+        app.logger.info(f"Password login attempted on OAuth-only account: {user.username} (provider={provider})")
+        from app.utils.posthog_client import track_event, get_client_ip
+        track_event(user.id, 'user_login_failed', {
+            'login_method': 'email',
+            'failure_reason': 'oauth_only',
+            'oauth_provider': provider
+        }, ip=get_client_ip())
+        return jsonify({
+            "error": f"This account uses {provider.capitalize()} sign-in.",
+            "reason": "oauth_only",
+            "provider": provider,
+            "oauth_url": f"/login/{provider}"
+        }), 401
 
     # Check password using Flask-AppBuilder's security manager
     # check_password expects (hashed_password, plaintext_password)

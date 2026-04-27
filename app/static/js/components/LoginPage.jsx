@@ -4,6 +4,7 @@ import { Input } from '@ui/input';
 import { Label } from '@ui/label';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@ui/card';
 import { Alert, AlertDescription } from '@ui/alert';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@ui/dialog';
 import { Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
 const RECAPTCHA_LOGIN_SITE_KEY = '6LcaNhssAAAAABV70hE2Sw6_CwxBQf3sf-1_xiMl';
@@ -16,6 +17,7 @@ const LoginPage = () => {
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [recaptchaLoaded, setRecaptchaLoaded] = useState(false);
+  const [showNoAccountModal, setShowNoAccountModal] = useState(false);
 
   useEffect(() => {
     // Check for password reset success message
@@ -120,6 +122,12 @@ const LoginPage = () => {
           // Redirect to main app on success
           window.location.href = '/';
         }
+      } else if (data.reason === 'oauth_only' && data.oauth_url) {
+        // Account exists but was created via OAuth — send them through that flow
+        window.location.href = data.oauth_url;
+      } else if (data.reason === 'no_account') {
+        setError(null);
+        setShowNoAccountModal(true);
       } else {
         setError(data.error || 'Invalid email or password');
       }
@@ -338,6 +346,25 @@ const LoginPage = () => {
           <a href="/signup" className="hover:underline hover:text-gray-400">Sign up</a>
         </div>
       </div>
+
+      <Dialog open={showNoAccountModal} onOpenChange={setShowNoAccountModal}>
+        <DialogContent modalName="login_no_account">
+          <DialogHeader>
+            <DialogTitle>You don't have an account yet</DialogTitle>
+            <DialogDescription>
+              We couldn't find an account for that email or username. Create one to get started.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNoAccountModal(false)}>
+              Try a different email or username
+            </Button>
+            <Button onClick={() => { window.location.href = '/signup'; }}>
+              Create an account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
