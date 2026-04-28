@@ -58,17 +58,21 @@ log_dir.mkdir(exist_ok=True)
 
 # Configure our own logger explicitly. basicConfig is a no-op once Flask app
 # init has already attached handlers to the root logger, so we set up our own.
+#
+# FileHandler only — no StreamHandler. The crontab line redirects stdout/stderr
+# into this same file (>> logs/cotd_cron.log 2>&1), so adding a StreamHandler
+# would write each log line twice. The cron redirect still catches uncaught
+# exceptions and any stray prints, so we don't lose anything by dropping it.
+# When running interactively (e.g. for smoke-testing), tail the log file in
+# another terminal.
 logger = logging.getLogger('cotd_cron')
 logger.setLevel(logging.INFO)
 logger.propagate = False  # don't double-log via the root handler
 _formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 _file_handler = logging.FileHandler(log_dir / 'cotd_cron.log')
 _file_handler.setFormatter(_formatter)
-_stream_handler = logging.StreamHandler()
-_stream_handler.setFormatter(_formatter)
 if not logger.handlers:
     logger.addHandler(_file_handler)
-    logger.addHandler(_stream_handler)
 
 
 def _record_outcome(
