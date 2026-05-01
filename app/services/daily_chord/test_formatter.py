@@ -44,23 +44,49 @@ class FormatPostTests(unittest.TestCase):
         post = format_post('Cmaj7', 42, base_url='https://example.com')
         self.assertEqual(post['chord_name'], 'Cmaj7')
         self.assertIn('Cmaj7', post['text'])
-        self.assertIn('https://example.com/find-a-chord-chart?id=42', post['text'])
         self.assertEqual(post['url'], 'https://example.com/find-a-chord-chart?id=42')
         self.assertEqual(post['hashtags'], DEFAULT_HASHTAGS)
 
     def test_text_starts_with_chord_of_the_day_heading(self):
         post = format_post('G', 1, base_url='https://example.com')
-        self.assertTrue(post['text'].startswith('Chord of the day: G'))
+        self.assertTrue(post['text'].startswith("Today's Chord of the Day is: G"))
 
-    def test_hashtags_appear_at_end(self):
+    def test_url_is_not_embedded_in_text(self):
+        # New format: URL is NOT in the visible body. Bluesky links the chord
+        # name itself via a facet; Facebook attaches the URL via the `link`
+        # parameter (unfurl card). Either way, the URL doesn't clutter the body.
+        post = format_post('Cmaj7', 42, base_url='https://example.com')
+        self.assertNotIn('https://example.com', post['text'])
+        self.assertNotIn('See it here', post['text'])
+
+    def test_hashtags_appear_after_chord_name(self):
         post = format_post('G', 1, base_url='https://example.com')
         for tag in DEFAULT_HASHTAGS:
             self.assertIn(tag, post['text'])
-        # Hashtag line is last; URL precedes it
         text = post['text']
-        url_pos = text.find('https://')
+        chord_pos = text.find('G')
         hashtag_pos = text.find(DEFAULT_HASHTAGS[0])
-        self.assertGreater(hashtag_pos, url_pos)
+        self.assertGreater(hashtag_pos, chord_pos)
+
+    def test_chord_byte_offsets_ascii(self):
+        # "Today's Chord of the Day is: " is 29 bytes ASCII; "G" is 1 byte.
+        post = format_post('G', 1, base_url='https://example.com')
+        text_bytes = post['text'].encode('utf-8')
+        self.assertEqual(text_bytes[post['chord_byte_start']:post['chord_byte_end']], b'G')
+
+    def test_chord_byte_offsets_with_sharp(self):
+        # ♯ (U+266F) is 3 bytes in UTF-8. The byte offset must reflect that, or
+        # Bluesky's link facet would land in the wrong place.
+        post = format_post('A#5', 71, base_url='https://example.com')
+        text_bytes = post['text'].encode('utf-8')
+        span = text_bytes[post['chord_byte_start']:post['chord_byte_end']]
+        self.assertEqual(span.decode('utf-8'), 'A\u266f5')
+
+    def test_chord_byte_offsets_with_slash(self):
+        post = format_post('C/E', 200, base_url='https://example.com')
+        text_bytes = post['text'].encode('utf-8')
+        span = text_bytes[post['chord_byte_start']:post['chord_byte_end']]
+        self.assertEqual(span.decode('utf-8'), 'C/E')
 
     def test_falls_back_to_chord_name_url_when_no_id(self):
         post = format_post('Cmaj7', None, base_url='https://example.com')

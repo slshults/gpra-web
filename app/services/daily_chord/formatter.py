@@ -25,6 +25,12 @@ class PostPayload(TypedDict):
     url: str
     hashtags: List[str]
     chord_name: str
+    # Byte offsets into UTF-8 encoded `text` that mark the chord-name span.
+    # Bluesky uses these to attach a link facet so the chord name itself is
+    # the clickable target. Facebook ignores them (no inline-link support;
+    # the URL is sent separately as the `link` parameter for the unfurl card).
+    chord_byte_start: int
+    chord_byte_end: int
 
 
 def build_share_url(chord_name: str, common_chord_id: Optional[int], base_url: str) -> str:
@@ -85,7 +91,9 @@ def format_post(
         hashtags: explicit list ('#tag' format). None falls back to env or defaults.
 
     Returns a dict with `text` (full post), `url` (deep-link), `hashtags` (list),
-    and `chord_name` so adapters can reuse the resolved values without re-parsing.
+    `chord_name`, and `chord_byte_start`/`chord_byte_end` (UTF-8 byte offsets
+    of the chord name in `text` — used by the Bluesky adapter to attach a link
+    facet so the chord name itself becomes the clickable target).
 
     Note: the visible post text uses the music-sharp symbol (U+266F) in chord
     names, while `chord_name` (in the return dict) and the `?chord=NAME`
@@ -102,13 +110,18 @@ def format_post(
     display_name = chord_name_for_display(chord_name)
     hashtags_line = ' '.join(resolved_hashtags)
 
+    intro = "Today's Chord of the Day is: "
     text = (
-        f"Chord of the day: {display_name}\n"
-        "\n"
-        f"See it here: {url}\n"
+        f"{intro}{display_name}\n"
         "\n"
         f"{hashtags_line}"
     )
+
+    # Byte offsets of the chord name. Computed BEFORE any potential truncation;
+    # the chord name appears near the start of the post so it's never trimmed.
+    chord_byte_start = len(intro.encode('utf-8'))
+    chord_byte_end = chord_byte_start + len(display_name.encode('utf-8'))
+
     text = _truncate_to_graphemes(text, BLUESKY_GRAPHEME_LIMIT)
 
     return PostPayload(
@@ -116,4 +129,6 @@ def format_post(
         url=url,
         hashtags=resolved_hashtags,
         chord_name=chord_name,
+        chord_byte_start=chord_byte_start,
+        chord_byte_end=chord_byte_end,
     )

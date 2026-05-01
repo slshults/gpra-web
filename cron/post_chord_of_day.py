@@ -215,7 +215,19 @@ def post_chord_of_day() -> int:
         # Post to each platform sequentially. Sequential (not parallel) keeps error
         # sanitization simple and reduces blast radius if one platform's client
         # mishandles the response.
-        bluesky_result = bluesky.post(text=bluesky_payload['text'], url=bluesky_payload['url'])
+        #
+        # Bluesky: pass link_span so the chord name itself becomes the clickable
+        # link via a facet (no URL appears in the visible text).
+        # Facebook: chord name is plain text in the body; the URL goes through
+        # the `link` parameter which produces the unfurled preview card.
+        bluesky_result = bluesky.post(
+            text=bluesky_payload['text'],
+            url=bluesky_payload['url'],
+            link_span=(
+                bluesky_payload['chord_byte_start'],
+                bluesky_payload['chord_byte_end'],
+            ),
+        )
         if bluesky_result.get('ok'):
             logger.info(f"BlueSky posted: {bluesky_result.get('uri')}")
         else:
