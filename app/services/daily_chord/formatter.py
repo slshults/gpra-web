@@ -76,7 +76,7 @@ def chord_name_for_display(chord_name: str) -> str:
     return chord_name.replace('#', '\u266f')
 
 
-FACEBOOK_CARD_CTA = "(Click on 'gpra.app', below, to view the chord)"
+FACEBOOK_CARD_CTA = "Click below to view the chord"
 
 
 def format_post(
