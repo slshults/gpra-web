@@ -202,12 +202,16 @@ def post_chord_of_day() -> int:
                 distinct_id=COTD_DISTINCT_ID,
             )
 
-        # Build a payload per platform — same chord, same URL, different hashtags.
+        # Build a payload per platform — same chord, same URL, different hashtags
+        # and slightly different layout (Bluesky gets a leading blank line for
+        # breathing room; Facebook gets a CTA pointing at the unfurl card).
         bluesky_payload = format_post(
-            result.chord_name, result.common_chord_id, hashtags=BLUESKY_HASHTAGS,
+            result.chord_name, result.common_chord_id,
+            hashtags=BLUESKY_HASHTAGS, platform='bluesky',
         )
         facebook_payload = format_post(
-            result.chord_name, result.common_chord_id, hashtags=FACEBOOK_HASHTAGS,
+            result.chord_name, result.common_chord_id,
+            hashtags=FACEBOOK_HASHTAGS, platform='facebook',
         )
         logger.info(f"Picked chord {result.chord_name} (chord_pool_id={result.chord_pool_id}, cycle={result.cycle_id})")
         logger.info(f"URL: {bluesky_payload['url']}")

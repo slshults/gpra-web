@@ -10,6 +10,7 @@ from app.services.daily_chord.formatter import (
     BLUESKY_GRAPHEME_LIMIT,
     DEFAULT_BASE_URL,
     DEFAULT_HASHTAGS,
+    FACEBOOK_CARD_CTA,
     build_share_url,
     chord_name_for_display,
     format_post,
@@ -47,9 +48,12 @@ class FormatPostTests(unittest.TestCase):
         self.assertEqual(post['url'], 'https://example.com/find-a-chord-chart?id=42')
         self.assertEqual(post['hashtags'], DEFAULT_HASHTAGS)
 
-    def test_text_starts_with_chord_of_the_day_heading(self):
+    def test_text_contains_chord_of_the_day_heading(self):
+        # The exact starting position depends on platform (bluesky has a
+        # leading newline). PlatformVariationTests below covers position;
+        # this test just verifies the heading substring is present.
         post = format_post('G', 1, base_url='https://example.com')
-        self.assertTrue(post['text'].startswith("Today's Chord of the Day is: G"))
+        self.assertIn("Today's Chord of the Day is: G", post['text'])
 
     def test_url_is_not_embedded_in_text(self):
         # New format: URL is NOT in the visible body. Bluesky links the chord
@@ -186,6 +190,73 @@ class FormatPostTests(unittest.TestCase):
         self.assertEqual(chord_name_for_display('A#5'), 'A\u266f5')
         self.assertEqual(chord_name_for_display('Cmaj7'), 'Cmaj7')
         self.assertEqual(chord_name_for_display('C#m7#5'), 'C\u266fm7\u266f5')
+
+
+class PlatformVariationTests(unittest.TestCase):
+    """Per-platform layout differences."""
+
+    def test_default_platform_is_bluesky(self):
+        # Calling without platform= should produce the Bluesky shape (leading
+        # newline, no FB CTA).
+        post = format_post('G', 1, base_url='https://example.com')
+        self.assertTrue(post['text'].startswith('\n'))
+        self.assertNotIn(FACEBOOK_CARD_CTA, post['text'])
+
+    def test_bluesky_starts_with_leading_newline(self):
+        post = format_post('G', 1, base_url='https://example.com', platform='bluesky')
+        self.assertTrue(post['text'].startswith("\nToday's Chord of the Day is: G"))
+
+    def test_facebook_no_leading_newline(self):
+        post = format_post('G', 1, base_url='https://example.com', platform='facebook')
+        self.assertFalse(post['text'].startswith('\n'))
+        self.assertTrue(post['text'].startswith("Today's Chord of the Day is: G"))
+
+    def test_facebook_includes_card_cta_between_chord_and_hashtags(self):
+        post = format_post('G', 1, base_url='https://example.com', platform='facebook')
+        self.assertIn(FACEBOOK_CARD_CTA, post['text'])
+        # CTA appears AFTER the chord name and BEFORE the hashtags
+        text = post['text']
+        chord_pos = text.find('Today')
+        cta_pos = text.find(FACEBOOK_CARD_CTA)
+        hashtag_pos = text.find('#')
+        self.assertGreater(cta_pos, chord_pos)
+        self.assertGreater(hashtag_pos, cta_pos)
+
+    def test_bluesky_no_facebook_cta(self):
+        post = format_post('G', 1, base_url='https://example.com', platform='bluesky')
+        self.assertNotIn(FACEBOOK_CARD_CTA, post['text'])
+
+    def test_bluesky_chord_byte_offsets_account_for_leading_newline(self):
+        # Leading '\n' is 1 byte. Chord name span shifts by 1 byte vs the
+        # previous (no-leading-newline) layout.
+        post = format_post('G', 1, base_url='https://example.com', platform='bluesky')
+        text_bytes = post['text'].encode('utf-8')
+        self.assertEqual(text_bytes[post['chord_byte_start']:post['chord_byte_end']], b'G')
+        # Verify it's specifically 30, not 29 (the 29 from earlier ascii-only
+        # test was without the leading newline)
+        self.assertEqual(post['chord_byte_start'], 30)
+
+    def test_facebook_chord_byte_offsets_no_shift(self):
+        # No leading newline on FB. Chord name still at byte 29.
+        post = format_post('G', 1, base_url='https://example.com', platform='facebook')
+        text_bytes = post['text'].encode('utf-8')
+        self.assertEqual(text_bytes[post['chord_byte_start']:post['chord_byte_end']], b'G')
+        self.assertEqual(post['chord_byte_start'], 29)
+
+    def test_bluesky_byte_offsets_with_sharp_and_leading_newline(self):
+        post = format_post('A#5', 71, base_url='https://example.com', platform='bluesky')
+        text_bytes = post['text'].encode('utf-8')
+        span = text_bytes[post['chord_byte_start']:post['chord_byte_end']]
+        self.assertEqual(span.decode('utf-8'), 'A\u266f5')
+
+    def test_unknown_platform_raises(self):
+        with self.assertRaises(ValueError):
+            format_post('G', 1, base_url='https://example.com', platform='twitter')
+
+    def test_facebook_post_still_under_grapheme_limit(self):
+        # Adding the CTA shouldn't push a normal-length post over the limit
+        post = format_post('Cmaj7', 42, base_url='https://example.com', platform='facebook')
+        self.assertLessEqual(len(post['text']), BLUESKY_GRAPHEME_LIMIT)
 
 
 if __name__ == '__main__':
