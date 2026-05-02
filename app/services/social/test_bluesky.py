@@ -42,10 +42,47 @@ class BuildFacetsTests(unittest.TestCase):
         self.assertEqual(facets, [])
 
     def test_url_not_added_when_not_present_in_text(self):
-        # Defensive: if the URL isn't actually in the text, don't add a facet
+        # Defensive: if the URL isn't actually in the text and no link_span is
+        # given, don't add a facet
         facets = _build_facets("just a hashtag #foo", url="https://other.example.com")
         # only the hashtag facet
         self.assertEqual(len(facets), 1)
+
+    def test_link_facet_at_link_span(self):
+        # When link_span=(start, end) is given, the link facet attaches at
+        # exactly those byte offsets — the URL doesn't have to appear in text.
+        text = "Today's Chord of the Day is: Cmaj7"
+        # 'Cmaj7' starts at byte 29 (29-byte ASCII intro), ends at 34
+        facets = _build_facets(text, url="https://example.com/x?id=42", link_span=(29, 34))
+        link_facets = [
+            f for f in facets
+            if any(feat.get('$type') == 'app.bsky.richtext.facet#link' for feat in f['features'])
+        ]
+        self.assertEqual(len(link_facets), 1)
+        self.assertEqual(link_facets[0]['index'], {'byteStart': 29, 'byteEnd': 34})
+        self.assertEqual(link_facets[0]['features'][0]['uri'], 'https://example.com/x?id=42')
+
+    def test_link_span_with_multibyte_chord_name(self):
+        # 'A♯5' — ♯ is 3 bytes UTF-8. Span must reflect byte offsets, not chars.
+        intro = "Today's Chord of the Day is: "
+        text = f"{intro}A\u266f5"
+        start = len(intro.encode('utf-8'))  # 29
+        end = start + len("A\u266f5".encode('utf-8'))  # 29 + 5 = 34
+        facets = _build_facets(text, url="https://example.com/x", link_span=(start, end))
+        link_facets = [f for f in facets if any(feat.get('$type') == 'app.bsky.richtext.facet#link' for feat in f['features'])]
+        self.assertEqual(len(link_facets), 1)
+        self.assertEqual(link_facets[0]['index'], {'byteStart': start, 'byteEnd': end})
+
+    def test_link_span_wins_over_url_in_text(self):
+        # If link_span is given, we use that — even if the URL also literally
+        # appears in the text. Prevents accidental double link facets.
+        url = "https://example.com/x"
+        text = f"Today's Chord of the Day is: Cmaj7 (also see {url})"
+        facets = _build_facets(text, url=url, link_span=(29, 34))
+        link_facets = [f for f in facets if any(feat.get('$type') == 'app.bsky.richtext.facet#link' for feat in f['features'])]
+        # Exactly one link facet, at the chord-name span (not at the URL substring)
+        self.assertEqual(len(link_facets), 1)
+        self.assertEqual(link_facets[0]['index']['byteStart'], 29)
 
 
 class SafeErrorTests(unittest.TestCase):

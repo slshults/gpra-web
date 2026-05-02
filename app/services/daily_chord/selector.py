@@ -32,11 +32,16 @@ def already_posted_today(db_session) -> bool:
     BlueSky post. Failed posts (status='failed') are NOT counted — those are
     safe to retry.
     """
+    # Trailing `AT TIME ZONE 'UTC'` re-anchors the truncated timestamp back into
+    # timestamptz space at UTC, so the `posted_at >= <ts>` comparison doesn't
+    # depend on the DB session's timezone setting (prod is UTC, but a developer
+    # running tests on a PT-local Postgres at evening would otherwise mis-compute
+    # "today" once UTC has rolled over to the next day).
     row = db_session.execute(
         text("""
             SELECT 1 FROM posted_chords
             WHERE status IN ('posted', 'partial')
-              AND posted_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC')
+              AND posted_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
             LIMIT 1
         """)
     ).fetchone()

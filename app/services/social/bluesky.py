@@ -20,13 +20,26 @@ BLUESKY_PDS = 'https://bsky.social'
 DEFAULT_TIMEOUT_SECONDS = 30
 
 
-def _build_facets(text: str, url: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Build BlueSky facets (clickable spans) for hashtags and the URL.
+def _build_facets(
+    text: str,
+    url: Optional[str] = None,
+    link_span: Optional[tuple] = None,
+) -> List[Dict[str, Any]]:
+    """Build BlueSky facets (clickable spans) for hashtags and a link.
 
     Facet ranges use **byte** offsets in the UTF-8 encoded text, not character
     offsets. This matters when the post contains multibyte characters (emoji,
     accented letters) — getting it wrong makes the spans render in the wrong
     place, or not at all.
+
+    Link facet behavior:
+      - If `link_span=(byte_start, byte_end)` is given AND `url` is given,
+        attach a link facet at that exact byte range pointing to `url`. This
+        is how arbitrary text (e.g. a chord name) becomes the clickable link
+        without the URL itself appearing in the visible text.
+      - Else if `url` is given AND it appears literally in `text`, attach the
+        link facet at the URL substring (legacy behavior).
+      - Else no link facet.
     """
     facets: List[Dict[str, Any]] = []
 
@@ -42,7 +55,16 @@ def _build_facets(text: str, url: Optional[str] = None) -> List[Dict[str, Any]]:
             }],
         })
 
-    if url and url in text:
+    if url and link_span is not None:
+        byte_start, byte_end = link_span
+        facets.append({
+            'index': {'byteStart': byte_start, 'byteEnd': byte_end},
+            'features': [{
+                '$type': 'app.bsky.richtext.facet#link',
+                'uri': url,
+            }],
+        })
+    elif url and url in text:
         char_start = text.index(url)
         char_end = char_start + len(url)
         byte_start = len(text[:char_start].encode('utf-8'))
@@ -105,8 +127,16 @@ def post(
     url: Optional[str] = None,
     handle: Optional[str] = None,
     app_password: Optional[str] = None,
+    link_span: Optional[tuple] = None,
 ) -> Dict[str, Any]:
     """Post to BlueSky.
+
+    Args:
+        text: visible post body (may include hashtags, no URL required).
+        url: target URL for the link facet.
+        link_span: optional (byte_start, byte_end) tuple — when given along
+            with `url`, attaches the link facet at that span instead of
+            requiring the URL to appear literally in `text`.
 
     Returns:
         {'ok': True, 'uri': 'at://did:plc:.../app.bsky.feed.post/...'} on success
@@ -129,7 +159,7 @@ def post(
         'text': text,
         'createdAt': datetime.now(timezone.utc).isoformat(),
         'langs': ['en'],
-        'facets': _build_facets(text, url),
+        'facets': _build_facets(text, url, link_span=link_span),
     }
 
     try:

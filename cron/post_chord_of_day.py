@@ -202,12 +202,16 @@ def post_chord_of_day() -> int:
                 distinct_id=COTD_DISTINCT_ID,
             )
 
-        # Build a payload per platform — same chord, same URL, different hashtags.
+        # Build a payload per platform — same chord, same URL, different hashtags
+        # and slightly different layout (Bluesky gets a leading blank line for
+        # breathing room; Facebook gets a CTA pointing at the unfurl card).
         bluesky_payload = format_post(
-            result.chord_name, result.common_chord_id, hashtags=BLUESKY_HASHTAGS,
+            result.chord_name, result.common_chord_id,
+            hashtags=BLUESKY_HASHTAGS, platform='bluesky',
         )
         facebook_payload = format_post(
-            result.chord_name, result.common_chord_id, hashtags=FACEBOOK_HASHTAGS,
+            result.chord_name, result.common_chord_id,
+            hashtags=FACEBOOK_HASHTAGS, platform='facebook',
         )
         logger.info(f"Picked chord {result.chord_name} (chord_pool_id={result.chord_pool_id}, cycle={result.cycle_id})")
         logger.info(f"URL: {bluesky_payload['url']}")
@@ -215,7 +219,19 @@ def post_chord_of_day() -> int:
         # Post to each platform sequentially. Sequential (not parallel) keeps error
         # sanitization simple and reduces blast radius if one platform's client
         # mishandles the response.
-        bluesky_result = bluesky.post(text=bluesky_payload['text'], url=bluesky_payload['url'])
+        #
+        # Bluesky: pass link_span so the chord name itself becomes the clickable
+        # link via a facet (no URL appears in the visible text).
+        # Facebook: chord name is plain text in the body; the URL goes through
+        # the `link` parameter which produces the unfurled preview card.
+        bluesky_result = bluesky.post(
+            text=bluesky_payload['text'],
+            url=bluesky_payload['url'],
+            link_span=(
+                bluesky_payload['chord_byte_start'],
+                bluesky_payload['chord_byte_end'],
+            ),
+        )
         if bluesky_result.get('ok'):
             logger.info(f"BlueSky posted: {bluesky_result.get('uri')}")
         else:
