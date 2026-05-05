@@ -170,6 +170,15 @@ def page_not_found(e):
 
 @app.errorhandler(500)
 def internal_server_error(e):
+    try:
+        from app.utils.posthog_client import posthog_client, get_posthog_distinct_id
+        if posthog_client:
+            distinct_id = None
+            if current_user and current_user.is_authenticated:
+                distinct_id = get_posthog_distinct_id(current_user.id)
+            posthog_client.capture_exception(e, distinct_id=distinct_id)
+    except Exception:
+        logging.getLogger(__name__).exception('Failed to send 500 to PostHog')
     return _error_page('500.html.jinja', 500)
 
 @app.errorhandler(429)

@@ -34,7 +34,11 @@
                 posthog.init('{{ posthog_key }}', {
                     api_host: 'https://tacet.guitarpracticeroutine.com',
                     person_profiles: 'identified_only',
-                    capture_pageview: true
+                    capture_pageview: true,
+                    capture_exceptions: true,
+                    session_recording: {
+                        maskAllInputs: true
+                    }
                 });
             } else {
                 window.posthog = {

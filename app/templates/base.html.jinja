@@ -56,7 +56,11 @@
                     person_profiles: 'identified_only',
                     capture_pageview: false,
                     capture_pageleave: true,
-                    opt_out_capturing_by_default: false
+                    capture_exceptions: true,
+                    opt_out_capturing_by_default: false,
+                    session_recording: {
+                        maskAllInputs: true
+                    }
                 });
             } else {
                 // User rejected or hasn't consented - create stub, don't load SDK
