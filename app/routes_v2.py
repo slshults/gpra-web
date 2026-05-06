@@ -190,6 +190,12 @@ def too_many_requests(e):
 def forbidden(e):
     return _error_page('403.html.jinja', 403)
 
+@app.errorhandler(401)
+def unauthorized(e):
+    if 'text/html' in request.headers.get('Accept', ''):
+        return _error_page('401.html.jinja', 401)
+    return jsonify({'error': 'Authentication required'}), 401
+
 if app.debug:
     @app.route('/test-error/<int:code>')
     def test_error(code):

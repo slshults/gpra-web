@@ -105,7 +105,9 @@ def require_user_context(f):
     Decorator to ensure user context exists.
     Use on API endpoints that require authentication.
 
-    Returns 401 Unauthorized if no user context is present.
+    Aborts with 401 Unauthorized if no user context is present. The 401
+    errorhandler serves JSON for /api/* paths and the branded 401.html.jinja
+    page for everything else.
 
     Usage:
         @app.route('/api/items')
@@ -118,9 +120,9 @@ def require_user_context(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not get_current_user_id():
-            from flask import jsonify
+            from flask import abort
             logger.warning(f"RLS: Unauthorized access attempt to {f.__name__}")
-            return jsonify({'error': 'Authentication required'}), 401
+            abort(401)
         return f(*args, **kwargs)
     return decorated_function
 
