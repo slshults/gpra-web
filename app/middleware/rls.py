@@ -31,7 +31,7 @@ import logging
 from flask import g
 from flask_login import current_user
 from functools import wraps
-from sqlalchemy import event, text
+from sqlalchemy import event, false, text
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -137,7 +137,8 @@ def filter_by_user(query, model):
         model: Model class (must have user_id attribute)
 
     Returns:
-        Filtered query that only returns records for current user
+        Filtered query that only returns records for current user.
+        If no user context exists, returns a zero-row query (fail-closed).
 
     Usage:
         # In a repository method
@@ -146,9 +147,9 @@ def filter_by_user(query, model):
         return query.all()  # Only returns current user's items
 
     Note:
-        If no user context exists (unauthenticated), the query is returned
-        unchanged. This allows for gradual migration and backward compatibility.
-        Use require_user_context decorator on routes to enforce authentication.
+        Fails closed: if no user context exists (unauthenticated), the query
+        is filtered to return zero rows. Routes should still apply
+        require_user_context to return a proper 401 instead of empty results.
     """
     user_id = get_current_user_id()
 
@@ -157,10 +158,10 @@ def filter_by_user(query, model):
         return query.filter(model.user_id == user_id)
     elif user_id and not hasattr(model, 'user_id'):
         logger.warning(f"RLS: Model {model.__name__} does not have user_id attribute")
-    else:
-        logger.debug(f"RLS: No user context, returning unfiltered query for {model.__name__}")
+        return query
 
-    return query
+    logger.warning(f"RLS: No user context for {model.__name__} query, failing closed (zero rows)")
+    return query.filter(false())
 
 
 def set_user_id_on_create(model_data: dict) -> dict:

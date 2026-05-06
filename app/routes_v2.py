@@ -7,6 +7,7 @@ from flask_login import current_user
 from app import app, billing, limiter, csrf
 from app.data_layer import data_layer
 from app.database import DatabaseTransaction
+from app.middleware.rls import require_user_context
 from app.subscription_tiers import get_tier_limits
 from sqlalchemy import text
 from datetime import datetime, timedelta
@@ -332,6 +333,7 @@ def resubscribe_inactivity(token):
 
 # Items API - Updated to use data layer
 @app.route('/api/items', methods=['GET', 'POST'])
+@require_user_context
 def items():
     """Handle GET (list) and POST (create) for items"""
     if request.method == 'GET':
@@ -385,6 +387,7 @@ def items():
         return jsonify(result)
 
 @app.route('/api/items/<item_id>', methods=['GET', 'PUT', 'DELETE'])
+@require_user_context
 def item(item_id):
     """Handle GET (fetch), PUT (update) and DELETE for individual items"""
     try:
@@ -421,6 +424,7 @@ def item(item_id):
 
 # Item ordering
 @app.route('/api/items/order', methods=['PUT'])
+@require_user_context
 def update_items_order():
     """Update item ordering (drag-and-drop support)"""
     if not request.is_json:
@@ -431,6 +435,7 @@ def update_items_order():
 
 # Item notes
 @app.route('/api/items/<int:item_id>/notes', methods=['GET', 'POST'])
+@require_user_context
 def item_notes(item_id):
     """Get or save notes for a specific item"""
     if request.method == 'GET':
@@ -458,6 +463,7 @@ def item_notes(item_id):
 
 # Chord Charts API - Updated to use data layer  
 @app.route('/api/items/<int:item_id>/chord-charts', methods=['GET', 'POST'])
+@require_user_context
 def item_chord_charts(item_id):
     """Handle chord charts for an item"""
     if request.method == 'GET':
@@ -479,6 +485,7 @@ def item_chord_charts(item_id):
             return jsonify({"error": f"Failed to save chord chart: {str(e)}"}), 500
 
 @app.route('/api/chord-charts/<int:chart_id>', methods=['PUT', 'DELETE'])
+@require_user_context
 def chord_chart(chart_id):
     """Handle individual chord chart operations"""
     if request.method == 'PUT':
@@ -498,6 +505,7 @@ def chord_chart(chart_id):
 
 # Chord chart ordering
 @app.route('/api/items/<int:item_id>/chord-charts/order', methods=['PUT'])
+@require_user_context
 def update_chord_charts_order(item_id):
     """Update chord chart ordering for an item"""
     if not request.is_json:
@@ -508,6 +516,7 @@ def update_chord_charts_order(item_id):
 
 # Item-specific chord chart deletion (supports sharing)
 @app.route('/api/items/<int:item_id>/chord-charts/<int:chart_id>', methods=['DELETE'])
+@require_user_context
 def delete_chord_chart_from_item(item_id, chart_id):
     """Delete a chord chart from a specific item (handles sharing properly)"""
     try:
@@ -519,6 +528,7 @@ def delete_chord_chart_from_item(item_id, chart_id):
 
 # Batch chord chart operations
 @app.route('/api/items/<int:item_id>/chord-charts/batch', methods=['POST'])
+@require_user_context
 def batch_add_chord_charts(item_id):
     """Create multiple chord charts at once"""
     if not request.is_json:
@@ -536,6 +546,7 @@ def batch_add_chord_charts(item_id):
     return jsonify(results)
 
 @app.route('/api/chord-charts/batch-delete', methods=['POST'])
+@require_user_context
 def batch_delete_chord_charts():
     """Delete multiple chord charts by IDs in a single transaction."""
     try:
@@ -574,6 +585,7 @@ def batch_delete_chord_charts():
         return jsonify({"error": f"Failed to batch delete chord charts: {str(e)}"}), 500
 
 @app.route('/api/chord-charts/batch', methods=['POST'])
+@require_user_context
 def batch_get_chord_charts():
     """Get chord charts for multiple items in a single request."""
     try:
@@ -3224,6 +3236,7 @@ def debug_log():
 
 # Lightweight item endpoint
 @app.route('/api/items/lightweight', methods=['GET'])
+@require_user_context
 def items_lightweight():
     """Get lightweight item data"""
     items = data_layer.get_all_items()
@@ -3233,6 +3246,7 @@ def items_lightweight():
 
 # Routines API - Now using data layer
 @app.route('/api/routines', methods=['GET', 'POST'])
+@require_user_context
 def routines():
     """Handle GET (list) and POST (create) for routines"""
     if request.method == 'GET':
@@ -3310,6 +3324,7 @@ def routines():
             return jsonify({"error": str(e)}), 500
 
 @app.route('/api/routines/<int:routine_id>', methods=['GET', 'PUT', 'DELETE'])
+@require_user_context
 def routine(routine_id):
     """Handle GET (fetch), PUT (update) and DELETE for individual routines"""
     if request.method == 'GET':
@@ -3329,6 +3344,7 @@ def routine(routine_id):
         return jsonify({"success": success})
 
 @app.route('/api/routines/<int:routine_id>/details', methods=['GET'])
+@require_user_context
 def get_routine_with_details(routine_id):
     """Get a routine with all item details and metadata."""
     try:
@@ -3343,6 +3359,7 @@ def get_routine_with_details(routine_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/routines/<int:routine_id>/items', methods=['GET', 'POST'])
+@require_user_context
 def routine_items(routine_id):
     """Handle routine items"""
     if request.method == 'GET':
@@ -3371,6 +3388,7 @@ def routine_items(routine_id):
             return jsonify({"error": f"Failed to add item to routine: {str(e)}"}), 500
 
 @app.route('/api/routines/<int:routine_id>/items/<item_id>', methods=['PUT', 'DELETE'])
+@require_user_context
 def routine_item(routine_id, item_id):
     """Handle PUT (update) and DELETE for routine items"""
     routine_item_id = int(item_id)
@@ -3401,6 +3419,7 @@ def routine_item(routine_id, item_id):
 
 # Routine ordering (for main routines list drag-and-drop)
 @app.route('/api/routines/order', methods=['PUT'])
+@require_user_context
 def update_routines_order():
     """Update the order of routines in the main routines list"""
     if not request.is_json:
@@ -3416,6 +3435,7 @@ def update_routines_order():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/routines/<int:routine_id>/items/order', methods=['PUT'])
+@require_user_context
 def update_routine_items_order(routine_id):
     """Update routine item ordering"""
     if not request.is_json:
@@ -3431,6 +3451,7 @@ def update_routine_items_order(routine_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/routines/<int:routine_id>/order', methods=['PUT'])
+@require_user_context
 def update_routine_order_route(routine_id):
     """Update routine item ordering (alternative endpoint to match sheets version)"""
     if not request.is_json:
@@ -3445,6 +3466,7 @@ def update_routine_order_route(routine_id):
         return jsonify({"error": "Failed to update order"}), 500
 
 @app.route('/api/routines/<int:routine_id>/items/<int:routine_item_id>/complete', methods=['PUT'])
+@require_user_context
 def mark_routine_item_complete(routine_id, routine_item_id):
     """Mark a routine item as completed or not"""
     if not request.is_json:
@@ -3455,6 +3477,7 @@ def mark_routine_item_complete(routine_id, routine_item_id):
     return jsonify({"success": success})
 
 @app.route('/api/routines/<int:routine_id>/reset', methods=['POST'])
+@require_user_context
 def reset_routine_progress(routine_id):
     """Reset all items in a routine to not completed"""
     success = data_layer.reset_routine_progress(routine_id)
@@ -3462,6 +3485,7 @@ def reset_routine_progress(routine_id):
 
 # Active routine management
 @app.route('/api/practice/active-routine', methods=['GET', 'POST', 'DELETE'])
+@require_user_context
 def active_routine():
     """Handle active routine operations"""
     if request.method == 'GET':
@@ -3508,6 +3532,7 @@ def active_routine():
         return jsonify({"success": success})
 
 @app.route('/api/practice/active-routine/lightweight', methods=['GET'])
+@require_user_context
 def get_active_routine_lightweight():
     """Get lightweight active routine data - supports unplugged mode"""
     from flask_login import current_user
@@ -3574,6 +3599,7 @@ def get_active_routine_lightweight():
     })
 
 @app.route('/api/routines/<int:routine_id>/active', methods=['PUT'])
+@require_user_context
 def set_routine_active_status(routine_id):
     """Set a routine as active or inactive"""
     if not request.is_json:
@@ -3591,6 +3617,7 @@ def set_routine_active_status(routine_id):
     return jsonify({"success": success})
 
 @app.route('/api/routines/active', methods=['GET'])
+@require_user_context
 def get_active_routine_alt():
     """Alternative active routine endpoint"""
     return active_routine()
@@ -5425,6 +5452,7 @@ Example output for a diagram with one dot on string 6 at fret 5, with X on strin
 
 # Chord chart copy functionality  
 @app.route('/api/chord-charts/copy', methods=['POST'])
+@require_user_context
 def copy_chord_charts_route():
     """Copy chord charts from one song to multiple other songs."""
     try:
