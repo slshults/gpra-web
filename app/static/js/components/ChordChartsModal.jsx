@@ -494,7 +494,20 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
     "Other AI assistants are out there writing poetry. I'm counting fret lines.",
     "There's a '7fr' in the corner of this one. Pretending I don't see it.",
     "You can fix any chord in about 4 seconds with the pencil icon, just FYI.",
-    "Six strings, six strings, six strings. Don't let me forget."
+    "Six strings, six strings, six strings. Don't let me forget.",
+    "Drawing little numbers next to the dots — those are finger numbers. We've had musical notation for 400 years and we still need finger numbers.",
+    "Negotiating with your pinky to see if it'll cooperate on that 4th-fret stretch",
+    "That chord has like 47 valid voicings. I'm picking one. You're welcome.",
+    "Tab purists are already mad at me and I haven't even finished yet",
+    "Pretending I don't see that this whole thing would be easier with a capo on 2",
+    "Translating 'how the song sounds' into 'where your fingers should go.' Surprisingly different languages.",
+    "This one's a barre chord. I'm sorry in advance to your index finger.",
+    "Could explain the harmonic theory behind this voicing, but you came here for the dots",
+    "Don't tell anyone I had to double-check what a Cadd9/F# was",
+    "Reminder: a chord chart is a polite suggestion, not a binding contract",
+    "Your guitar teacher would have charged you for these by now",
+    "Drawing chords that aren't power chords. Such variety. Much wow.",
+    "Counting frets from the top, even though my training data keeps trying to count from the bottom"
   ];
   const [processingMessageIndex, setProcessingMessageIndex] = useState(0);
   const [_messageQueue, setMessageQueue] = useState([]);
