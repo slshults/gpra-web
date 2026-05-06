@@ -22,6 +22,7 @@ if posthog_api_key:
     posthog_client = Posthog(
         project_api_key=posthog_api_key,
         host=posthog_host,
+        enable_exception_autocapture=True,
         debug=os.getenv('FLASK_ENV') == 'development',
         on_error=lambda e, batch: logger.error(f"PostHog error: {e}")
     )
