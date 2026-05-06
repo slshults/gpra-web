@@ -13,7 +13,6 @@ from sqlalchemy import text
 from datetime import datetime, timedelta
 import logging
 import os
-import subprocess
 import base64
 import anthropic
 import json
@@ -3877,57 +3876,6 @@ def get_common_chord_by_id(chord_id):
     except Exception as e:
         app.logger.error(f"Error fetching common chord by id={chord_id}: {str(e)}")
         return jsonify({"error": "Failed to fetch chord"}), 500
-
-
-@app.route('/api/open-folder', methods=['POST'])
-def open_folder():
-    """Open a local folder in the platform-appropriate file manager"""
-    try:
-        folder_path = request.json.get('path')
-        if not folder_path:
-            return jsonify({'error': 'No path provided'}), 400
-
-        app.logger.debug(f"Opening folder: {folder_path}")
-
-        # Detect platform and use appropriate command (like sheets version)
-        import platform
-        import os
-        system = platform.system().lower()
-
-        try:
-            # Check if we're in WSL (Windows Subsystem for Linux)
-            is_wsl = os.path.exists('/proc/version') and 'microsoft' in open('/proc/version').read().lower()
-
-            if system == 'windows' or is_wsl:
-                # Windows (including WSL) - use explorer.exe like sheets version
-                windows_path = folder_path.replace('/', '\\')
-                try:
-                    subprocess.run(['explorer.exe', windows_path], check=True)
-                except subprocess.CalledProcessError:
-                    # explorer.exe often returns non-zero exit status even when successful
-                    # If it fails, it usually means the path doesn't exist, but folder still might open
-                    pass  # Consider it successful since explorer behavior is inconsistent
-            elif system == 'darwin':
-                # macOS
-                subprocess.run(['open', folder_path], check=True)
-            elif system == 'linux':
-                # Linux with GUI (X11/Wayland)
-                subprocess.run(['xdg-open', folder_path], check=True)
-            else:
-                return jsonify({'error': f'Unsupported platform: {system}'}), 400
-
-            return jsonify({'success': True, 'platform': system})
-
-        except subprocess.CalledProcessError as e:
-            app.logger.error(f"Failed to open folder on {system}: {str(e)}")
-            return jsonify({'error': f'Failed to open folder: {str(e)}'}), 500
-        except FileNotFoundError as e:
-            app.logger.error(f"File manager not found on {system}: {str(e)}")
-            return jsonify({'error': f'File manager not available on {system}'}), 500
-
-    except Exception as e:
-        app.logger.error(f"Error in open_folder: {str(e)}")
-        return jsonify({'error': str(e)}), 500
 
 
 # Autocreate helper functions
