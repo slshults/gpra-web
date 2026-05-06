@@ -136,6 +136,25 @@ start_process() {
 # Trap cleanup function for script termination
 trap cleanup SIGINT SIGTERM EXIT
 
+# Restore PostHog Code symlinks before its session starts (Windows side).
+# Agents are enumerated at PostHog Code session creation, so the symlinks
+# (~/.claude/agents/* → user-skills plugin dir) must be in place before we
+# launch it. Running it from gpr.sh guarantees that, since Steven always
+# starts the dev server before opening PostHog Code.
+#
+# pwsh.exe lives on the WSL PATH by default. If it's missing (e.g. running
+# from a non-WSL Linux env), warn and continue — this is non-fatal.
+if command -v pwsh.exe >/dev/null 2>&1; then
+    echo -e "${BLUE}Restoring PostHog Code user-skills symlinks...${NC}"
+    if pwsh.exe -NoProfile -File 'C:\Users\artem\.claude\scripts\restore-posthog-code-symlinks.ps1' >/dev/null 2>&1; then
+        echo -e "${GREEN}PostHog Code symlinks OK${NC}"
+    else
+        echo -e "${YELLOW}PostHog Code symlink restore failed (non-fatal — continuing)${NC}"
+    fi
+else
+    echo -e "${YELLOW}pwsh.exe not found — skipping PostHog Code symlink restore${NC}"
+fi
+
 # Load nvm
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
