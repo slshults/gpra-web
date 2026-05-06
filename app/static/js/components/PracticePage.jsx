@@ -616,9 +616,20 @@ export const PracticePage = () => {
     "If a chord comes out non-standard, that's probably correct. Probably.",
     "Counting fret lines... 1, 2, 3... is that a smudge or a fourth line? This is what I went to AI school for.",
     "Other AI assistants are out there writing poetry. I'm counting fret lines.",
-    "There's a '7fr' in the corner of this one. Pretending I don't see it.",
-    "You can fix any chord in about 4 seconds with the pencil icon, just FYI.",
-    "Six strings, six strings, six strings. Don't let me forget."
+    "If I get something wrong, You can fix any chord in a few seconds with the pencil icon, just FYI.",
+    "Six strings, six strings, six strings. Don't let me forget...",
+    "Negotiating with your pinky to see if it'll cooperate on that 4th-fret stretch",
+    "That chord has like 47 valid voicings. I'm picking one. You're welcome.",
+    "Tab purists are already mad at me and I haven't even finished yet",
+    "Pretending I don't see that this whole thing would be easier with a capo on 2",
+    "Translating 'how the song sounds' into 'where your fingers should go.' Surprisingly different languages.",
+    "This one's a barre chord. Apologies in advance to your index finger.",
+    "I could explain the harmonic theory behind this voicing, but you came here for the dots",
+    "Don't tell anyone I had to double-check what a Cadd9/F# was",
+    "Reminder: a chord chart is a polite suggestion, not a binding contract",
+    "Your online guitar teacher would have charged you by the song on Patreon for these",
+    "Drawing chords that aren't power chords. Such variety. Much wow.",
+    "Counting frets from the top, even though my training data keeps trying to count from the bottom"
   ];
 
   // Helper function to group chords into sections based on persisted metadata
