@@ -4579,14 +4579,15 @@ DIAGRAM_DETECTION_DEFAULTS = {
     'dark_threshold': 200,       # grayscale value below which a pixel counts as ink
     'row_min_height_frac': 0.03, # ignore ink bands shorter than this (filters page numbers/noise)
     'row_gap_min_frac': 0.012,   # minimum quiet gap between rows
-    'col_min_width_frac': 0.02,  # ignore ink columns narrower than this (filters specks)
-    'col_gap_min_frac': 0.003,   # minimum quiet gap between diagrams within a row
-                                 # (was 0.008; lowered after AlmostCutMyHair file showed
-                                 # diagrams with 9px gaps. Drop C has ~75px gaps, so 0.003
-                                 # works for both. Internal grid columns always have ≥1 dark
-                                 # pixel from horizontal fret lines so no fragmentation risk.)
     'row_pad_frac': 0.01,        # padding added above/below detected row bands
-    'col_pad_frac': 0.005,       # padding added left/right of detected column bands
+    'col_pad_frac': 0.005,       # padding added left/right of detected per-panel bboxes
+    # String-based per-panel detection (Step 2):
+    'string_dark_threshold': 100, # pixel grayscale < this counts as "dark" for string detection
+                                  # (independent of dark_threshold which controls ink-mask polarity)
+    'string_max_width_frac': 0.005, # max width of a stripe to count as a string (relative to image width)
+                                    # 0.005 = 5px on a 1000px image; fits typical 1-3px string lines
+                                    # plus a margin for anti-aliasing.
+    'strings_per_panel': 6,         # guitar (and most chord charts) have 6 strings per diagram
 }
 
 
@@ -4597,20 +4598,26 @@ def _detect_diagram_rows_and_bboxes(pil_image, overrides=None, **kwargs):
     (0.0-1.0) coordinates, in reading order (top-to-bottom, then left-to-right).
 
     Strategy:
-      1. Project ink onto the Y axis (sum of dark pixels per row).
-      2. Find horizontal bands of ink separated by quiet whitespace gaps → rows.
-      3. Within each row's y-band, project ink onto the X axis and find
-         vertical bands separated by gaps → individual diagrams.
-    Empirically this is far more reliable than asking the model for coordinates,
-    which it has historically hallucinated by copying example numbers.
+      1. Detect background polarity from corner pixels (light bg vs. dark-mode export).
+      2. Build an ink mask (panel area for dark-bg, content for light-bg). Project onto Y
+         axis to find horizontal row bands separated by quiet gaps.
+      3. Within each row band, find the horizontal scanline that crosses the most narrow
+         dark vertical stripes — those are the strings. Group every N=6 stripes into a
+         panel using a "natural break" gap analysis (the algorithm picks the gap-threshold
+         that maximises the number of exactly-6-string groups). This handles the case
+         where adjacent panels touch with no inter-panel pixel gap (e.g., dark-mode Word
+         exports where panels are pasted side-by-side with no border).
+
+    Counting strings instead of relying on inter-panel gaps was Steven's idea, and it
+    sidesteps the "touching panels merge into one big blob" failure mode that breaks
+    projection-based and connected-component approaches alike.
 
     Thresholds are taken from DIAGRAM_DETECTION_DEFAULTS and can be overridden by
-    passing an `overrides` dict or individual kwargs. See DIAGRAM_DETECTION_DEFAULTS
-    for the full list of tunables and their meanings.
+    passing an `overrides` dict or individual kwargs.
     """
     import numpy as np
+    from collections import Counter
 
-    # Merge overrides: kwargs win over overrides dict, both win over defaults.
     params = dict(DIAGRAM_DETECTION_DEFAULTS)
     if overrides:
         params.update(overrides)
@@ -4619,28 +4626,37 @@ def _detect_diagram_rows_and_bboxes(pil_image, overrides=None, **kwargs):
     dark_threshold = params['dark_threshold']
     row_min_height_frac = params['row_min_height_frac']
     row_gap_min_frac = params['row_gap_min_frac']
-    col_min_width_frac = params['col_min_width_frac']
-    col_gap_min_frac = params['col_gap_min_frac']
     row_pad_frac = params['row_pad_frac']
     col_pad_frac = params['col_pad_frac']
+    string_dark_threshold = params['string_dark_threshold']
+    string_max_width_frac = params['string_max_width_frac']
+    strings_per_panel = params['strings_per_panel']
 
     w, h = pil_image.size
     gray = np.array(pil_image.convert('L'))
-    ink = gray < dark_threshold  # boolean mask: True where there's ink
+
+    # ---- Background polarity detection ----
+    # Corner pixels are almost always page background. Median across the four corners
+    # is robust against a single corner clipped by content. Dark median (< 128) → page
+    # is dark, panels are white; we invert the ink mask so panel area projects as ink.
+    corner_samples = [gray[0, 0], gray[0, -1], gray[-1, 0], gray[-1, -1]]
+    bg_is_dark = float(np.median(corner_samples)) < 128
+    if bg_is_dark:
+        ink = gray > (255 - dark_threshold)
+        app.logger.info("[AUTOCREATE-CROP] Dark background detected; inverting ink mask")
+    else:
+        ink = gray < dark_threshold
 
     # ---- Step 1: row detection ----
-    row_ink = ink.sum(axis=1)  # ink-pixel count per image row
-    # A row counts as "has ink" if it has more than a tiny noise floor.
-    # Use 1% of (image width) as a noise floor — filters specks but keeps real content.
+    row_ink = ink.sum(axis=1)
     row_noise_floor = max(2, int(w * 0.01))
     row_has_ink = row_ink > row_noise_floor
 
-    # Group consecutive ink rows into bands, separated by gaps of >= row_gap_min_frac * h.
     row_gap_min_px = max(2, int(h * row_gap_min_frac))
     row_min_height_px = max(2, int(h * row_min_height_frac))
     row_pad_px = max(1, int(h * row_pad_frac))
 
-    row_bands = []  # list of (y1_px, y2_px)
+    row_bands = []
     in_band = False
     band_start = 0
     gap_run = 0
@@ -4664,61 +4680,131 @@ def _detect_diagram_rows_and_bboxes(pil_image, overrides=None, **kwargs):
         if (band_end - band_start) >= row_min_height_px:
             row_bands.append((band_start, band_end))
 
-    # Pad rows vertically (clamped to image bounds).
     padded_rows = []
     for (y1_px, y2_px) in row_bands:
         py1 = max(0, y1_px - row_pad_px)
         py2 = min(h, y2_px + row_pad_px + 1)
         padded_rows.append((py1, py2))
 
-    # ---- Step 2: per-diagram detection within each row ----
-    col_gap_min_px = max(2, int(w * col_gap_min_frac))
-    col_min_width_px = max(2, int(w * col_min_width_frac))
+    # ---- Step 2: per-panel detection by counting strings ----
+    string_max_width_px = max(3, int(w * string_max_width_frac))
     col_pad_px = max(1, int(w * col_pad_frac))
-    col_noise_floor = max(2, int(h * 0.005))  # tiny — we already filtered to ink rows
+
+    # Strings on chord diagrams are always dark lines on a white panel, regardless of
+    # page background polarity (the Word-dark-mode workflow inverts the page bg but not
+    # the inserted SVG panels). So string detection looks for narrow DARK stripes.
+    def _detect_string_stripes(y1_px, y2_px):
+        """Find the horizontal scanline within [y1, y2) that crosses the most narrow
+        dark stripes. Return list of (x_start, x_end) for each detected stripe.
+        Strings span the full panel height, so the right scanline crosses every string.
+        Step through y so we land on a row that's between fret lines (not on one)."""
+        best_stripes = []
+        # Step ~3px through the inner 80% of the band; skip outer 10% (labels, finger numbers).
+        margin = max(2, (y2_px - y1_px) // 10)
+        step = max(1, min(3, (y2_px - y1_px) // 8))
+        for y in range(y1_px + margin, y2_px - margin, step):
+            scan = gray[y, :]
+            is_dark = scan < string_dark_threshold
+            stripes = []
+            in_run = False
+            sx = 0
+            for x in range(w):
+                if is_dark[x]:
+                    if not in_run:
+                        in_run = True
+                        sx = x
+                else:
+                    if in_run:
+                        if 1 <= (x - sx) <= string_max_width_px:
+                            stripes.append((sx, x))
+                        in_run = False
+            if in_run and 1 <= (w - sx) <= string_max_width_px:
+                stripes.append((sx, w))
+            if len(stripes) > len(best_stripes):
+                best_stripes = stripes
+        return best_stripes
+
+    def _group_into_panels(stripes):
+        """Group string positions into panels of `strings_per_panel`. Try every candidate
+        threshold (midpoint of consecutive sorted gaps) and pick the one that maximises
+        the count of exactly-N-string groups. Falls back to splitting at the largest gap
+        when no threshold yields a clean grouping. Returns a list of stripe lists."""
+        if len(stripes) < strings_per_panel:
+            return []
+        centers = [(a + b) / 2.0 for (a, b) in stripes]
+        gaps = [centers[i + 1] - centers[i] for i in range(len(centers) - 1)]
+        if not gaps:
+            return [list(stripes)]
+
+        sorted_g = sorted(gaps)
+        candidates = sorted({(sorted_g[i] + sorted_g[i + 1]) / 2
+                             for i in range(len(sorted_g) - 1)
+                             if sorted_g[i + 1] > sorted_g[i]})
+        if not candidates:
+            return [list(stripes)]
+
+        def split(threshold):
+            out = []
+            cur = [stripes[0]]
+            for i, gap in enumerate(gaps):
+                if gap > threshold:
+                    out.append(cur)
+                    cur = [stripes[i + 1]]
+                else:
+                    cur.append(stripes[i + 1])
+            out.append(cur)
+            return out
+
+        best_key = None
+        best_groups = None
+        for t in candidates:
+            gs = split(t)
+            score = sum(1 for g in gs if len(g) == strings_per_panel)
+            # Prefer more N-sized groups; tiebreak by more groups (finer split);
+            # second tiebreak by smaller threshold (preserves real boundaries).
+            key = (score, len(gs), -t)
+            if best_key is None or key > best_key:
+                best_key = key
+                best_groups = gs
+        return best_groups or []
 
     detected_rows = []
     for (y1_px, y2_px) in padded_rows:
-        row_slice = ink[y1_px:y2_px, :]
-        col_ink = row_slice.sum(axis=0)
-        col_has_ink = col_ink > col_noise_floor
+        stripes = _detect_string_stripes(y1_px, y2_px)
+        if len(stripes) < strings_per_panel:
+            # Not enough strings to form even one panel — title rows, decorative bands, etc.
+            continue
+        groups = _group_into_panels(stripes)
+        if not groups:
+            continue
 
-        col_bands = []
-        in_band = False
-        band_start = 0
-        gap_run = 0
-        for x in range(w):
-            if col_has_ink[x]:
-                if not in_band:
-                    in_band = True
-                    band_start = x
-                gap_run = 0
-            else:
-                if in_band:
-                    gap_run += 1
-                    if gap_run >= col_gap_min_px:
-                        band_end = x - gap_run
-                        if (band_end - band_start) >= col_min_width_px:
-                            col_bands.append((band_start, band_end))
-                        in_band = False
-                        gap_run = 0
-        if in_band:
-            band_end = w - 1
-            if (band_end - band_start) >= col_min_width_px:
-                col_bands.append((band_start, band_end))
+        # Reject bands where the dominant group size isn't N. This filters out title
+        # rows and decorative bands whose letter strokes look like narrow dark stripes
+        # but cluster into 1-2-string "panels" rather than 6-string chord diagrams.
+        sizes = [len(g) for g in groups]
+        mode_size, _ = Counter(sizes).most_common(1)[0]
+        if mode_size != strings_per_panel:
+            continue
 
-        # Build normalized bboxes for this row's diagrams.
         row_bboxes = []
-        for (x1_px, x2_px) in col_bands:
-            px1 = max(0, x1_px - col_pad_px)
-            px2 = min(w, x2_px + col_pad_px + 1)
+        for grp in groups:
+            # Skip groups outside [N-1, N+1] — usually 1-2-string clusters of label
+            # noise sandwiched between real panels. Real chord diagrams are always
+            # 6 strings; ±1 absorbs single false-positive or single missed-detection.
+            if not (strings_per_panel - 1 <= len(grp) <= strings_per_panel + 1):
+                continue
+            x_first = grp[0][0]
+            x_last = grp[-1][1]
+            px1 = max(0, x_first - col_pad_px)
+            px2 = min(w, x_last + col_pad_px + 1)
             row_bboxes.append((
                 px1 / w,
                 y1_px / h,
                 px2 / w,
                 y2_px / h,
             ))
-        detected_rows.append(row_bboxes)
+        if row_bboxes:
+            detected_rows.append(row_bboxes)
 
     return detected_rows
 
