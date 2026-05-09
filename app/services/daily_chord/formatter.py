@@ -6,7 +6,7 @@ build platform-specific payloads (BlueSky facets, Facebook Graph fields).
 import os
 import unicodedata
 from typing import List, Optional, TypedDict
-from urllib.parse import quote
+from urllib.parse import urlencode
 
 
 # BlueSky's hard limit on post length, measured in user-perceived characters.
@@ -33,13 +33,36 @@ class PostPayload(TypedDict):
     chord_byte_end: int
 
 
-def build_share_url(chord_name: str, common_chord_id: Optional[int], base_url: str) -> str:
-    """Prefer ?id=N (precise voicing). Fall back to ?chord=NAME when no id."""
+def build_share_url(
+    chord_name: str,
+    common_chord_id: Optional[int],
+    base_url: str,
+    platform: str,
+) -> str:
+    """Prefer ?id=N (precise voicing). Fall back to ?chord=NAME when no id.
+
+    Appends UTM tags so PostHog can attribute traffic by social platform even
+    when the Referer header is stripped (Facebook, in-app browsers) or the URL
+    passes through a cross-origin redirect (gpra.app → guitarpracticeroutine.com
+    at the proxy layer).
+    """
+    if platform not in ('bluesky', 'facebook'):
+        raise ValueError(f"platform must be 'bluesky' or 'facebook', got {platform!r}")
     base = base_url.rstrip('/')
+    # urlencode handles '#' and '/' in chord names (and the chord-name fallback);
+    # dict insertion order is preserved so the URL is deterministic.
+    params: List[tuple] = []
     if common_chord_id:
-        return f"{base}/find-a-chord-chart?id={common_chord_id}"
-    # quote with safe='' so '/' and '#' in chord names survive round-tripping
-    return f"{base}/find-a-chord-chart?chord={quote(chord_name, safe='')}"
+        params.append(('id', common_chord_id))
+    else:
+        params.append(('chord', chord_name))
+    params.extend([
+        ('utm_source', platform),
+        ('utm_medium', 'social'),
+        ('utm_campaign', 'chord_of_the_day'),
+        ('utm_content', chord_name),
+    ])
+    return f"{base}/find-a-chord-chart?{urlencode(params)}"
 
 
 def _truncate_to_graphemes(s: str, limit: int) -> str:
@@ -120,7 +143,7 @@ def format_post(
         base_url = os.getenv('COTD_BASE_URL', DEFAULT_BASE_URL)
     resolved_hashtags = _resolve_hashtags(hashtags)
 
-    url = build_share_url(chord_name, common_chord_id, base_url)
+    url = build_share_url(chord_name, common_chord_id, base_url, platform)
     display_name = chord_name_for_display(chord_name)
     hashtags_line = ' '.join(resolved_hashtags)
 

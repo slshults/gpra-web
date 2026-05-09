@@ -17,27 +17,73 @@ from app.services.daily_chord.formatter import (
 )
 
 
+# UTM suffix attached by build_share_url. Tests append the chord-specific
+# utm_content value to this prefix.
+BLUESKY_UTM_PREFIX = 'utm_source=bluesky&utm_medium=social&utm_campaign=chord_of_the_day&utm_content='
+FACEBOOK_UTM_PREFIX = 'utm_source=facebook&utm_medium=social&utm_campaign=chord_of_the_day&utm_content='
+
+
 class BuildShareUrlTests(unittest.TestCase):
     def test_id_url_when_id_given(self):
-        url = build_share_url('Cmaj7', 42, 'https://example.com')
-        self.assertEqual(url, 'https://example.com/find-a-chord-chart?id=42')
+        url = build_share_url('Cmaj7', 42, 'https://example.com', platform='bluesky')
+        self.assertEqual(
+            url,
+            f'https://example.com/find-a-chord-chart?id=42&{BLUESKY_UTM_PREFIX}Cmaj7',
+        )
 
     def test_name_url_when_no_id(self):
-        url = build_share_url('Cmaj7', None, 'https://example.com')
-        self.assertEqual(url, 'https://example.com/find-a-chord-chart?chord=Cmaj7')
+        url = build_share_url('Cmaj7', None, 'https://example.com', platform='bluesky')
+        self.assertEqual(
+            url,
+            f'https://example.com/find-a-chord-chart?chord=Cmaj7&{BLUESKY_UTM_PREFIX}Cmaj7',
+        )
 
     def test_strips_trailing_slash_from_base(self):
-        url = build_share_url('Cmaj7', 42, 'https://example.com/')
-        self.assertEqual(url, 'https://example.com/find-a-chord-chart?id=42')
+        url = build_share_url('Cmaj7', 42, 'https://example.com/', platform='bluesky')
+        self.assertEqual(
+            url,
+            f'https://example.com/find-a-chord-chart?id=42&{BLUESKY_UTM_PREFIX}Cmaj7',
+        )
 
     def test_quotes_special_chars_in_name(self):
         # '#' and '/' need URL-encoding to survive query parsing
-        url = build_share_url('C#m7b5', None, 'https://example.com')
+        url = build_share_url('C#m7b5', None, 'https://example.com', platform='bluesky')
         self.assertIn('%23', url)
         self.assertIn('chord=', url)
 
-        url = build_share_url('C/E', None, 'https://example.com')
+        url = build_share_url('C/E', None, 'https://example.com', platform='bluesky')
         self.assertIn('%2F', url)
+
+    def test_facebook_platform_emits_facebook_utm_source(self):
+        url = build_share_url('Cmaj7', 42, 'https://example.com', platform='facebook')
+        self.assertIn('utm_source=facebook', url)
+        self.assertNotIn('utm_source=bluesky', url)
+
+    def test_bluesky_platform_emits_bluesky_utm_source(self):
+        url = build_share_url('Cmaj7', 42, 'https://example.com', platform='bluesky')
+        self.assertIn('utm_source=bluesky', url)
+        self.assertNotIn('utm_source=facebook', url)
+
+    def test_utm_content_url_encodes_sharp_in_chord_name(self):
+        # 'A#5' should appear as utm_content=A%235
+        url = build_share_url('A#5', 71, 'https://example.com', platform='bluesky')
+        self.assertIn('utm_content=A%235', url)
+
+    def test_utm_content_url_encodes_slash_in_chord_name(self):
+        # 'C/E' should appear as utm_content=C%2FE
+        url = build_share_url('C/E', 200, 'https://example.com', platform='facebook')
+        self.assertIn('utm_content=C%2FE', url)
+
+    def test_unknown_platform_raises(self):
+        with self.assertRaises(ValueError):
+            build_share_url('Cmaj7', 42, 'https://example.com', platform='twitter')
+
+    def test_all_four_utm_dimensions_present(self):
+        url = build_share_url('G', 1, 'https://example.com', platform='bluesky')
+        self.assertIn('utm_source=', url)
+        self.assertIn('utm_medium=social', url)
+        self.assertIn('utm_campaign=chord_of_the_day', url)
+        self.assertIn('utm_content=G', url)
 
 
 class FormatPostTests(unittest.TestCase):
@@ -45,7 +91,11 @@ class FormatPostTests(unittest.TestCase):
         post = format_post('Cmaj7', 42, base_url='https://example.com')
         self.assertEqual(post['chord_name'], 'Cmaj7')
         self.assertIn('Cmaj7', post['text'])
-        self.assertEqual(post['url'], 'https://example.com/find-a-chord-chart?id=42')
+        # Default platform is bluesky, so UTMs reflect that.
+        self.assertEqual(
+            post['url'],
+            f'https://example.com/find-a-chord-chart?id=42&{BLUESKY_UTM_PREFIX}Cmaj7',
+        )
         self.assertEqual(post['hashtags'], DEFAULT_HASHTAGS)
 
     def test_text_contains_chord_of_the_day_heading(self):
@@ -94,7 +144,10 @@ class FormatPostTests(unittest.TestCase):
 
     def test_falls_back_to_chord_name_url_when_no_id(self):
         post = format_post('Cmaj7', None, base_url='https://example.com')
-        self.assertEqual(post['url'], 'https://example.com/find-a-chord-chart?chord=Cmaj7')
+        self.assertEqual(
+            post['url'],
+            f'https://example.com/find-a-chord-chart?chord=Cmaj7&{BLUESKY_UTM_PREFIX}Cmaj7',
+        )
 
     def test_explicit_hashtags_override_default(self):
         post = format_post('G', 1, base_url='https://example.com', hashtags=['#foo', '#bar'])
@@ -153,7 +206,11 @@ class FormatPostTests(unittest.TestCase):
     def test_chord_with_slash_uses_id_url_when_id_given(self):
         # 'C/E' has a '/' but with a real id we should still use ?id=N
         post = format_post('C/E', 200, base_url='https://example.com')
-        self.assertEqual(post['url'], 'https://example.com/find-a-chord-chart?id=200')
+        # utm_content URL-encodes the slash → 'C/E' becomes 'C%2FE'
+        self.assertEqual(
+            post['url'],
+            f'https://example.com/find-a-chord-chart?id=200&{BLUESKY_UTM_PREFIX}C%2FE',
+        )
 
     def test_chord_with_slash_falls_back_to_encoded_name(self):
         post = format_post('C/E', None, base_url='https://example.com')
@@ -177,7 +234,11 @@ class FormatPostTests(unittest.TestCase):
 
     def test_url_id_form_unaffected_by_sharp_substitution(self):
         post = format_post('A#5', 71, base_url='https://example.com')
-        self.assertEqual(post['url'], 'https://example.com/find-a-chord-chart?id=71')
+        # utm_content URL-encodes the literal '#' as '%23'
+        self.assertEqual(
+            post['url'],
+            f'https://example.com/find-a-chord-chart?id=71&{BLUESKY_UTM_PREFIX}A%235',
+        )
 
     def test_url_name_fallback_uses_literal_hash_encoded(self):
         # When falling back to ?chord=NAME, must use '#' (encoded) so the

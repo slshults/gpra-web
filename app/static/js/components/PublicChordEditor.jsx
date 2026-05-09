@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { ChordChartEditor } from '@components/ChordChartEditor';
 
 const PublicChordEditor = () => {
@@ -17,6 +17,23 @@ const PublicChordEditor = () => {
       initialChordName: id ? null : (name || null),
     };
   }, []);
+
+  // Capture deep-link arrivals so we can see which chords social posts (and any
+  // other inbound link) are driving lookups for. UTM params from the daily-post
+  // formatter are auto-attached by PostHog. Ref-guarded against StrictMode's
+  // dev-only double-invocation.
+  const lookupCapturedRef = useRef(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (initialChordId == null && !initialChordName) return;
+    if (lookupCapturedRef.current) return;
+    lookupCapturedRef.current = true;
+    window.posthog?.capture('chord_lookup', {
+      lookup_source: initialChordId != null ? 'deep_link_id' : 'deep_link_name',
+      common_chord_id: initialChordId,
+      chord_name: initialChordName,
+    });
+  }, [initialChordId, initialChordName]);
 
   const handleClear = () => {
     setEditorKey(prev => prev + 1);
