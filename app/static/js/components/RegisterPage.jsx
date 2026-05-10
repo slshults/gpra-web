@@ -209,6 +209,11 @@ const RegisterPage = () => {
               billing_period: authData.billing_period,
               oauth_providers: authData.oauth_providers || []
             });
+
+            // Sign the support widget's identity so tickets stay tied to the verified user
+            if (authData.posthog_identity_hash && typeof window.posthog.setIdentity === 'function') {
+              window.posthog.setIdentity(authData.posthog_distinct_id, authData.posthog_identity_hash);
+            }
           }
         } catch (err) {
           console.error('Failed to identify user with PostHog:', err);

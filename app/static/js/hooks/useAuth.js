@@ -46,6 +46,10 @@ export const useAuth = () => {
     if (window.posthog && typeof window.posthog.reset === 'function') {
       window.posthog.reset(true);
     }
+    // Clear the support widget's signed identity so the next user can't inherit verified state
+    if (window.posthog && typeof window.posthog.clearIdentity === 'function') {
+      window.posthog.clearIdentity();
+    }
     // Allow PostHog's persistence layer to clear before navigating away
     setTimeout(() => {
       // Custom logout endpoint that redirects to /login (trailing slash required by Flask route)
