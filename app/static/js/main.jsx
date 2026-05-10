@@ -18,6 +18,7 @@ import ImpersonationBanner from '@components/ImpersonationBanner';
 import KofiWidget from '@components/KofiWidget';
 import AutocreateWatcher from '@components/AutocreateWatcher';
 import StatsPage from '@components/StatsPage';
+import ErrorBoundary from '@components/ErrorBoundary';
 import { useLightweightItems } from '@hooks/useLightweightItems';
 import { setUserContext } from './utils/analytics';
 
@@ -226,8 +227,10 @@ const App = () => {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <NavigationProvider>
-      <App />
-    </NavigationProvider>
+    <ErrorBoundary>
+      <NavigationProvider>
+        <App />
+      </NavigationProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );
