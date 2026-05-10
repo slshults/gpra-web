@@ -4581,13 +4581,35 @@ DIAGRAM_DETECTION_DEFAULTS = {
     'row_gap_min_frac': 0.012,   # minimum quiet gap between rows
     'row_pad_frac': 0.01,        # padding added above/below detected row bands
     'col_pad_frac': 0.005,       # padding added left/right of detected per-panel bboxes
-    # String-based per-panel detection (Step 2):
+    # Light-bg per-panel detection (column projection):
+    'col_min_width_frac': 0.02,  # ignore ink columns narrower than this (filters specks)
+    'col_gap_min_frac': 0.003,   # minimum quiet gap between diagrams within a row.
+                                 # Some real-world charts pack diagrams as close as ~9px;
+                                 # others use ~75px gaps. 0.003 covers both. Internal grid
+                                 # columns always have ≥1 dark pixel from horizontal fret
+                                 # lines so a low threshold doesn't fragment a single panel.
+    # Dark-bg per-panel detection (string counting):
     'string_dark_threshold': 100, # pixel grayscale < this counts as "dark" for string detection
                                   # (independent of dark_threshold which controls ink-mask polarity)
     'string_max_width_frac': 0.005, # max width of a stripe to count as a string (relative to image width)
                                     # 0.005 = 5px on a 1000px image; fits typical 1-3px string lines
                                     # plus a margin for anti-aliasing.
     'strings_per_panel': 6,         # guitar (and most chord charts) have 6 strings per diagram
+    # Inverted-panels path (light page, dark panels — e.g. dark-mode Word exports
+    # where panel SVGs were inverted to dark fill but the page bg stayed white):
+    'inverted_center_frac': 0.4,    # central rectangle (W×H fraction) sampled to detect
+                                    # "dark panels on light page" via median grayscale
+    'inverted_row_gap_min_frac': 0.01,  # row gap threshold for inverted path. Lower than
+                                        # default 0.012 because dark-panel rows in this
+                                        # layout commonly separate by only ~37px white at
+                                        # 300dpi — too narrow for the default to register.
+    'inverted_string_light_threshold': 50,  # pixel grayscale > this counts as a "light"
+                                            # string stripe on a dark panel. Lower than
+                                            # 255-string_dark_threshold (=155) because
+                                            # SVG-rendered strings on dark panels can peak
+                                            # as low as gray~99, but panel interiors render
+                                            # essentially black (gray=0), so any threshold
+                                            # above noise reliably distinguishes the two.
 }
 
 
@@ -4598,19 +4620,27 @@ def _detect_diagram_rows_and_bboxes(pil_image, overrides=None, **kwargs):
     (0.0-1.0) coordinates, in reading order (top-to-bottom, then left-to-right).
 
     Strategy:
-      1. Detect background polarity from corner pixels (light bg vs. dark-mode export).
-      2. Build an ink mask (panel area for dark-bg, content for light-bg). Project onto Y
-         axis to find horizontal row bands separated by quiet gaps.
-      3. Within each row band, find the horizontal scanline that crosses the most narrow
-         dark vertical stripes — those are the strings. Group every N=6 stripes into a
-         panel using a "natural break" gap analysis (the algorithm picks the gap-threshold
-         that maximises the number of exactly-6-string groups). This handles the case
-         where adjacent panels touch with no inter-panel pixel gap (e.g., dark-mode Word
-         exports where panels are pasted side-by-side with no border).
+      1. Detect layout polarity from BOTH corner pixels and a central content sample:
+         - 'light':    light corners + light center  → light page, light panels
+         - 'dark':     dark corners                  → dark page, white panels (inverted)
+         - 'inverted': light corners + dark center   → light page, DARK panels (the
+                       "dark-mode Word export where panel SVGs were inverted to dark fill
+                       but the page bg stayed white" case)
+      2. Build an ink mask (panel area for dark/inverted, content for light). Project
+         onto Y axis to find horizontal row bands separated by quiet gaps.
+      3. Per-panel detection branches on polarity:
+         - 'light':    project ink onto X axis within each row, find vertical bands
+                       separated by whitespace gaps. Reliable when inter-panel gaps
+                       are clean.
+         - 'dark':     scan for narrow DARK vertical stripes (strings on white panels)
+                       and group every N=6 into a panel. Handles touching panels.
+         - 'inverted': scan for narrow LIGHT vertical stripes (strings on dark panels)
+                       and group every N=6 into a panel. Same touching-panels logic
+                       as 'dark' but with inverted stripe polarity.
 
-    Counting strings instead of relying on inter-panel gaps was Steven's idea, and it
-    sidesteps the "touching panels merge into one big blob" failure mode that breaks
-    projection-based and connected-component approaches alike.
+    The string-counting paths exist because adjacent panels can touch with no clean
+    pixel gap (Word/SVG paste-ups). On light-on-light layouts column projection is
+    more robust because chord-name text glyphs would otherwise look like stripes.
 
     Thresholds are taken from DIAGRAM_DETECTION_DEFAULTS and can be overridden by
     passing an `overrides` dict or individual kwargs.
@@ -4628,22 +4658,62 @@ def _detect_diagram_rows_and_bboxes(pil_image, overrides=None, **kwargs):
     row_gap_min_frac = params['row_gap_min_frac']
     row_pad_frac = params['row_pad_frac']
     col_pad_frac = params['col_pad_frac']
+    col_min_width_frac = params['col_min_width_frac']
+    col_gap_min_frac = params['col_gap_min_frac']
     string_dark_threshold = params['string_dark_threshold']
     string_max_width_frac = params['string_max_width_frac']
     strings_per_panel = params['strings_per_panel']
+    inverted_center_frac = params['inverted_center_frac']
+    inverted_row_gap_min_frac = params['inverted_row_gap_min_frac']
+    inverted_string_light_threshold = params['inverted_string_light_threshold']
 
     w, h = pil_image.size
     gray = np.array(pil_image.convert('L'))
 
     # ---- Background polarity detection ----
-    # Corner pixels are almost always page background. Median across the four corners
-    # is robust against a single corner clipped by content. Dark median (< 128) → page
-    # is dark, panels are white; we invert the ink mask so panel area projects as ink.
+    # Corner pixels are almost always page background; the central rectangle is almost
+    # always content. Three layouts to distinguish:
+    #   'dark':     dark corners                       → dark page, white panels.
+    #   'inverted': light corners + dark center        → light page, DARK panels (a
+    #               dark-mode export pattern where panel SVG fills got inverted but the
+    #               page bg stayed white). Treat panel interior as ink and scan for
+    #               LIGHT strings within rows.
+    #   'light':    light corners + light/mixed center → conventional light-on-light layout.
     corner_samples = [gray[0, 0], gray[0, -1], gray[-1, 0], gray[-1, -1]]
-    bg_is_dark = float(np.median(corner_samples)) < 128
-    if bg_is_dark:
+    corner_median = float(np.median(corner_samples))
+    cy1 = int(h * (1 - inverted_center_frac) / 2)
+    cy2 = int(h * (1 + inverted_center_frac) / 2)
+    cx1 = int(w * (1 - inverted_center_frac) / 2)
+    cx2 = int(w * (1 + inverted_center_frac) / 2)
+    center_median = float(np.median(gray[cy1:cy2, cx1:cx2]))
+
+    if corner_median < 128:
+        polarity = 'dark'
+    elif center_median < 128:
+        polarity = 'inverted'
+    else:
+        polarity = 'light'
+
+    if polarity == 'dark':
+        # Page bg is dark, so the page surface itself is "ink-free"; panel area is light
+        # and shows up when we invert the threshold.
         ink = gray > (255 - dark_threshold)
-        app.logger.info("[AUTOCREATE-CROP] Dark background detected; inverting ink mask")
+        app.logger.info(
+            "[AUTOCREATE-CROP] Dark background detected (corner_median=%.0f); inverting ink mask",
+            corner_median,
+        )
+    elif polarity == 'inverted':
+        # Page bg is light but panels are filled dark → standard `gray < threshold` mask
+        # already makes panels project as ink. Use a tighter row-gap threshold because
+        # adjacent dark-panel rows can be separated by white slivers as narrow as ~37px
+        # at 300dpi, which the default 0.012 frac would merge.
+        ink = gray < dark_threshold
+        row_gap_min_frac = inverted_row_gap_min_frac
+        app.logger.info(
+            "[AUTOCREATE-CROP] Inverted-panel layout detected "
+            "(corner_median=%.0f, center_median=%.0f); using string-counting on light stripes",
+            corner_median, center_median,
+        )
     else:
         ink = gray < dark_threshold
 
@@ -4686,43 +4756,68 @@ def _detect_diagram_rows_and_bboxes(pil_image, overrides=None, **kwargs):
         py2 = min(h, y2_px + row_pad_px + 1)
         padded_rows.append((py1, py2))
 
-    # ---- Step 2: per-panel detection by counting strings ----
-    string_max_width_px = max(3, int(w * string_max_width_frac))
+    # ---- Step 2: per-panel detection ----
     col_pad_px = max(1, int(w * col_pad_frac))
 
-    # Strings on chord diagrams are always dark lines on a white panel, regardless of
-    # page background polarity (the Word-dark-mode workflow inverts the page bg but not
-    # the inserted SVG panels). So string detection looks for narrow DARK stripes.
-    def _detect_string_stripes(y1_px, y2_px):
-        """Find the horizontal scanline within [y1, y2) that crosses the most narrow
-        dark stripes. Return list of (x_start, x_end) for each detected stripe.
-        Strings span the full panel height, so the right scanline crosses every string.
-        Step through y so we land on a row that's between fret lines (not on one)."""
-        best_stripes = []
-        # Step ~3px through the inner 80% of the band; skip outer 10% (labels, finger numbers).
-        margin = max(2, (y2_px - y1_px) // 10)
-        step = max(1, min(3, (y2_px - y1_px) // 8))
-        for y in range(y1_px + margin, y2_px - margin, step):
-            scan = gray[y, :]
-            is_dark = scan < string_dark_threshold
-            stripes = []
-            in_run = False
-            sx = 0
+    if polarity == 'light':
+        # Light bg: column projection within each row. Inter-panel gaps are clean
+        # whitespace; string counting gets confused by chord-name text glyphs.
+        col_gap_min_px = max(2, int(w * col_gap_min_frac))
+        col_min_width_px = max(2, int(w * col_min_width_frac))
+        col_noise_floor = max(2, int(h * 0.005))
+
+        detected_rows = []
+        for (y1_px, y2_px) in padded_rows:
+            row_slice = ink[y1_px:y2_px, :]
+            col_ink = row_slice.sum(axis=0)
+            col_has_ink = col_ink > col_noise_floor
+
+            col_bands = []
+            in_band = False
+            band_start = 0
+            gap_run = 0
             for x in range(w):
-                if is_dark[x]:
-                    if not in_run:
-                        in_run = True
-                        sx = x
+                if col_has_ink[x]:
+                    if not in_band:
+                        in_band = True
+                        band_start = x
+                    gap_run = 0
                 else:
-                    if in_run:
-                        if 1 <= (x - sx) <= string_max_width_px:
-                            stripes.append((sx, x))
-                        in_run = False
-            if in_run and 1 <= (w - sx) <= string_max_width_px:
-                stripes.append((sx, w))
-            if len(stripes) > len(best_stripes):
-                best_stripes = stripes
-        return best_stripes
+                    if in_band:
+                        gap_run += 1
+                        if gap_run >= col_gap_min_px:
+                            band_end = x - gap_run
+                            if (band_end - band_start) >= col_min_width_px:
+                                col_bands.append((band_start, band_end))
+                            in_band = False
+                            gap_run = 0
+            if in_band:
+                band_end = w - 1
+                if (band_end - band_start) >= col_min_width_px:
+                    col_bands.append((band_start, band_end))
+
+            row_bboxes = []
+            for (x1_px, x2_px) in col_bands:
+                px1 = max(0, x1_px - col_pad_px)
+                px2 = min(w, x2_px + col_pad_px + 1)
+                row_bboxes.append((
+                    px1 / w,
+                    y1_px / h,
+                    px2 / w,
+                    y2_px / h,
+                ))
+            detected_rows.append(row_bboxes)
+
+        return detected_rows
+
+    # Dark or inverted: count narrow vertical stripes (strings) and group every N into
+    # a panel. This handles the touching-panels case where projection-based detection
+    # would merge adjacent panels into one band.
+    #
+    # For polarity == 'dark'     (white panels on dark page) → strings are DARK lines.
+    # For polarity == 'inverted' (dark panels on light page) → strings are LIGHT lines.
+    string_max_width_px = max(3, int(w * string_max_width_frac))
+    looking_for_dark = (polarity == 'dark')
 
     def _group_into_panels(stripes):
         """Group string positions into panels of `strings_per_panel`. Try every candidate
@@ -4768,6 +4863,59 @@ def _detect_diagram_rows_and_bboxes(pil_image, overrides=None, **kwargs):
                 best_groups = gs
         return best_groups or []
 
+    def _detect_string_stripes(y1_px, y2_px):
+        """Find a horizontal scanline within [y1, y2) whose narrow stripes group most
+        cleanly into N-string panels. Returns list of (x_start, x_end) for each stripe.
+
+        Strings span the full panel height, so most scanlines through the fret grid
+        cross every string. But near the band edges (chord-name labels at top, finger-
+        number labels at bottom) we get extra narrow stripes from text glyphs that
+        ruin the grouping. Two scanlines can have the same total stripe count yet
+        very different groupability — so rank by (#N-sized groups, total stripes)
+        rather than total stripes alone."""
+        # Margin trims band edges where labels / fingering numbers can produce extra
+        # narrow stripes. Inverted layouts pack panels tightly with bottom labels (e.g.
+        # "x 3 2 1 -") that appear in the same band as the next row's top labels when
+        # rows touch — pull margin in to inner 50% to stay inside the fret grid.
+        margin_frac = 4 if polarity == 'inverted' else 10
+        margin = max(2, (y2_px - y1_px) // margin_frac)
+        step = max(1, min(3, (y2_px - y1_px) // 8))
+        best_key = (-1, -1)  # (n_size_N_groups, total_stripes)
+        best_stripes = []
+        for y in range(y1_px + margin, y2_px - margin, step):
+            scan = gray[y, :]
+            if looking_for_dark:
+                is_stripe = scan < string_dark_threshold
+            else:
+                # Inverted path: light stripes on dark panels. Use a dedicated threshold
+                # because some SVG renderings produce dim string lines (peaks well below
+                # the symmetric 255-string_dark_threshold = 155 cutoff).
+                is_stripe = scan > inverted_string_light_threshold
+            stripes = []
+            in_run = False
+            sx = 0
+            for x in range(w):
+                if is_stripe[x]:
+                    if not in_run:
+                        in_run = True
+                        sx = x
+                else:
+                    if in_run:
+                        if 1 <= (x - sx) <= string_max_width_px:
+                            stripes.append((sx, x))
+                        in_run = False
+            if in_run and 1 <= (w - sx) <= string_max_width_px:
+                stripes.append((sx, w))
+            if len(stripes) < strings_per_panel:
+                continue
+            groups = _group_into_panels(stripes)
+            n_groups_n = sum(1 for g in groups if len(g) == strings_per_panel)
+            key = (n_groups_n, len(stripes))
+            if key > best_key:
+                best_key = key
+                best_stripes = stripes
+        return best_stripes
+
     detected_rows = []
     for (y1_px, y2_px) in padded_rows:
         stripes = _detect_string_stripes(y1_px, y2_px)
@@ -4784,6 +4932,16 @@ def _detect_diagram_rows_and_bboxes(pil_image, overrides=None, **kwargs):
         sizes = [len(g) for g in groups]
         mode_size, _ = Counter(sizes).most_common(1)[0]
         if mode_size != strings_per_panel:
+            continue
+
+        # Reject bands with only one N-sized group: a lone 6-stripe cluster is more
+        # often a coincidence (title-row letter strokes happening to align) than a
+        # real chord-chart row, which has ≥2 panels in practice.
+        # Trade-off: this also rejects legitimate single-panel rows. We accept that
+        # because the false-positive rate from title text was worse, and single-panel
+        # rows are rare in real chord-chart layouts.
+        n_size_groups = sum(1 for g in groups if len(g) == strings_per_panel)
+        if n_size_groups < 2:
             continue
 
         row_bboxes = []
@@ -5992,21 +6150,21 @@ def process_chord_names_with_lyrics(client, uploaded_files, item_id, user_id=Non
                     app.logger.info(f"[AUTOCREATE] OCR Raw Text (first 500 chars): {ocr_result['raw_text'][:500]}...")
                     app.logger.info(f"[AUTOCREATE] OCR Found Chords: {ocr_result['chords']}")
 
-                    # Replace file content with complete OCR text to preserve sectional structure
-                    file_data['data'] = ocr_result['raw_text']
-                    file_data['type'] = 'chord_names'
-
-                    app.logger.info(f"[AUTOCREATE] Feeding complete OCR text to existing claude")
-
-                    # NEW: Assess OCR trustworthiness
+                    # Assess OCR trustworthiness BEFORE mutating file_data, so an
+                    # untrustworthy result can fall through to the normal LLM path on
+                    # the ORIGINAL file (not stale OCR text or a half-mutated record).
                     ocr_assessment = assess_ocr_trustworthiness(client, ocr_result['raw_text'], file_data['name'], user_id=user_id)
-                    if not ocr_assessment['trustworthy']:
-                        app.logger.info(f"[AUTOCREATE] OCR contains gibberish ({ocr_assessment['reason']}), falling back to visual analysis")
-                        # Fall back to Opus 4.7 visual analysis for complex layouts
-                        return process_chord_charts_directly(client, uploaded_files, item_id, user_id=user_id)
-
-                    app.logger.info(f"[AUTOCREATE] OCR text assessed as trustworthy, proceeding with processing")
-                    # Continue to existing processing below (no return here)
+                    if ocr_assessment['trustworthy']:
+                        # Replace file content with OCR text — saves tokens vs. resending
+                        # the original PDF, and preserves sectional structure for Claude.
+                        file_data['data'] = ocr_result['raw_text']
+                        file_data['type'] = 'chord_names'
+                        app.logger.info(f"[AUTOCREATE] OCR text trustworthy, feeding OCR text to Claude")
+                    else:
+                        # Sonnet already classified this file as chord_names. Visual chord-CHART
+                        # analysis is the wrong path; falling through here keeps the original PDF
+                        # and lets the chord_names prompt below read it directly.
+                        app.logger.info(f"[AUTOCREATE] OCR untrustworthy ({ocr_assessment['reason']}), sending original file to Claude with chord_names prompt")
 
                 else:
                     chords_found = len(ocr_result.get('chords', [])) if ocr_result else 0
