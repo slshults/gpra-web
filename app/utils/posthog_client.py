@@ -9,6 +9,7 @@ Provides:
 
 import os
 import logging
+from datetime import datetime
 from typing import Dict, Any, Optional
 from posthog import Posthog
 
@@ -169,6 +170,11 @@ def track_event(
                 props['$session_id'] = session_id
     except Exception:
         pass
+
+    # Refresh last_seen_at on every event (merge with any caller-provided $set)
+    if user_id:
+        existing_set = props.get('$set') or {}
+        props['$set'] = {**existing_set, 'last_seen_at': datetime.utcnow().isoformat()}
 
     try:
         posthog_client.capture(

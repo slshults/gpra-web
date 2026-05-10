@@ -97,7 +97,8 @@ const App = () => {
             username: data.user,
             subscription_tier: data.tier,
             billing_period: data.billing_period,
-            oauth_providers: data.oauth_providers || []
+            oauth_providers: data.oauth_providers || [],
+            last_seen_at: new Date().toISOString()
           });
 
           // Cache user context for analytics auto-inclusion
