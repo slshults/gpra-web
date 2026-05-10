@@ -5,16 +5,20 @@ const PublicChordEditor = () => {
   const [editorKey, setEditorKey] = useState(0);
 
   // Read URL params once on mount so deep-links (?id=N or ?chord=NAME) auto-populate
-  // the editor. ?id wins when both are present.
+  // the editor. The editor itself prefers id over name when both are passed, so we
+  // pass both through whenever they're available — useful for analytics (chord_lookup
+  // gets a chord_name even when the deep-link only carries an id).
+  // utm_content is treated as a chord-name fallback because the chord-of-the-day post
+  // formatter encodes the chord name there (?id=N&utm_content=F%23sus4&...).
   const { initialChordId, initialChordName } = useMemo(() => {
     if (typeof window === 'undefined') return { initialChordId: null, initialChordName: null };
     const params = new URLSearchParams(window.location.search);
     const idRaw = params.get('id');
     const id = idRaw && /^\d+$/.test(idRaw) ? parseInt(idRaw, 10) : null;
-    const name = params.get('chord');
+    const name = params.get('chord') || params.get('utm_content') || null;
     return {
       initialChordId: id,
-      initialChordName: id ? null : (name || null),
+      initialChordName: name,
     };
   }, []);
 
