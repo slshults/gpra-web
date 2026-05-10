@@ -1229,8 +1229,9 @@ def auth_status():
                     oauth_providers.append('google')
 
         # Compute PostHog distinct_id (email or tidalNNNNN for Tidal users)
-        from app.utils.posthog_client import get_posthog_distinct_id
+        from app.utils.posthog_client import get_posthog_distinct_id, get_posthog_identity_hash
         posthog_distinct_id = get_posthog_distinct_id(current_user.id, current_user.email)
+        posthog_identity_hash = get_posthog_identity_hash(posthog_distinct_id)
 
         # Compute autocreate access: tier-gated OR user has their own API key (byoClaude)
         autocreate_enabled = False
@@ -1270,6 +1271,7 @@ def auth_status():
             "user_id": current_user.id,  # Integer user ID for backend reference
             "email": current_user.email,
             "posthog_distinct_id": posthog_distinct_id,  # Coordinated distinct_id for PostHog
+            "posthog_identity_hash": posthog_identity_hash,  # HMAC for support widget identity verification (None if not configured)
             "tier": tier,
             "actual_tier": actual_tier,  # Actual tier before unplugged override
             "billing_period": billing_period,

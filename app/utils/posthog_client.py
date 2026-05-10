@@ -7,6 +7,8 @@ Provides:
 - Anthropic client wrapping for LLM auto-instrumentation
 """
 
+import hmac
+import hashlib
 import os
 import logging
 from datetime import datetime
@@ -17,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize PostHog client (singleton)
 posthog_api_key = os.getenv('POSTHOG_API_KEY')
+posthog_secret_api_token = os.getenv('POSTHOG_SECRET_API_TOKEN')
 posthog_host = 'https://tacet.guitarpracticeroutine.com'  # Managed reverse proxy
 
 if posthog_api_key:
@@ -57,6 +60,23 @@ def get_posthog_distinct_id(user_id: int, email: Optional[str] = None) -> str:
 
     # Regular users: use email as distinct_id
     return email if email else str(user_id)
+
+
+def get_posthog_identity_hash(distinct_id: str) -> Optional[str]:
+    """
+    Compute HMAC-SHA256 of distinct_id using the team's secret API token,
+    for the PostHog support widget's identity verification mode.
+
+    Returns None when no secret is configured — callers should treat that as
+    "verification not active" and the widget falls back to session-based access.
+    """
+    if not posthog_secret_api_token or not distinct_id:
+        return None
+    return hmac.new(
+        posthog_secret_api_token.encode('utf-8'),
+        distinct_id.encode('utf-8'),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def _get_user_email(user_id: int) -> Optional[str]:

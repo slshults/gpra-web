@@ -101,6 +101,11 @@ const App = () => {
             last_seen_at: new Date().toISOString()
           });
 
+          // Sign the support widget's identity so tickets stay tied to the verified user
+          if (data.posthog_identity_hash && typeof window.posthog.setIdentity === 'function') {
+            window.posthog.setIdentity(data.posthog_distinct_id, data.posthog_identity_hash);
+          }
+
           // Cache user context for analytics auto-inclusion
           setUserContext(data);
         }
