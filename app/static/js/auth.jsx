@@ -7,6 +7,7 @@ import RegisterPage from '@components/RegisterPage';
 import ForgotPasswordPage from '@components/ForgotPasswordPage';
 import ResetPasswordPage from '@components/ResetPasswordPage';
 import CookieConsent from '@components/CookieConsent';
+import ErrorBoundary from '@components/ErrorBoundary';
 
 // Initialize rate limit handling (intercepts fetch for 429 errors)
 import './utils/rateLimitHandler';
@@ -33,7 +34,9 @@ switch (page) {
 
 ReactDOM.createRoot(authRoot).render(
   <React.StrictMode>
-    <PageComponent />
-    <CookieConsent />
+    <ErrorBoundary>
+      <PageComponent />
+      <CookieConsent />
+    </ErrorBoundary>
   </React.StrictMode>
 );
