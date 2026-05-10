@@ -207,7 +207,8 @@ const RegisterPage = () => {
               username: authData.user,
               subscription_tier: authData.tier,
               billing_period: authData.billing_period,
-              oauth_providers: authData.oauth_providers || []
+              oauth_providers: authData.oauth_providers || [],
+              last_seen_at: new Date().toISOString()
             });
           }
         } catch (err) {
