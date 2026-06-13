@@ -4515,7 +4515,7 @@ def handle_crop(image, x1, y1, x2, y2, upscale=1):
 
     upscale: integer multiplier applied to the cropped region BEFORE encoding (LANCZOS).
         Use 2-3x to help the model count fret lines on small per-chord crops.
-        The result is clamped to a max long edge of 2576px (Opus 4.7 max).
+        The result is clamped to a max long edge of 2576px (Opus 4.8 max).
     """
     import io as _io
     from PIL import Image as _PILImage
@@ -5040,7 +5040,7 @@ def _read_one_chord(per_chord_client, source_image, survey_chord, read_prompt, r
     # Stateless call — sends just this one chord crop + the read prompt.
     # Effort/max_tokens come from effort_config (set per the user's tier above).
     api_kwargs = dict(
-        model="claude-opus-4-7",
+        model="claude-opus-4-8",
         max_tokens=effort_config['max_tokens'],
         thinking=effort_config['thinking'],
         output_config={
@@ -5283,7 +5283,7 @@ def process_chord_charts_directly(client, uploaded_files, item_id, user_id=None,
         total_output_tokens = 0
 
         survey_response = client.messages.create(
-            model="claude-opus-4-7",
+            model="claude-opus-4-8",
             max_tokens=4000,
             output_config={"format": {"type": "json_schema", "schema": survey_schema}},
             messages=[{
@@ -5607,7 +5607,7 @@ Example output for a diagram with one dot on string 6 at fret 5, with X on strin
         # Track LLM generation with PostHog Analytics
         from app.utils.llm_analytics import llm_analytics
         llm_analytics.track_generation(
-            model="claude-opus-4-7",
+            model="claude-opus-4-8",
             input_messages=[{"role": "user", "content": "Chord chart processing with stateless crops"}],
             output_choices=[{"message": {"content": json.dumps(chord_data)[:500]}}],
             usage={
@@ -5967,9 +5967,9 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
         try:
             import time
             llm_start_time = time.time()
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-7")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-8")
             response = client.messages.create(
-                model="claude-opus-4-7",
+                model="claude-opus-4-8",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
                 messages=[{"role": "user", "content": message_content}]
             )
@@ -5993,7 +5993,7 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                 }
 
             track_llm_generation(
-                model="claude-opus-4-7",
+                model="claude-opus-4-8",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from YouTube transcript"
@@ -6028,7 +6028,7 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                 llm_latency = 0
 
             track_llm_generation(
-                model="claude-opus-4-7",
+                model="claude-opus-4-8",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from YouTube transcript"
@@ -6271,17 +6271,17 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                     "text": file_content['data']
                 })
 
-        # Use Opus 4.7 for chord names analysis (complex reasoning for non-standard tunings)
-        app.logger.info(f"[AUTOCREATE] Using Opus 4.7 for chord names analysis")
+        # Use Opus 4.8 for chord names analysis (complex reasoning for non-standard tunings)
+        app.logger.info(f"[AUTOCREATE] Using Opus 4.8 for chord names analysis")
         app.logger.info(f"[AUTOCREATE] Making API call with {len(message_content)} content items")
         app.logger.info(f"[AUTOCREATE] Message content types: {[item.get('type', 'unknown') for item in message_content]}")
 
         try:
             import time
             llm_start_time = time.time()
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-7")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-8")
             response = client.messages.create(
-                model="claude-opus-4-7",
+                model="claude-opus-4-8",
                 max_tokens=8000,  # Increased for complex songs with multiple sections
                 messages=[{"role": "user", "content": message_content}]
             )
@@ -6305,7 +6305,7 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                 }
 
             track_llm_generation(
-                model="claude-opus-4-7",
+                model="claude-opus-4-8",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from lyrics sheet"
@@ -6339,7 +6339,7 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                 llm_latency = 0
 
             track_llm_generation(
-                model="claude-opus-4-7",
+                model="claude-opus-4-8",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from lyrics sheet"
