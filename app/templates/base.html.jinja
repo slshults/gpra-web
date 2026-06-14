@@ -61,6 +61,24 @@
                     opt_out_capturing_by_default: false,
                     session_recording: {
                         maskAllInputs: true
+                    },
+                    before_send: function(event) {
+                        // Drop the benign "ResizeObserver loop completed with undelivered
+                        // notifications" browser warning. It's emitted internally by Radix UI
+                        // primitives (dialogs, selects, tooltips), is harmless, and only adds
+                        // noise to the error-tracking inbox. See commit 3bca40f.
+                        if (event && event.event === '$exception') {
+                            var exceptionList = (event.properties &&
+                                event.properties.$exception_list) || [];
+                            for (var i = 0; i < exceptionList.length; i++) {
+                                var value = exceptionList[i] && exceptionList[i].value;
+                                if (typeof value === 'string' &&
+                                    value.indexOf('ResizeObserver loop') !== -1) {
+                                    return null;
+                                }
+                            }
+                        }
+                        return event;
                     }
                 });
             } else {
