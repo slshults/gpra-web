@@ -117,6 +117,14 @@
         @media (prefers-reduced-motion: reduce) {
             [data-reveal] { opacity:1; transform:none; transition:none; }
         }
+
+        /* Intro card: full-ish on mobile (unchanged), widened to match feature content on desktop.
+           Buttons stay compact on desktop so they don't stretch across the wide card. */
+        .landing-intro-card { max-width: 32rem; }
+        @media (min-width: 640px) {
+            .landing-intro-card { max-width: 1130px; }
+            .landing-intro-buttons a { width: 100px; white-space: nowrap; }
+        }
     </style>
     <script type="application/ld+json">
 {
@@ -148,16 +156,13 @@
         </div>
 
         <!-- Main content card -->
-        <div class="w-full" style="max-width: 32rem;">
+        <div class="w-full landing-intro-card">
             <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 flex flex-col">
                 <!-- Intro paragraphs (left-aligned). On mobile, ordered below the action
                      buttons so visitors see Login/Sign up without needing to scroll. -->
                 <div class="order-2 sm:order-1">
                     <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
                         A web app for beginner and intermediate guitar players.
-                    </p>
-                    <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
-                        Create practice items with autocreated chord charts, timers and more, then organize them into practice routines.
                     </p>
                     <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
                         No bloat, no gamification, no badges, no confetti, no ads, no spam.
@@ -175,7 +180,7 @@
                 <!-- Action buttons (stacked, matching login button: h-9 py-2).
                      order-1 on mobile puts them above the intro text; sm:order-2 restores
                      the original below-text placement on desktop. -->
-                <div class="flex flex-col gap-2 order-1 sm:order-2 mb-4 sm:mb-0 sm:mt-2">
+                <div class="flex flex-col gap-2 order-1 sm:order-2 mb-4 sm:mb-0 sm:mt-2 landing-intro-buttons">
                     <a href="/login" data-cta="intro_login" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md transition-colors text-center">
                         Login
                     </a>
