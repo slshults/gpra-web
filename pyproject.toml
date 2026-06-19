@@ -34,7 +34,9 @@ dependencies = [
     "posthog>=7.8.0",
     "youtube_transcript_api",
     "fpdf2",
-    "numpy"
+    "numpy",
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp-proto-http"
 ]
 
 [tool.setuptools]

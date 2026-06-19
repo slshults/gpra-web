@@ -397,6 +397,10 @@ app.logger.addHandler(file_handler)
 app.logger.setLevel(logging.DEBUG)
 app.logger.info('Guitar Practice Routine App startup')
 
+# Ship INFO+ logs to PostHog Logs (additive; opt-in via POSTHOG_LOGS_ENABLED)
+from app.utils.otel_logs import setup_otel_logging
+setup_otel_logging(app)
+
 # Also enable Flask-AppBuilder debug logging
 logging.getLogger('flask_appbuilder').setLevel(logging.DEBUG)
 
