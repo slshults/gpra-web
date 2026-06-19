@@ -80,6 +80,43 @@
         .light-mode .bg-gray-800.rounded-lg {
             background-color: #ffffff !important;
         }
+
+        /* ===== Landing feature sections (scroll storytelling) ===== */
+        :root {
+            --bg:#111827; --card:#1f2937; --surface-2:#374151;
+            --text:#d1d5db; --heading:#f9fafb; --muted:#9ca3af; --border:#374151;
+            --accent:#f97316; --btn:#ea580c; --btn-hover:#c2410c;
+            --frame-bg:#1f2937; --frame-body:#111827;
+        }
+        body.light-mode {
+            --bg:#f3f4f6; --card:#ffffff; --surface-2:#e5e7eb;
+            --text:#374151; --heading:#1f2937; --muted:#4b5563; --border:#d1d5db;
+            --frame-bg:#ffffff; --frame-body:#e5e7eb;
+        }
+        .landing-features { width:100%; display:flex; flex-direction:column; align-items:stretch; margin-top:24px; }
+        .feature { padding:clamp(56px,8vh,104px) 0; }
+        .feature--tinted { background:var(--card); border-top:1px solid var(--border); }
+        .feature--plain { background:var(--bg); border-top:1px solid var(--border); }
+        .feature__row { max-width:1130px; margin:0 auto; padding:0 24px; display:flex; flex-wrap:wrap; align-items:center; gap:clamp(32px,6vw,80px); }
+        .feature__row.reverse { flex-direction:row-reverse; }
+        .feature__copy { flex:1 1 380px; min-width:280px; }
+        .feature__media { flex:1 1 440px; min-width:280px; }
+        .eyebrow { font-size:13px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:14px; }
+        .feature h2 { font-size:clamp(28px,3.4vw,42px); font-weight:700; line-height:1.1; letter-spacing:-.02em; color:var(--heading); margin:0 0 16px; }
+        .feature p { font-size:clamp(16px,1.3vw,18px); line-height:1.6; color:var(--muted); margin:0 0 24px; max-width:46ch; }
+        .frame { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:var(--frame-bg); box-shadow:0 14px 34px -18px rgba(0,0,0,.5); }
+        .frame__body { background:var(--frame-body); font-size:0; display:flex; justify-content:center; }
+        .frame__body > img, .frame__body > video { display:block; width:100%; height:auto; }
+        .frame__body > img.contain { width:auto; max-width:100%; }
+        .cta-arrow { display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:15px; color:var(--accent); text-decoration:none; transition:gap .15s; }
+        .cta-arrow:hover { gap:13px; }
+        .btn-cta { display:inline-flex; align-items:center; justify-content:center; border-radius:6px; text-decoration:none; height:44px; padding:8px 32px; background:var(--btn); color:#fff; font-size:16px; font-weight:600; transition:background .15s; }
+        .btn-cta:hover { background:var(--btn-hover); }
+        [data-reveal] { opacity:0; transform:translateY(22px); transition:opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+        [data-reveal].is-visible { opacity:1; transform:none; }
+        @media (prefers-reduced-motion: reduce) {
+            [data-reveal] { opacity:1; transform:none; transition:none; }
+        }
     </style>
     <script type="application/ld+json">
 {
@@ -102,7 +139,7 @@
         })();
     </script>
 
-    <div class="min-h-screen flex flex-col items-center px-4 py-3">
+    <div class="flex flex-col items-center px-4 py-3">
         <!-- App title -->
         <div class="text-center mb-2 mt-4">
             <h1 class="text-3xl font-bold text-orange-500 mb-2">
@@ -120,17 +157,17 @@
                         A web app for beginner and intermediate guitar players.
                     </p>
                     <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
-                       Create a free account to take the tour and get started.<br>
-                       (no credit card needed for free accounts)
+                        Create practice items with autocreated chord charts, timers and more, then organize them into practice routines.
                     </p>
                     <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
-                        Create practice items with timers, and editable, auto-created, downloadable chord charts.
-                    </p>
-                    <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
-                        No bloat, no gamification, no badges, no confetti, no quests, no spam.
+                        No bloat, no gamification, no badges, no confetti, no ads, no spam.
                     </p>
                     <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
                         Just the tools you need to organize and track your practice.
+                    </p>
+                    <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
+                        Create a free account to get started.<br>
+                        (no credit card needed for free accounts)
                     </p>
                 </div>
 
@@ -139,46 +176,194 @@
                      order-1 on mobile puts them above the intro text; sm:order-2 restores
                      the original below-text placement on desktop. -->
                 <div class="flex flex-col gap-2 order-1 sm:order-2 mb-4 sm:mb-0 sm:mt-2">
-                    <a href="/login" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md transition-colors text-center">
+                    <a href="/login" data-cta="intro_login" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md transition-colors text-center">
                         Login
                     </a>
-                    <a href="/signup" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-medium rounded-md border border-gray-600 transition-colors text-center">
+                    <a href="/signup" data-cta="intro_signup" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-medium rounded-md border border-gray-600 transition-colors text-center">
                         Sign up
                     </a>
                 </div>
             </div>
         </div>
 
-        <!-- Hero video section -->
-        <div class="w-full max-w-5xl flex items-center justify-center mt-4 mb-2">
-            <div class="relative w-full group cursor-default" onclick="this.querySelector('.hero-hint').style.opacity='1'; clearTimeout(this._t); this._t=setTimeout(()=>this.querySelector('.hero-hint').style.opacity='0', 4000)">
-                <video autoplay muted loop playsinline class="w-full rounded-lg shadow-lg max-h-full object-contain">
-                    <source src="{{ url_for('static', filename='images/rapidcut5hero.mp4') }}" type="video/mp4">
-                </video>
-                <div class="hero-hint absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                    <p class="text-white text-center text-lg px-6 py-3 max-w-lg">
-                        This is just a looping video showing parts of the app.
-                    </p>
+    </div>
+
+    <!-- ===== Feature sections (scroll storytelling) ===== -->
+    <div class="landing-features">
+
+        <!-- Autocreate chord charts (media right) -->
+        <section class="feature feature--plain" style="border-top:none">
+            <div class="feature__row">
+                <div class="feature__copy" data-reveal>
+                    <div class="eyebrow">Less setup, more practice</div>
+                    <h2>Autocreate chord charts</h2>
+                    <p>Paste a link to a YouTube how-to-play video, upload a PDF or image of chord charts, or just type the chord names. We'll build your chord charts for you, and you can edit them as needed.</p>
+                    <a class="cta-arrow" href="/signup" data-cta="autocreate">See it in action <span>&rarr;</span></a>
+                </div>
+                <div class="feature__media" data-reveal data-reveal-delay="90">
+                    <div class="frame"><div class="frame__body">
+                        <img src="{{ url_for('static', filename='images/tour/ChartsFromYouTubeURL.gif') }}" alt="Autocreating chord charts from a YouTube link" loading="lazy">
+                    </div></div>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <!-- Footer links -->
-        <div class="text-center text-sm text-gray-400 py-2 mt-1">
-            <a href="/find-a-chord-chart" class="hover:underline hover:text-gray-400">Find a chord chart</a>
-            <span> &middot; </span>
-            <a href="/about" class="hover:underline hover:text-gray-400">About</a>
-            <span> &middot; </span>
-            <a href="/why" class="hover:underline hover:text-gray-400">Why</a>
-            <span> &middot; </span>
-            <a href="/faq" class="hover:underline hover:text-gray-400">Help</a>
-            <span> &middot; </span>
-            <a href="/pricing" class="hover:underline hover:text-gray-400">Pricing</a>
-            <span> &middot; </span>
-            <a href="/terms" class="hover:underline hover:text-gray-400">Terms</a>
-            <span> &middot; </span>
-            <a href="/privacy" class="hover:underline hover:text-gray-400">Privacy</a>
-        </div>
+        <!-- Build practice items (media left) -->
+        <section class="feature feature--tinted">
+            <div class="feature__row reverse">
+                <div class="feature__copy" data-reveal>
+                    <div class="eyebrow">Practice items</div>
+                    <h2>Build practice items</h2>
+                    <p>Songs, exercises, reminders. Each with chord charts, a field for notes, and a path to your local folders for easy copy/paste access to files on your computer.</p>
+                    <a class="cta-arrow" href="/signup" data-cta="build_items">Start building <span>&rarr;</span></a>
+                </div>
+                <div class="feature__media" data-reveal data-reveal-delay="90">
+                    <div class="frame"><div class="frame__body">
+                        <video autoplay muted loop playsinline preload="metadata">
+                            <source src="{{ url_for('static', filename='images/tour/CreateItem.mp4') }}" type="video/mp4">
+                        </video>
+                    </div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Organize with routines (media right) -->
+        <section class="feature feature--plain">
+            <div class="feature__row">
+                <div class="feature__copy" data-reveal>
+                    <div class="eyebrow">Routines</div>
+                    <h2>Organize with routines</h2>
+                    <p>Group your items into focused routines, for working on different things in different practice sessions.</p>
+                    <a class="cta-arrow" href="/signup" data-cta="organize_routines">Make a routine <span>&rarr;</span></a>
+                </div>
+                <div class="feature__media" data-reveal data-reveal-delay="90">
+                    <div class="frame"><div class="frame__body">
+                        <video autoplay muted loop playsinline preload="metadata">
+                            <source src="{{ url_for('static', filename='images/tour/CreateRoutine.mp4') }}" type="video/mp4">
+                        </video>
+                    </div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Add items to a routine (media left) -->
+        <section class="feature feature--tinted">
+            <div class="feature__row reverse">
+                <div class="feature__copy" data-reveal>
+                    <div class="eyebrow">Routines</div>
+                    <h2>Add items to a routine</h2>
+                    <p>Easily add exercises and songs into any routine. Reuse the same item in as many routines as you like.</p>
+                    <a class="cta-arrow" href="/signup" data-cta="add_items">Start free <span>&rarr;</span></a>
+                </div>
+                <div class="feature__media" data-reveal data-reveal-delay="90">
+                    <div class="frame"><div class="frame__body">
+                        <video autoplay muted loop playsinline preload="metadata">
+                            <source src="{{ url_for('static', filename='images/tour/AddItemsToRoutine.mp4') }}" type="video/mp4">
+                        </video>
+                    </div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Drag-n-drop reordering (media right) -->
+        <section class="feature feature--plain">
+            <div class="feature__row">
+                <div class="feature__copy" data-reveal>
+                    <div class="eyebrow">Routines</div>
+                    <h2>Drag-n-drop reordering</h2>
+                    <p>Rearrange items within a routine just by dragging. Put first things first and find the order that fits your flow.</p>
+                    <a class="cta-arrow" href="/signup" data-cta="drag_reorder">Try it free <span>&rarr;</span></a>
+                </div>
+                <div class="feature__media" data-reveal data-reveal-delay="90">
+                    <div class="frame"><div class="frame__body">
+                        <img src="{{ url_for('static', filename='images/dragndrop.png') }}" alt="Drag-and-drop reordering" loading="lazy">
+                    </div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Practice with focus (media left) -->
+        <section class="feature feature--tinted">
+            <div class="feature__row reverse">
+                <div class="feature__copy" data-reveal>
+                    <div class="eyebrow">Focus</div>
+                    <h2>Practice with focus</h2>
+                    <p>Built-in timers, with adjustable volume notification sound, and item completion tracking keep every session deliberate. No gamification, no confetti, no ads, just focused practice.</p>
+                    <a class="cta-arrow" href="/signup" data-cta="practice_timer">Start free <span>&rarr;</span></a>
+                </div>
+                <div class="feature__media" data-reveal data-reveal-delay="90">
+                    <div class="frame"><div class="frame__body">
+                        <video autoplay muted loop playsinline preload="metadata">
+                            <source src="{{ url_for('static', filename='images/Timer.mp4') }}" type="video/mp4">
+                        </video>
+                    </div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Track your progress (media right) -->
+        <section class="feature feature--plain">
+            <div class="feature__row">
+                <div class="feature__copy" data-reveal>
+                    <div class="eyebrow">Progress</div>
+                    <h2>Track your progress</h2>
+                    <p>See your consistency over time with simple practice stats showing what you practiced, and for how long. No badges, no leveling-up, no trophies, because you're not a child who needs a dopamine cookie, you're a guitarist who needs practice.</p>
+                    <a class="cta-arrow" href="/signup" data-cta="stats">See your stats <span>&rarr;</span></a>
+                </div>
+                <div class="feature__media" data-reveal data-reveal-delay="90">
+                    <div class="frame"><div class="frame__body">
+                        <img class="contain" src="{{ url_for('static', filename='images/Stats.jpg') }}" alt="Practice stats" loading="lazy">
+                    </div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Your data, yours to keep (media left) -->
+        <section class="feature feature--tinted">
+            <div class="feature__row reverse">
+                <div class="feature__copy" data-reveal>
+                    <div class="eyebrow">Ownership</div>
+                    <h2>Your data, yours to keep</h2>
+                    <p>Download all your items, routines, chord charts, and practice history anytime, for free. Because it's your stuff, you built it. GPRA just gave you the tools to build it with. And if you're on a paid plan, but you need to take a break from paying for a while, I'll hold onto your stuff for you for 90 days, so it'll be waiting for you when you're back.</p>
+                    <a class="cta-arrow" href="/signup" data-cta="data_ownership">Start free <span>&rarr;</span></a>
+                </div>
+                <div class="feature__media" data-reveal data-reveal-delay="90">
+                    <div class="frame"><div class="frame__body">
+                        <img class="contain" src="{{ url_for('static', filename='images/download.png') }}" alt="Download your data" loading="lazy">
+                    </div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Final CTA -->
+        <section class="feature feature--plain" style="padding:clamp(64px,10vh,128px) 0">
+            <div style="max-width:720px; margin:0 auto; padding:0 24px; text-align:center">
+                <h2 data-reveal style="font-size:clamp(30px,4.4vw,50px); font-weight:700; line-height:1.08; letter-spacing:-.02em; color:var(--heading); margin:0 0 18px">Start your free practice routine today</h2>
+                <p data-reveal data-reveal-delay="70" style="font-size:clamp(16px,1.4vw,19px); line-height:1.6; color:var(--muted); margin:0 auto 30px; max-width:48ch">Create your practice items, then set up your first routine in minutes. No credit card, no spam, no ads, just the tools to get your practice on.</p>
+                <div data-reveal data-reveal-delay="130" style="display:flex; flex-direction:column; align-items:center; gap:12px">
+                    <a class="btn-cta" href="/signup" data-cta="final">Start free</a>
+                    <span style="font-size:13px; color:var(--muted)">Free account &middot; no credit card needed</span>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Footer links -->
+    <div class="text-center text-sm text-gray-400 py-2 mt-1">
+        <a href="/find-a-chord-chart" class="hover:underline hover:text-gray-400">Find a chord chart</a>
+        <span> &middot; </span>
+        <a href="/about" class="hover:underline hover:text-gray-400">About</a>
+        <span> &middot; </span>
+        <a href="/why" class="hover:underline hover:text-gray-400">Why</a>
+        <span> &middot; </span>
+        <a href="/faq" class="hover:underline hover:text-gray-400">Help</a>
+        <span> &middot; </span>
+        <a href="/pricing" class="hover:underline hover:text-gray-400">Pricing</a>
+        <span> &middot; </span>
+        <a href="/terms" class="hover:underline hover:text-gray-400">Terms</a>
+        <span> &middot; </span>
+        <a href="/privacy" class="hover:underline hover:text-gray-400">Privacy</a>
     </div>
 
     <!-- Theme Toggle -->
@@ -194,6 +379,43 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+
+    <!-- Scroll reveal for feature sections -->
+    <script>
+        (function () {
+            var els = Array.prototype.slice.call(document.querySelectorAll('[data-reveal]'));
+            function reveal(el) {
+                if (el.__revealed) return;
+                el.__revealed = true;
+                var d = parseInt(el.getAttribute('data-reveal-delay') || '0', 10);
+                setTimeout(function () { el.classList.add('is-visible'); }, d);
+            }
+            if ('IntersectionObserver' in window) {
+                var io = new IntersectionObserver(function (entries) {
+                    entries.forEach(function (e) { if (e.isIntersecting) { reveal(e.target); io.unobserve(e.target); } });
+                }, { threshold: 0.08, rootMargin: '0px 0px -6% 0px' });
+                els.forEach(function (el) { io.observe(el); });
+            } else {
+                els.forEach(reveal);
+            }
+        })();
+    </script>
+
+    <!-- CTA click tracking (delegated). Fires landing_cta_clicked for any [data-cta].
+         Guarded on window.posthog so it no-ops when consent isn't 'all' (PostHog not loaded).
+         No preventDefault/delay needed: posthog.capture is non-blocking and PostHog flushes
+         pending events via sendBeacon on pagehide/unload, so the event survives navigation. -->
+    <script>
+        document.addEventListener('click', function (e) {
+            var el = e.target.closest('[data-cta]');
+            if (!el || !window.posthog) return;
+            window.posthog.capture('landing_cta_clicked', {
+                cta_location: el.getAttribute('data-cta'),
+                cta_label: (el.textContent || '').trim(),
+                cta_destination: el.getAttribute('href')
+            });
+        });
+    </script>
 
     <!-- Service Worker Registration -->
     <script>
