@@ -118,20 +118,12 @@
             [data-reveal] { opacity:1; transform:none; transition:none; }
         }
 
-        /* Intro card: full-ish on mobile (unchanged), widened to match feature content on desktop.
-           On desktop the content is centered as a group (shared left edge, text stays left-aligned),
-           and the buttons stay compact so they don't stretch across the wide card. */
-        .landing-intro-card { max-width: 32rem; }
-        /* Account note sits last in the card on every breakpoint (below the buttons on desktop;
-           on mobile, after the intro text). Set in plain CSS so it doesn't depend on a Tailwind
-           order-3 utility being compiled into main.css. */
-        .landing-intro-note { order: 3; }
+        /* Hero responsive type: set here (this inline <style> loads after CookieConsent.css)
+           so the desktop sizes win. CookieConsent.css ships base .text-xl / .text-base
+           utilities that otherwise clobber the hero's sm:text-2xl / sm:text-lg. */
         @media (min-width: 640px) {
-            .landing-intro-card { max-width: 1130px; }
-            .landing-intro-content { width: fit-content; margin-left: auto; margin-right: auto; align-items: flex-start; }
-            .landing-intro-note { margin-top: 8px; }
-            .landing-intro-buttons { align-self: center; }
-            .landing-intro-buttons a { width: 100px; white-space: nowrap; }
+            .landing-hero .text-xl { font-size: 1.5rem; }     /* matches sm:text-2xl */
+            .landing-hero .text-base { font-size: 1.125rem; } /* matches sm:text-lg */
         }
     </style>
     <script type="application/ld+json">
@@ -156,53 +148,41 @@
     </script>
 
     <div class="flex flex-col items-center px-4 py-3">
-        <!-- App title -->
-        <div class="text-center mb-2 mt-4">
-            <h1 class="text-3xl font-bold text-orange-500 mb-2">
+        <!-- Hero / intro (boxless, centered) -->
+        <!-- NOTE: the sm: text sizes below (h1 sm:text-4xl, tagline sm:text-2xl, sub-lines
+             sm:text-lg) are reinforced in the inline <style> under `.landing-hero`, because
+             CookieConsent.css ships base .text-xl / .text-base utilities that load after
+             main.css and would otherwise clobber them. If you change these sm: sizes here,
+             update the matching `.landing-hero` rule in that <style> block too. -->
+        <div class="w-full max-w-3xl mx-auto text-center px-2 pt-6 pb-4 landing-hero">
+            <h1 class="text-3xl sm:text-4xl font-bold text-orange-500 mb-5 leading-tight">
                 🎸 Guitar Practice Routine App
             </h1>
-        </div>
+            <p class="text-gray-200 text-xl sm:text-2xl font-semibold leading-snug mb-3" style="text-wrap:balance">
+                A web app for beginner and intermediate guitar players.
+            </p>
+            <p class="text-gray-300 text-base sm:text-lg leading-relaxed mb-1" style="text-wrap:balance">
+                No bloat, no gamification, no confetti, no ads, no spam.
+            </p>
+            <p class="text-gray-300 text-base sm:text-lg leading-relaxed mb-7" style="text-wrap:balance">
+                Just the tools you need to organize and track your practice.
+            </p>
 
-        <!-- Main content card -->
-        <div class="w-full landing-intro-card">
-            <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 flex flex-col">
-                <!-- Content column: full width on mobile; on desktop it is centered within
-                     the wide card while each line of text keeps a shared left edge. -->
-                <div class="flex flex-col landing-intro-content">
-                    <!-- Intro paragraphs (left-aligned). On mobile, ordered below the action
-                         buttons so visitors see Login/Sign up without needing to scroll. -->
-                    <div class="order-2 sm:order-1">
-                        <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
-                            A web app for beginner and intermediate guitar players.
-                        </p>
-                        <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
-                            No bloat, no gamification, no badges, no confetti, no ads, no spam.
-                        </p>
-                        <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
-                            Just the tools you need to organize and track your practice.
-                        </p>
-                    </div>
-
-                    <!-- Action buttons (stacked, matching login button: h-9 py-2).
-                         order-1 on mobile puts them above the intro text; sm:order-2 restores
-                         the below-text placement on desktop. -->
-                    <div class="flex flex-col gap-2 order-1 sm:order-2 mb-4 sm:mb-0 sm:mt-2 landing-intro-buttons">
-                        <a href="/login" data-cta="intro_login" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-medium rounded-md border border-gray-600 transition-colors text-center">
-                            Login
-                        </a>
-                        <a href="/signup" data-cta="intro_signup" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md transition-colors text-center">
-                            Sign up
-                        </a>
-                    </div>
-
-                    <!-- Account note: below the buttons on desktop; on mobile it stays at the
-                         bottom of the card, just after the intro text (order-3 in both). -->
-                    <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed landing-intro-note">
-                        Create a free account to get started.<br>
-                        (no credit card needed for free accounts)
-                    </p>
-                </div>
+            <div class="flex flex-wrap gap-3 justify-center items-center mb-4">
+                <a href="/signup" data-cta="intro_signup"
+                   class="inline-flex items-center justify-center min-w-[130px] h-11 px-7 bg-orange-600 hover:bg-orange-700 text-white text-base font-semibold rounded-md transition-colors whitespace-nowrap">
+                    Sign up
+                </a>
+                <a href="/login" data-cta="intro_login"
+                   class="inline-flex items-center justify-center min-w-[130px] h-11 px-7 bg-gray-700 hover:bg-gray-600 text-gray-200 text-base font-semibold rounded-md border border-gray-600 transition-colors whitespace-nowrap">
+                    Login
+                </a>
             </div>
+
+            <p class="text-gray-300 text-sm leading-relaxed">
+                Create a free account to get started.<br>
+                (no credit card needed for free accounts)
+            </p>
         </div>
 
     </div>
