@@ -149,6 +149,11 @@
 
     <div class="flex flex-col items-center px-4 py-3">
         <!-- Hero / intro (boxless, centered) -->
+        <!-- NOTE: the sm: text sizes below (h1 sm:text-4xl, tagline sm:text-2xl, sub-lines
+             sm:text-lg) are reinforced in the inline <style> under `.landing-hero`, because
+             CookieConsent.css ships base .text-xl / .text-base utilities that load after
+             main.css and would otherwise clobber them. If you change these sm: sizes here,
+             update the matching `.landing-hero` rule in that <style> block too. -->
         <div class="w-full max-w-3xl mx-auto text-center px-2 pt-6 pb-4 landing-hero">
             <h1 class="text-3xl sm:text-4xl font-bold text-orange-500 mb-5 leading-tight">
                 🎸 Guitar Practice Routine App
