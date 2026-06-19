@@ -119,10 +119,17 @@
         }
 
         /* Intro card: full-ish on mobile (unchanged), widened to match feature content on desktop.
-           Buttons stay compact on desktop so they don't stretch across the wide card. */
+           On desktop the content is centered as a group (shared left edge, text stays left-aligned),
+           and the buttons stay compact so they don't stretch across the wide card. */
         .landing-intro-card { max-width: 32rem; }
+        /* Account note sits last in the card on every breakpoint (below the buttons on desktop;
+           on mobile, after the intro text). Set in plain CSS so it doesn't depend on a Tailwind
+           order-3 utility being compiled into main.css. */
+        .landing-intro-note { order: 3; }
         @media (min-width: 640px) {
             .landing-intro-card { max-width: 1130px; }
+            .landing-intro-content { width: fit-content; margin-left: auto; margin-right: auto; align-items: flex-start; }
+            .landing-intro-note { margin-top: 8px; }
             .landing-intro-buttons a { width: 100px; white-space: nowrap; }
         }
     </style>
@@ -158,35 +165,41 @@
         <!-- Main content card -->
         <div class="w-full landing-intro-card">
             <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 flex flex-col">
-                <!-- Intro paragraphs (left-aligned). On mobile, ordered below the action
-                     buttons so visitors see Login/Sign up without needing to scroll. -->
-                <div class="order-2 sm:order-1">
-                    <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
-                        A web app for beginner and intermediate guitar players.
-                    </p>
-                    <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
-                        No bloat, no gamification, no badges, no confetti, no ads, no spam.
-                    </p>
-                    <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
-                        Just the tools you need to organize and track your practice.
-                    </p>
-                    <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
+                <!-- Content column: full width on mobile; on desktop it is centered within
+                     the wide card while each line of text keeps a shared left edge. -->
+                <div class="flex flex-col landing-intro-content">
+                    <!-- Intro paragraphs (left-aligned). On mobile, ordered below the action
+                         buttons so visitors see Login/Sign up without needing to scroll. -->
+                    <div class="order-2 sm:order-1">
+                        <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
+                            A web app for beginner and intermediate guitar players.
+                        </p>
+                        <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
+                            No bloat, no gamification, no badges, no confetti, no ads, no spam.
+                        </p>
+                        <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed">
+                            Just the tools you need to organize and track your practice.
+                        </p>
+                    </div>
+
+                    <!-- Action buttons (stacked, matching login button: h-9 py-2).
+                         order-1 on mobile puts them above the intro text; sm:order-2 restores
+                         the below-text placement on desktop. -->
+                    <div class="flex flex-col gap-2 order-1 sm:order-2 mb-4 sm:mb-0 sm:mt-2 landing-intro-buttons">
+                        <a href="/login" data-cta="intro_login" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md transition-colors text-center">
+                            Login
+                        </a>
+                        <a href="/signup" data-cta="intro_signup" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-medium rounded-md border border-gray-600 transition-colors text-center">
+                            Sign up
+                        </a>
+                    </div>
+
+                    <!-- Account note: below the buttons on desktop; on mobile it stays at the
+                         bottom of the card, just after the intro text (order-3 in both). -->
+                    <p class="text-gray-300 mb-2 text-left text-lg leading-relaxed landing-intro-note">
                         Create a free account to get started.<br>
                         (no credit card needed for free accounts)
                     </p>
-                </div>
-
-
-                <!-- Action buttons (stacked, matching login button: h-9 py-2).
-                     order-1 on mobile puts them above the intro text; sm:order-2 restores
-                     the original below-text placement on desktop. -->
-                <div class="flex flex-col gap-2 order-1 sm:order-2 mb-4 sm:mb-0 sm:mt-2 landing-intro-buttons">
-                    <a href="/login" data-cta="intro_login" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md transition-colors text-center">
-                        Login
-                    </a>
-                    <a href="/signup" data-cta="intro_signup" class="inline-flex items-center justify-center h-9 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-medium rounded-md border border-gray-600 transition-colors text-center">
-                        Sign up
-                    </a>
                 </div>
             </div>
         </div>
@@ -347,7 +360,7 @@
                 <p data-reveal data-reveal-delay="70" style="font-size:clamp(16px,1.4vw,19px); line-height:1.6; color:var(--muted); margin:0 auto 30px; max-width:48ch">Create your practice items, then set up your first routine in minutes. No credit card, no spam, no ads, just the tools to get your practice on.</p>
                 <div data-reveal data-reveal-delay="130" style="display:flex; flex-direction:column; align-items:center; gap:12px">
                     <a class="btn-cta" href="/signup" data-cta="final">Start free</a>
-                    <span style="font-size:13px; color:var(--muted)">Free account &middot; no credit card needed</span>
+                    <span style="font-size:13px; color:var(--muted)">no credit card needed</span>
                 </div>
             </div>
         </section>
