@@ -105,7 +105,14 @@
         .feature h2 { font-size:clamp(28px,3.4vw,42px); font-weight:700; line-height:1.1; letter-spacing:-.02em; color:var(--heading); margin:0 0 16px; }
         .feature p { font-size:clamp(16px,1.3vw,18px); line-height:1.6; color:var(--muted); margin:0 0 24px; max-width:46ch; }
         .frame { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:var(--frame-bg); box-shadow:0 14px 34px -18px rgba(0,0,0,.5); }
-        .frame__body { background:var(--frame-body); font-size:0; display:flex; justify-content:center; }
+        .frame__body { position:relative; background:var(--frame-body); font-size:0; display:flex; justify-content:center; }
+        /* Tap-to-play overlay: injected by JS only when a feature video's autoplay is blocked
+           (e.g. autoplay disabled in Chromite/Opera Mobile site settings). Users whose autoplay
+           works never see this. */
+        .video-tap-overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:0; margin:0; border:0; cursor:pointer; background:rgba(17,24,39,.5); color:#fff; -webkit-tap-highlight-color:transparent; }
+        .video-tap-overlay__icon { width:62px; height:62px; border-radius:50%; background:var(--btn); display:flex; align-items:center; justify-content:center; box-shadow:0 8px 24px -8px rgba(0,0,0,.6); }
+        .video-tap-overlay__icon svg { width:26px; height:26px; fill:#fff; margin-left:3px; }
+        .video-tap-overlay__label { font-size:14px; font-weight:600; letter-spacing:.01em; }
         .frame__body > img, .frame__body > video { display:block; width:100%; height:auto; }
         .frame__body > img.contain { width:auto; max-width:100%; }
         .cta-arrow { display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:15px; color:var(--accent); text-decoration:none; transition:gap .15s; }
@@ -400,21 +407,69 @@
         })();
     </script>
 
-    <!-- Looping fallback for feature videos. The <video> tags already carry the native
-         `loop` attribute, but some mobile browsers (e.g. Cromite/Chromium on Android with
-         preload="metadata") drop the loop after the first play. Force the restart on `ended`,
-         and nudge autoplay back to life if the browser paused it. -->
+    <!-- Feature video playback. Two mobile-browser problems are handled here:
+         1) Looping: the <video> tags carry the native `loop` attribute, but some mobile
+            browsers (e.g. Cromite/Chromium on Android with preload="metadata") drop the loop
+            after one play. We re-loop on `ended`.
+         2) Blocked autoplay: when autoplay is disabled in the browser's site settings, muted
+            autoplay silently fails and the video sits frozen. We detect that (play() rejects)
+            when the video scrolls into view and reveal a tap-to-play overlay. Users whose
+            autoplay works never see the overlay — play() resolves and the video plays normally. -->
     <script>
         (function () {
             var vids = Array.prototype.slice.call(document.querySelectorAll('.feature__media video'));
+            if (!vids.length) return;
+
+            function hideOverlay(video) {
+                var ov = video.parentNode && video.parentNode.querySelector('.video-tap-overlay');
+                if (ov) ov.remove();
+            }
+            function tryPlay(video, onBlocked) {
+                var p = video.play();
+                if (p && p.then) {
+                    p.then(function () { hideOverlay(video); }).catch(function () { if (onBlocked) onBlocked(video); });
+                }
+            }
+            function showOverlay(video) {
+                var body = video.parentNode;
+                if (!body || body.querySelector('.video-tap-overlay')) return;
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'video-tap-overlay';
+                btn.setAttribute('aria-label', 'Play video');
+                btn.innerHTML = '<span class="video-tap-overlay__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="video-tap-overlay__label">Tap to play</span>';
+                btn.addEventListener('click', function () {
+                    // A user gesture is allowed to start playback even when autoplay is blocked.
+                    tryPlay(video);
+                    // Start any other still-paused videos off this same gesture, so one tap
+                    // generally unblocks the whole page.
+                    vids.forEach(function (other) { if (other !== video && other.paused) tryPlay(other); });
+                });
+                body.appendChild(btn);
+            }
+
             vids.forEach(function (v) {
                 v.loop = true;
+                // Keep looping even if a mobile browser drops the native loop after one play.
                 v.addEventListener('ended', function () {
                     v.currentTime = 0;
                     var p = v.play();
                     if (p && p.catch) { p.catch(function () {}); }
                 });
             });
+
+            // Probe autoplay when each video first scrolls into view (avoids force-loading
+            // off-screen videos, and detects the block at the moment it should be playing).
+            if ('IntersectionObserver' in window) {
+                var io = new IntersectionObserver(function (entries) {
+                    entries.forEach(function (e) {
+                        if (e.isIntersecting) { tryPlay(e.target, showOverlay); io.unobserve(e.target); }
+                    });
+                }, { threshold: 0.25 });
+                vids.forEach(function (v) { io.observe(v); });
+            } else {
+                vids.forEach(function (v) { tryPlay(v, showOverlay); });
+            }
         })();
     </script>
 
