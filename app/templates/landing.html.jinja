@@ -400,6 +400,24 @@
         })();
     </script>
 
+    <!-- Looping fallback for feature videos. The <video> tags already carry the native
+         `loop` attribute, but some mobile browsers (e.g. Cromite/Chromium on Android with
+         preload="metadata") drop the loop after the first play. Force the restart on `ended`,
+         and nudge autoplay back to life if the browser paused it. -->
+    <script>
+        (function () {
+            var vids = Array.prototype.slice.call(document.querySelectorAll('.feature__media video'));
+            vids.forEach(function (v) {
+                v.loop = true;
+                v.addEventListener('ended', function () {
+                    v.currentTime = 0;
+                    var p = v.play();
+                    if (p && p.catch) { p.catch(function () {}); }
+                });
+            });
+        })();
+    </script>
+
     <!-- CTA click tracking (delegated). Fires landing_cta_clicked for any [data-cta].
          Guarded on window.posthog so it no-ops when consent isn't 'all' (PostHog not loaded).
          No preventDefault/delay needed: posthog.capture is non-blocking and PostHog flushes
