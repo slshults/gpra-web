@@ -119,7 +119,7 @@
 <script>
 (function() {
     var consent = localStorage.getItem('cookieConsent');
-    var consentMode = "{{ consent_mode }}"; // 'opt-in' or 'opt-out'
+    var consentMode = {{ consent_mode | tojson }}; // 'opt-in' or 'opt-out'
 
     // Permanent explicit choice already recorded — never show the banner.
     if (consent === 'all' || consent === 'none' || consent === 'essential') {
