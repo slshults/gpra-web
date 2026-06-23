@@ -170,7 +170,7 @@ const CookieConsent = () => {
 
   const consentMode = (typeof window !== 'undefined' && window.__consentMode) || 'opt-in';
   const introCopy = consentMode === 'opt-out'
-    ? 'This site uses functional cookies (required for login and the database) and analytics cookies to understand usage and improve the app. You can opt out anytime.'
+    ? 'This site uses functional cookies (required for login and the database) and analytics cookies to understand usage and improve the app. You can opt out of analytics cookies anytime.'
     : 'This site uses functional cookies (required for login and accessing the database, "Essential only"), cookies for help-chat, and for understanding how the site is used in order to improve it ("Accept all").';
 
   if (!showBanner) {
