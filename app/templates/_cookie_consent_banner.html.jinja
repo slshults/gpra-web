@@ -86,9 +86,25 @@
     #gpra-consent-banner .gpra-btn-decline:hover {
         background-color: #4b5563; /* gray-600 */
     }
+    #gpra-consent-banner .gpra-btn-dismiss {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.75rem;
+        background: transparent;
+        border: none;
+        color: #9ca3af; /* gray-400 */
+        font-size: 1.25rem;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0.25rem;
+    }
+    #gpra-consent-banner .gpra-btn-dismiss:hover {
+        color: #f9fafb; /* gray-50 */
+    }
 </style>
 
 <div id="gpra-consent-banner" style="display: none;" aria-live="polite" role="region" aria-label="Cookie consent">
+        <button class="gpra-btn-dismiss" id="gpra-consent-dismiss" aria-label="Dismiss">&times;</button>
     <div class="gpra-consent-inner">
         <p class="gpra-consent-text">
             We use cookies to improve your experience. See our <a href="/privacy">Privacy policy</a>.
@@ -103,33 +119,73 @@
 <script>
 (function() {
     var consent = localStorage.getItem('cookieConsent');
+    var consentMode = "{{ consent_mode }}"; // 'opt-in' or 'opt-out'
 
-    // Already decided — don't show the banner.
+    // Permanent explicit choice already recorded — never show the banner.
     if (consent === 'all' || consent === 'none' || consent === 'essential') {
         return;
     }
-
-    // No prior decision — show the banner.
-    var banner = document.getElementById('gpra-consent-banner');
-    if (banner) {
-        banner.style.display = '';
+    // Dismissed earlier this visit — stay quiet until the next session.
+    if (sessionStorage.getItem('cookieBannerDismissed') === '1') {
+        return;
     }
 
+    var banner = document.getElementById('gpra-consent-banner');
+    if (!banner) {
+        return;
+    }
+
+    // Mode-specific copy.
+    var textEl = banner.querySelector('.gpra-consent-text');
+    if (textEl) {
+        textEl.innerHTML = (consentMode === 'opt-out')
+            ? 'We use cookies to improve your experience. You can opt out anytime. See our <a href="/privacy">Privacy policy</a>.'
+            : "We'd like to use cookies to improve your experience. See our <a href=\"/privacy\">Privacy policy</a>.";
+    }
+    banner.style.display = '';
+
     function hideBanner() {
-        if (banner) {
-            banner.style.display = 'none';
+        banner.style.display = 'none';
+    }
+
+    function clearPostHogStorage() {
+        // Opt out of any live PostHog session (opt-out regions load it on page load).
+        if (window.posthog && window.posthog.opt_out_capturing) {
+            window.posthog.opt_out_capturing();
         }
+        // Delete ph_phc_* cookies.
+        document.cookie.split(';').forEach(function(c) {
+            var name = c.split('=')[0].trim();
+            if (/^ph_phc_/.test(name)) {
+                document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+                document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + window.location.hostname;
+                document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.' + window.location.hostname;
+            }
+        });
+        // Scrub ph_* / posthog localStorage.
+        Object.keys(localStorage).forEach(function(key) {
+            if (key.indexOf('ph_') === 0 || key.indexOf('posthog') !== -1) {
+                localStorage.removeItem(key);
+            }
+        });
     }
 
     document.getElementById('gpra-consent-accept').addEventListener('click', function() {
         localStorage.setItem('cookieConsent', 'all');
         hideBanner();
-        // Reload so consent-gated scripts (PostHog) can initialise on this visit.
+        // Reload so consent-gated PostHog initialises this visit (opt-in regions).
         window.location.reload();
     });
 
     document.getElementById('gpra-consent-decline').addEventListener('click', function() {
         localStorage.setItem('cookieConsent', 'essential');
+        clearPostHogStorage();
+        hideBanner();
+    });
+
+    document.getElementById('gpra-consent-dismiss').addEventListener('click', function() {
+        // Quiet for this visit only; cookies stay as-is (on in opt-out, off in opt-in).
+        sessionStorage.setItem('cookieBannerDismissed', '1');
         hideBanner();
     });
 })();
