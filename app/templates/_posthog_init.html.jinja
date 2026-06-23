@@ -5,7 +5,7 @@
 {% set ph_capture_pageview = posthog_capture_pageview if posthog_capture_pageview is defined else true %}
 {% if posthog_key %}
 <script>
-    window.__consentMode = "{{ consent_mode }}";
+    window.__consentMode = {{ consent_mode | tojson }};
     (function() {
         var consent = localStorage.getItem('cookieConsent');
         var consentMode = window.__consentMode;
