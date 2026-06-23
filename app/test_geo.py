@@ -60,6 +60,7 @@ class ConsentModeForIpTests(unittest.TestCase):
         os.environ['MAXMIND_DB_PATH'] = '/nonexistent/GeoLite2-City.mmdb'
         geo._reader = None
         geo._reader_path = None
+        geo._failed_path = None
 
     def tearDown(self):
         if self._prev is None:
@@ -91,6 +92,7 @@ class RealDbFailSafeTests(unittest.TestCase):
         os.environ.pop('MAXMIND_DB_PATH', None)
         geo._reader = None
         geo._reader_path = None
+        geo._failed_path = None
         self._db_path = '/usr/share/GeoIP/GeoLite2-City.mmdb'
 
     @unittest.skipUnless(os.path.exists('/usr/share/GeoIP/GeoLite2-City.mmdb'),

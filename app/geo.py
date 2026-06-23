@@ -29,6 +29,7 @@ _DEFAULT_DB_PATH = '/usr/share/GeoIP/GeoLite2-City.mmdb'
 # Module-level reader cache so we open the .mmdb once per process.
 _reader = None
 _reader_path = None
+_failed_path = None  # path we already tried and failed; skip retry until path changes
 
 
 def classify(country_iso, subdivision_iso):
@@ -42,16 +43,20 @@ def classify(country_iso, subdivision_iso):
 
 def _get_reader():
     """Return a cached geoip2 Reader, or None if the DB can't be opened."""
-    global _reader, _reader_path
+    global _reader, _reader_path, _failed_path
     db_path = os.environ.get('MAXMIND_DB_PATH', _DEFAULT_DB_PATH)
     if _reader is not None and _reader_path == db_path:
         return _reader
+    if _failed_path == db_path:
+        return None  # already known-missing; don't retry or re-log
     try:
         _reader = geoip2.database.Reader(db_path)
         _reader_path = db_path
+        _failed_path = None  # clear any previous failure for this path
         return _reader
     except (FileNotFoundError, OSError) as exc:
         logger.warning('GeoLite2 DB unavailable at %s (%s); defaulting to opt-in', db_path, exc)
+        _failed_path = db_path
         return None
 
 
