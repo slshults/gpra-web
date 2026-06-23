@@ -45,6 +45,7 @@ class ClassifyTests(unittest.TestCase):
         self.assertIn('DE', OPT_IN_COUNTRIES)
         self.assertIn('GB', OPT_IN_COUNTRIES)
         self.assertIn('CH', OPT_IN_COUNTRIES)
+        self.assertIn('NO', OPT_IN_COUNTRIES)  # EEA non-EU member
         self.assertNotIn('US', OPT_IN_COUNTRIES)  # US handled via subdivision rule
 
 
@@ -75,7 +76,28 @@ class ConsentModeForIpTests(unittest.TestCase):
     def test_missing_db_fails_safe_to_opt_in(self):
         self.assertEqual(consent_mode_for_ip('8.8.8.8'), 'opt-in')
 
-    def test_private_ip_fails_safe_to_opt_in(self):
+    def test_private_ip_with_missing_db_fails_safe_to_opt_in(self):
+        self.assertEqual(consent_mode_for_ip('127.0.0.1'), 'opt-in')
+        self.assertEqual(consent_mode_for_ip('192.168.1.5'), 'opt-in')
+
+
+class RealDbFailSafeTests(unittest.TestCase):
+    """Verify private IPs fail-safe to opt-in against a REAL GeoLite2 DB.
+    Skipped when no DB is installed (e.g. local dev)."""
+
+    def setUp(self):
+        import app.geo as geo
+        # Ensure no forced-missing override leaks in from other tests.
+        os.environ.pop('MAXMIND_DB_PATH', None)
+        geo._reader = None
+        geo._reader_path = None
+        self._db_path = '/usr/share/GeoIP/GeoLite2-City.mmdb'
+
+    @unittest.skipUnless(os.path.exists('/usr/share/GeoIP/GeoLite2-City.mmdb'),
+                         'GeoLite2-City DB not installed')
+    def test_private_ip_fails_safe_against_real_db(self):
+        # geoip2 raises AddressNotFoundError for private ranges; consent_mode_for_ip
+        # must catch it and return opt-in.
         self.assertEqual(consent_mode_for_ip('127.0.0.1'), 'opt-in')
         self.assertEqual(consent_mode_for_ip('192.168.1.5'), 'opt-in')
 
