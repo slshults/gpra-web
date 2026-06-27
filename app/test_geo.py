@@ -104,5 +104,47 @@ class RealDbFailSafeTests(unittest.TestCase):
         self.assertEqual(consent_mode_for_ip('192.168.1.5'), 'opt-in')
 
 
+class BundledTestDbTests(unittest.TestCase):
+    """Region detection against the bundled MaxMind test DB — exercises the REAL
+    lookup path (country + subdivision → classify), not just the fail-safe path.
+    The fixture ships permissively in maxmind/MaxMind-DB (test-data)."""
+
+    DB = os.path.join(os.path.dirname(__file__), 'test_data', 'GeoIP2-City-Test.mmdb')
+
+    def setUp(self):
+        import app.geo as geo
+        self._prev = os.environ.get('MAXMIND_DB_PATH')
+        os.environ['MAXMIND_DB_PATH'] = self.DB
+        geo._reader = None
+        geo._reader_path = None
+        geo._failed_path = None
+
+    def tearDown(self):
+        import app.geo as geo
+        if self._prev is None:
+            os.environ.pop('MAXMIND_DB_PATH', None)
+        else:
+            os.environ['MAXMIND_DB_PATH'] = self._prev
+        geo._reader = None
+        geo._reader_path = None
+        geo._failed_path = None
+
+    def test_uk_ip_opt_in(self):
+        # 81.2.69.142 -> GB / England
+        self.assertEqual(consent_mode_for_ip('81.2.69.142'), 'opt-in')
+
+    def test_sweden_ip_opt_in(self):
+        # 89.160.20.112 -> SE (EEA)
+        self.assertEqual(consent_mode_for_ip('89.160.20.112'), 'opt-in')
+
+    def test_us_non_california_opt_out(self):
+        # 216.160.83.56 -> US / Washington (US but not CA -> opt-out)
+        self.assertEqual(consent_mode_for_ip('216.160.83.56'), 'opt-out')
+
+    def test_china_ip_opt_out(self):
+        # 175.16.199.0 -> CN
+        self.assertEqual(consent_mode_for_ip('175.16.199.0'), 'opt-out')
+
+
 if __name__ == '__main__':
     unittest.main()
