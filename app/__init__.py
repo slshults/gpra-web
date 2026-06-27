@@ -25,6 +25,20 @@ except Exception:
     _git_hash = 'dev'
 app.jinja_env.globals['asset_version'] = _git_hash
 
+# Region-aware cookie consent: expose a per-request consent_mode to every
+# template. Opt-in regions (EU/EEA/UK/CH/US-California) keep the strict
+# opt-in banner; everyone else gets opt-out defaults. See app/geo.py.
+@app.context_processor
+def inject_consent_mode():
+    from app.geo import consent_mode_for_ip
+    from flask import request
+    # Dev-only override so both paths are testable without spoofing IPs.
+    if app.debug:
+        override = request.args.get('consent_mode')
+        if override in ('opt-in', 'opt-out'):
+            return {'consent_mode': override}
+    return {'consent_mode': consent_mode_for_ip(request.remote_addr)}
+
 # Configure Flask to work behind reverse proxy (nginx)
 # This is needed for OAuth redirect URIs to use HTTPS in production
 flask_env = os.getenv('FLASK_ENV')

@@ -4,12 +4,20 @@ import React, { useState, useEffect } from 'react';
  * Cookie Consent Banner
  *
  * Displays a friendly GDPR/CPRA compliant cookie consent banner at the bottom of the page.
- * Users can choose to accept all cookies (including analytics) or only essential cookies.
+ * Users can choose to accept all cookies (including analytics) or only essential cookies,
+ * or dismiss the banner for this visit only.
+ *
+ * Region-aware: reads window.__consentMode ('opt-in' | 'opt-out', default 'opt-in') to
+ * select copy. In opt-out regions PostHog is already loaded by the inline init script;
+ * this component manages banner UI + persistence only.
  *
  * Preferences stored in localStorage.cookieConsent:
  * - 'all': User accepted all cookies (PostHog enabled)
  * - 'essential': User accepted only essential cookies (PostHog disabled)
- * - null/undefined: User hasn't made a choice yet (show banner)
+ * - null/undefined: User hasn't made a choice yet
+ *
+ * Session state in sessionStorage.cookieBannerDismissed:
+ * - '1': User dismissed the banner this visit (banner stays hidden until next session)
  *
  * Note: PostHog is loaded via script tag in HTML, accessed via window.posthog
  */
@@ -37,13 +45,20 @@ const CookieConsent = () => {
         }
       }
 
-      if (!consent) {
-        // No consent anywhere - show banner
-        setShowBanner(true);
-      } else {
-        // Apply stored consent preference
+      if (consent === 'all' || consent === 'essential') {
+        // Permanent explicit choice — apply and never show the banner.
         applyConsent(consent);
+        return;
       }
+
+      // No explicit choice. If dismissed this session, stay quiet.
+      if (sessionStorage.getItem('cookieBannerDismissed') === '1') {
+        return;
+      }
+
+      // In opt-out regions PostHog is already loaded by the inline init script;
+      // we just need to show the banner so the user can opt out or accept.
+      setShowBanner(true);
     };
 
     checkConsent();
@@ -147,6 +162,17 @@ const CookieConsent = () => {
     setShowBanner(false);
   };
 
+  const handleDismiss = () => {
+    // Quiet for this visit only; cookies stay as-is (on in opt-out, off in opt-in).
+    sessionStorage.setItem('cookieBannerDismissed', '1');
+    setShowBanner(false);
+  };
+
+  const consentMode = (typeof window !== 'undefined' && window.__consentMode) || 'opt-in';
+  const introCopy = consentMode === 'opt-out'
+    ? 'This site uses functional cookies (required for login and the database) and analytics cookies to understand usage and improve the app. You can opt out of analytics cookies anytime.'
+    : 'This site uses functional cookies (required for login and accessing the database, "Essential only"), cookies for help-chat, and for understanding how the site is used in order to improve it ("Accept all").';
+
   if (!showBanner) {
     return null;
   }
@@ -164,7 +190,7 @@ const CookieConsent = () => {
               <span className="font-semibold text-base">We use cookies to make GPRA better</span>
             </p>
             <p>
-              This site uses functional cookies (required for login and accessing the database, "Essential only"), cookies for help-chat, and for understanding how the site is used in order to improve it. ("Accept all") {' '}
+              {introCopy}{' '}
               <a href="/privacy#cookies" className="text-orange-600 dark:text-orange-400 hover:underline">
                 Learn more
               </a>
@@ -173,6 +199,12 @@ const CookieConsent = () => {
 
           {/* Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 min-w-max">
+            <button
+              onClick={handleDismiss}
+              className="px-6 py-2.5 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-semibold rounded-lg transition-colors whitespace-nowrap"
+            >
+              Dismiss
+            </button>
             <button
               onClick={handleAcceptAll}
               className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-lg transition-colors whitespace-nowrap shadow-md"
