@@ -13,11 +13,21 @@ const getTourImage = (desktopGif, mobilePng, desktopSize, mobileAlt) => {
     // No images on mobile - text only for better UX
     return '';
   } else if (desktopGif) {
-    // Desktop: fixed size GIF
-    return `<div style="text-align: center;"><img src="/static/images/tour/${desktopGif}" style="width: ${desktopSize.width}px; height: ${desktopSize.height}px; border-radius: 4px;" alt="${mobileAlt || 'Tour step'}"></div>`;
+    // Desktop: fixed size autoplaying video (MP4 replaces the old GIF to cut payload)
+    const desktopMp4 = desktopGif.replace(/\.gif$/, '.mp4');
+    return `<div style="text-align: center;"><video src="/static/images/tour/${desktopMp4}" autoplay loop muted playsinline style="width: ${desktopSize.width}px; height: ${desktopSize.height}px; border-radius: 4px;" aria-label="${mobileAlt || 'Tour step'}"></video></div>`;
   }
   return '';
 };
+
+// Flush layout, then settle briefly so Driver.js positions the popover against a
+// stable box. Popover media is now fixed-size <video> (no load event to wait on),
+// and `element` can be undefined if Driver.js highlights a missing target.
+const settleLayout = (element) =>
+  new Promise((resolve) => {
+    element?.getBoundingClientRect();
+    setTimeout(resolve, 100);
+  });
 
 const GuidedTour = () => {
   const { setActivePage } = useNavigation();
@@ -105,38 +115,7 @@ const GuidedTour = () => {
         },
         {
           element: '[data-tour="items-tab"]',
-          onHighlightStarted: (element) => {
-            // Wait for layout to settle and images to load before positioning
-            return new Promise((resolve) => {
-              // Force layout recalculation
-              element.getBoundingClientRect();
-
-              // Wait for any images in popovers to load
-              const images = document.querySelectorAll('.driver-popover img');
-              if (images.length > 0) {
-                let loadedCount = 0;
-                const checkAllLoaded = () => {
-                  loadedCount++;
-                  if (loadedCount === images.length) {
-                    // All images loaded, wait a bit more for layout to settle
-                    setTimeout(resolve, 100);
-                  }
-                };
-
-                images.forEach(img => {
-                  if (img.complete) {
-                    checkAllLoaded();
-                  } else {
-                    img.addEventListener('load', checkAllLoaded);
-                    img.addEventListener('error', checkAllLoaded); // Resolve even on error
-                  }
-                });
-              } else {
-                // No images, just wait for layout to settle
-                setTimeout(resolve, 100);
-              }
-            });
-          },
+          onHighlightStarted: settleLayout,
           popover: {
             title: 'Step 1: Creating practice items',
             description: `Use the items page to create and manage items.<br>Items can be songs, exercises, reminders, etc.<br>${getTourImage('CreateItem.gif', 'mobile-items-add.png', { width: 600, height: 579 }, 'Creating a practice item')}`,
@@ -156,38 +135,7 @@ const GuidedTour = () => {
         },
         {
           element: '[data-tour="new-routine-input"]',
-          onHighlightStarted: (element) => {
-            // Wait for layout to settle and images to load before positioning
-            return new Promise((resolve) => {
-              // Force layout recalculation
-              element.getBoundingClientRect();
-
-              // Wait for any images in popovers to load
-              const images = document.querySelectorAll('.driver-popover img');
-              if (images.length > 0) {
-                let loadedCount = 0;
-                const checkAllLoaded = () => {
-                  loadedCount++;
-                  if (loadedCount === images.length) {
-                    // All images loaded, wait a bit more for layout to settle
-                    setTimeout(resolve, 100);
-                  }
-                };
-
-                images.forEach(img => {
-                  if (img.complete) {
-                    checkAllLoaded();
-                  } else {
-                    img.addEventListener('load', checkAllLoaded);
-                    img.addEventListener('error', checkAllLoaded); // Resolve even on error
-                  }
-                });
-              } else {
-                // No images, just wait for layout to settle
-                setTimeout(resolve, 100);
-              }
-            });
-          },
+          onHighlightStarted: settleLayout,
           popover: {
             title: 'Step 2: Creating routines',
             description: `Routines are for organizing your practice items into structured sessions.<br><br>Enter a name for a new routine, then click the \`+ Add\` button.<br><br>${getTourImage('CreateRoutine.gif', 'mobile-routines-create.png', { width: 600, height: 495 }, 'Creating a routine')}`,
