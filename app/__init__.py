@@ -63,6 +63,16 @@ if not database_url:
     raise ValueError("DATABASE_URL environment variable must be set")
 app.config['DATABASE_URL'] = database_url
 
+# Static asset caching: serve /static files with a long Cache-Control max-age
+# so repeat/edge visitors stop re-downloading (and re-revalidating) them.
+# Flask's default leaves this unset, so static files fall back to ETag/
+# Last-Modified revalidation (a 304 round-trip on every repeat visit).
+# Safe because Vite vendor chunks are content-hashed and the un-hashed entry
+# files (main.js/auth.js/chord-editor.js/main.css) are cache-busted via the
+# ?v={{ asset_version }} query param that changes every deploy.
+from datetime import timedelta
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = timedelta(days=30)
+
 # Password Reset Configuration
 app.config['PASSWORD_RESET_TOKEN_EXPIRY'] = int(os.getenv('PASSWORD_RESET_TOKEN_EXPIRY', '3600'))
 
@@ -266,6 +276,12 @@ app.config['WTF_CSRF_CHECK_DEFAULT'] = False  # Disable global enforcement (sele
 # Initialize CSRF Protection (selective mode - manually protect specific endpoints)
 from flask_wtf.csrf import CSRFProtect
 csrf = CSRFProtect(app)
+
+# Initialize response compression (gzip/brotli) for text assets — CSS/JS/HTML/JSON/SVG.
+# Defaults compress text mimetypes over 500 bytes and prefer brotli when the client
+# sends Accept-Encoding: br. Big FCP win on the large Tailwind CSS bundles.
+from flask_compress import Compress
+compress = Compress(app)
 
 # Initialize Rate Limiting (DoS prevention)
 from flask_limiter import Limiter

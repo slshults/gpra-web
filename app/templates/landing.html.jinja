@@ -12,6 +12,7 @@
     <!-- PWA -->
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#f97316">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="/static/images/GPRA-192x192.png">
@@ -26,8 +27,7 @@
     <meta property="og:description" content="GPRA helps guitarists organize practice routines, track progress, use focus timers, and create chord charts. For beginner and intermediate players.">
     <meta property="og:image" content="https://guitarpracticeroutine.com/static/images/og-strat.png">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}?v={{ asset_version }}">
 
     <!-- Hash validation: redirect invalid hashes to 404 before rendering landing page.
          Unauthenticated users visiting /#InvalidHash should see 404, not the landing page. -->
@@ -113,6 +113,10 @@
         .video-tap-overlay__icon { width:62px; height:62px; border-radius:50%; background:var(--btn); display:flex; align-items:center; justify-content:center; box-shadow:0 8px 24px -8px rgba(0,0,0,.6); }
         .video-tap-overlay__icon svg { width:26px; height:26px; fill:#fff; margin-left:3px; }
         .video-tap-overlay__label { font-size:14px; font-weight:600; letter-spacing:.01em; }
+        /* Floating callout shown when a user clicks a playing tour video expecting it to be
+           interactive. Non-interactive itself (pointer-events:none); fades out after ~3s. */
+        .video-info-tooltip { position:absolute; top:12px; left:50%; transform:translateX(-50%); z-index:2; max-width:88%; padding:10px 14px; border-radius:8px; background:rgba(17,24,39,.92); color:#fff; font-size:13px; line-height:1.45; font-weight:500; text-align:center; box-shadow:0 8px 24px -8px rgba(0,0,0,.6); pointer-events:none; opacity:0; transition:opacity .25s ease; }
+        .video-info-tooltip.is-visible { opacity:1; }
         .frame__body > img, .frame__body > video { display:block; width:100%; height:auto; }
         .frame__body > img.contain { width:auto; max-width:100%; }
         .cta-arrow { display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:15px; color:var(--accent); text-decoration:none; transition:gap .15s; }
@@ -125,9 +129,8 @@
             [data-reveal] { opacity:1; transform:none; transition:none; }
         }
 
-        /* Hero responsive type: set here (this inline <style> loads after CookieConsent.css)
-           so the desktop sizes win. CookieConsent.css ships base .text-xl / .text-base
-           utilities that otherwise clobber the hero's sm:text-2xl / sm:text-lg. */
+        /* Hero responsive type: pin the desktop sizes here (belt-and-suspenders) so the
+           hero's sm:text-2xl / sm:text-lg always win regardless of Tailwind utility order. */
         @media (min-width: 640px) {
             .landing-hero .text-xl { font-size: 1.5rem; }     /* matches sm:text-2xl */
             .landing-hero .text-base { font-size: 1.125rem; } /* matches sm:text-lg */
@@ -157,10 +160,10 @@
     <div class="flex flex-col items-center px-4 py-3">
         <!-- Hero / intro (boxless, centered) -->
         <!-- NOTE: the sm: text sizes below (h1 sm:text-4xl, tagline sm:text-2xl, sub-lines
-             sm:text-lg) are reinforced in the inline <style> under `.landing-hero`, because
-             CookieConsent.css ships base .text-xl / .text-base utilities that load after
-             main.css and would otherwise clobber them. If you change these sm: sizes here,
-             update the matching `.landing-hero` rule in that <style> block too. -->
+             sm:text-lg) are reinforced by matching rules in the inline <style> under
+             `.landing-hero` (belt-and-suspenders so they win regardless of utility order).
+             If you change these sm: sizes here, update the matching `.landing-hero` rule
+             in that <style> block too. -->
         <div class="w-full max-w-3xl mx-auto text-center px-2 pt-6 pb-4 landing-hero">
             <h1 class="text-3xl sm:text-4xl font-bold text-orange-500 mb-5 leading-tight">
                 🎸 Guitar Practice Routine App
@@ -208,7 +211,9 @@
                 </div>
                 <div class="feature__media" data-reveal data-reveal-delay="90">
                     <div class="frame"><div class="frame__body">
-                        <img src="{{ url_for('static', filename='images/tour/ChartsFromYouTubeURL.gif') }}" alt="Autocreating chord charts from a YouTube link" loading="lazy">
+                        <video class="lazy-video" muted loop playsinline preload="none" aria-label="Autocreating chord charts from a YouTube link">
+                            <source src="{{ url_for('static', filename='images/tour/ChartsFromYouTubeURL.mp4') }}" type="video/mp4">
+                        </video>
                     </div></div>
                 </div>
             </div>
@@ -225,7 +230,7 @@
                 </div>
                 <div class="feature__media" data-reveal data-reveal-delay="90">
                     <div class="frame"><div class="frame__body">
-                        <video autoplay muted loop playsinline preload="metadata">
+                        <video class="lazy-video" muted loop playsinline preload="none">
                             <source src="{{ url_for('static', filename='images/tour/CreateItem.mp4') }}" type="video/mp4">
                         </video>
                     </div></div>
@@ -244,7 +249,7 @@
                 </div>
                 <div class="feature__media" data-reveal data-reveal-delay="90">
                     <div class="frame"><div class="frame__body">
-                        <video autoplay muted loop playsinline preload="metadata">
+                        <video class="lazy-video" muted loop playsinline preload="none">
                             <source src="{{ url_for('static', filename='images/tour/CreateRoutine.mp4') }}" type="video/mp4">
                         </video>
                     </div></div>
@@ -263,7 +268,7 @@
                 </div>
                 <div class="feature__media" data-reveal data-reveal-delay="90">
                     <div class="frame"><div class="frame__body">
-                        <video autoplay muted loop playsinline preload="metadata">
+                        <video class="lazy-video" muted loop playsinline preload="none">
                             <source src="{{ url_for('static', filename='images/tour/AddItemsToRoutine.mp4') }}" type="video/mp4">
                         </video>
                     </div></div>
@@ -299,7 +304,7 @@
                 </div>
                 <div class="feature__media" data-reveal data-reveal-delay="90">
                     <div class="frame"><div class="frame__body">
-                        <video autoplay muted loop playsinline preload="metadata">
+                        <video class="lazy-video" muted loop playsinline preload="none">
                             <source src="{{ url_for('static', filename='images/Timer.mp4') }}" type="video/mp4">
                         </video>
                     </div></div>
@@ -384,7 +389,7 @@
              style="height: 20px; width: 40px; display: none;">
     </div>
 
-    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}?v={{ asset_version }}"></script>
 
     <!-- Scroll reveal for feature sections -->
     <script>
@@ -407,17 +412,21 @@
         })();
     </script>
 
-    <!-- Feature video playback. Two mobile-browser problems are handled here:
+    <!-- Feature video playback + lazy loading. The tour <video> tags ship with
+         preload="none" and no autoplay (so ~5MB of video doesn't compete for bandwidth
+         during initial paint / FCP). An IntersectionObserver loads + plays each video only
+         as it nears the viewport, and pauses it again when it scrolls out (saves CPU/battery).
+         Two mobile-browser problems are also handled here:
          1) Looping: the <video> tags carry the native `loop` attribute, but some mobile
-            browsers (e.g. Cromite/Chromium on Android with preload="metadata") drop the loop
-            after one play. We re-loop on `ended`.
+            browsers (e.g. Cromite/Chromium on Android) drop the loop after one play. We
+            re-loop on `ended`.
          2) Blocked autoplay: when autoplay is disabled in the browser's site settings, muted
-            autoplay silently fails and the video sits frozen. We detect that (play() rejects)
+            play() silently fails and the video sits frozen. We detect that (play() rejects)
             when the video scrolls into view and reveal a tap-to-play overlay. Users whose
             autoplay works never see the overlay — play() resolves and the video plays normally. -->
     <script>
         (function () {
-            var vids = Array.prototype.slice.call(document.querySelectorAll('.feature__media video'));
+            var vids = Array.prototype.slice.call(document.querySelectorAll('.feature__media video.lazy-video'));
             if (!vids.length) return;
 
             function hideOverlay(video) {
@@ -425,6 +434,8 @@
                 if (ov) ov.remove();
             }
             function tryPlay(video, onBlocked) {
+                // Promote preload + kick off the network fetch the first time we want to play.
+                if (video.preload !== 'auto') { video.preload = 'auto'; video.load(); }
                 var p = video.play();
                 if (p && p.then) {
                     p.then(function () { hideOverlay(video); }).catch(function () { if (onBlocked) onBlocked(video); });
@@ -448,6 +459,31 @@
                 body.appendChild(btn);
             }
 
+            // Show a "not interactive" callout when a user clicks a playing video. The tap-to-play
+            // overlay (position:absolute; inset:0) covers the video while autoplay is blocked and
+            // swallows the click, so a click that reaches the <video> means it's already playing —
+            // i.e. the user thinks the video is interactive. One tooltip per media block; a repeat
+            // click resets the 3s timer instead of stacking duplicates.
+            function showInfoTooltip(video) {
+                var body = video.parentNode;
+                if (!body) return;
+                var tip = body.querySelector('.video-info-tooltip');
+                if (!tip) {
+                    tip = document.createElement('div');
+                    tip.className = 'video-info-tooltip';
+                    tip.setAttribute('role', 'status');
+                    tip.innerHTML = "This is a video. It's not interactive.<br>Create an account to try out GPRA.";
+                    body.appendChild(tip);
+                }
+                if (tip._hideTimer) { clearTimeout(tip._hideTimer); }
+                // Force reflow so re-adding is-visible re-triggers the fade-in transition.
+                void tip.offsetWidth;
+                tip.classList.add('is-visible');
+                tip._hideTimer = setTimeout(function () {
+                    tip.classList.remove('is-visible');
+                }, 3000);
+            }
+
             vids.forEach(function (v) {
                 v.loop = true;
                 // Keep looping even if a mobile browser drops the native loop after one play.
@@ -456,16 +492,21 @@
                     var p = v.play();
                     if (p && p.catch) { p.catch(function () {}); }
                 });
+                v.addEventListener('click', function () { showInfoTooltip(v); });
             });
 
-            // Probe autoplay when each video first scrolls into view (avoids force-loading
-            // off-screen videos, and detects the block at the moment it should be playing).
+            // Load + play each video as it nears the viewport; pause it when it leaves.
+            // rootMargin starts the fetch ~200px early so there's no blank frame on entry.
             if ('IntersectionObserver' in window) {
                 var io = new IntersectionObserver(function (entries) {
                     entries.forEach(function (e) {
-                        if (e.isIntersecting) { tryPlay(e.target, showOverlay); io.unobserve(e.target); }
+                        if (e.isIntersecting) {
+                            tryPlay(e.target, showOverlay);
+                        } else if (!e.target.paused) {
+                            e.target.pause();
+                        }
                     });
-                }, { threshold: 0.25 });
+                }, { rootMargin: '200px 0px', threshold: 0 });
                 vids.forEach(function (v) { io.observe(v); });
             } else {
                 vids.forEach(function (v) { tryPlay(v, showOverlay); });

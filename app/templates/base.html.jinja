@@ -12,6 +12,7 @@
     <!-- PWA -->
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#f97316">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="/static/images/GPRA-192x192.png">
@@ -29,7 +30,7 @@
     <!-- Driver.js CSS (from CDN) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
     <!-- Custom Driver.js theme -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/driver-theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/driver-theme.css') }}?v={{ asset_version }}">
     <!-- Tailwind CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}?v={{ asset_version }}">
     {% block extra_css %}{% endblock %}
@@ -61,7 +62,7 @@
     </div>
 
     <!-- Theme Toggle JavaScript -->
-    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}?v={{ asset_version }}"></script>
 
     <!-- Service Worker Registration -->
     <script>

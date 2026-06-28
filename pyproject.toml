@@ -25,6 +25,8 @@ dependencies = [
     "sqlalchemy",
     "psycopg2-binary",
     "flask-cors",
+    "flask-compress",
+    "brotli",
     "alembic",
     "authlib",
     "requests",

@@ -2,7 +2,7 @@
 
 {% block extra_css %}
 <!-- Load CookieConsent.css which includes grecaptcha-badge hiding rule -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}?v={{ asset_version }}">
 <!-- Position theme toggle for auth pages (upper-left) -->
 <style>
   .theme-toggle {

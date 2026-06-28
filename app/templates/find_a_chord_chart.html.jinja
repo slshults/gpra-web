@@ -32,8 +32,8 @@
     {% endif %}
     <meta property="og:image" content="https://guitarpracticeroutine.com/static/images/og-strat.png">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}?v={{ asset_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}?v={{ asset_version }}">
 
     <script>
         // Apply theme immediately to prevent flash (light-mode system)
@@ -287,7 +287,7 @@
              style="height: 20px; width: 40px; display: none;">
     </div>
 
-    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}?v={{ asset_version }}"></script>
     <script type="module" src="{{ url_for('static', filename='dist/js/chord-editor.js') }}?v={{ asset_version }}"></script>
 
     {% include '_cookie_consent_banner.html.jinja' %}

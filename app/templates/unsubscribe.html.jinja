@@ -7,8 +7,8 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="icon" type="image/png" sizes="48x48" href="/static/images/favicon-48x48.png">
     <link rel="apple-touch-icon" sizes="192x192" href="/static/images/GPRA-192x192.png">
-    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}?v={{ asset_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}?v={{ asset_version }}">
     <script>
         // Apply theme immediately to prevent flash (light-mode system)
         (function() {
@@ -160,7 +160,7 @@
              style="height: 20px; width: 40px; display: none;">
     </div>
 
-    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}?v={{ asset_version }}"></script>
 
     {% include '_cookie_consent_banner.html.jinja' %}
 </body>
