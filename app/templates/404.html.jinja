@@ -11,8 +11,8 @@
     <!-- Primary Meta Tags -->
     <meta name="description" content="Page not found - Guitar Practice Routine App">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}?v={{ asset_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}?v={{ asset_version }}">
 
     <script>
         // Apply theme immediately to prevent flash (light-mode system)
@@ -92,7 +92,7 @@
              style="height: 20px; width: 40px; display: none;">
     </div>
 
-    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}?v={{ asset_version }}"></script>
 
     <script>
         // Countdown timer that redirects to / after 20 seconds
