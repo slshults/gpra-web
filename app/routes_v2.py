@@ -2521,7 +2521,7 @@ def get_expiration_warning():
     try:
         from app import appbuilder
         from app.models import PracticeEvent, UserPreferences
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
         db = appbuilder.session
         user_id = current_user.id
@@ -2545,9 +2545,14 @@ def get_expiration_warning():
         preferences = db.query(UserPreferences).filter_by(user_id=user_id).first()
         reminder_dismissed = None
         if preferences and preferences.data_expiration_reminder_dismissed_until:
-            reminder_dismissed = preferences.data_expiration_reminder_dismissed_until.isoformat()
+            dismissed_until = preferences.data_expiration_reminder_dismissed_until
+            reminder_dismissed = dismissed_until.isoformat()
+            # The column is timezone-aware, so normalize to aware UTC before
+            # comparing against an aware "now" to avoid naive/aware TypeErrors.
+            if dismissed_until.tzinfo is None:
+                dismissed_until = dismissed_until.replace(tzinfo=timezone.utc)
             # Only show warning if dismissed_until has passed
-            if preferences.data_expiration_reminder_dismissed_until > datetime.utcnow():
+            if dismissed_until > datetime.now(timezone.utc):
                 return jsonify({
                     "has_expiring_data": False,
                     "days_until_expiration": days_until_expiration,
