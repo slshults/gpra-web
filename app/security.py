@@ -376,7 +376,10 @@ class CustomAuthOAuthView(AuthOAuthView):
             # Track successful OAuth login
             track_event(user.id, 'user_logged_in', {
                 'login_method': 'oauth',
-                'oauth_provider': provider
+                'oauth_provider': provider,
+                # Backfill identity person properties for pre-existing users
+                # and keep them fresh after email/username changes.
+                '$set': {'email': user.email, 'username': user.username}
             }, ip=client_ip)
             track_event(user.id, 'oauth_flow_completed', {
                 'oauth_provider': provider,
@@ -403,7 +406,10 @@ class CustomAuthOAuthView(AuthOAuthView):
                 # Track OAuth signup (existing user)
                 track_event(user.id, 'user_logged_in', {
                     'login_method': 'oauth',
-                    'oauth_provider': provider
+                    'oauth_provider': provider,
+                    # Backfill identity person properties for pre-existing users
+                    # and keep them fresh after email/username changes.
+                    '$set': {'email': user.email, 'username': user.username}
                 }, ip=client_ip)
                 track_event(user.id, 'oauth_flow_completed', {
                     'oauth_provider': provider,
@@ -437,7 +443,10 @@ class CustomAuthOAuthView(AuthOAuthView):
                 # Track new user registration via OAuth
                 track_event(user.id, 'user_registered', {
                     'registration_method': 'oauth',
-                    'oauth_provider': provider
+                    'oauth_provider': provider,
+                    # Set identity person properties so backend-only users (who
+                    # never accept frontend cookies) are still identifiable.
+                    '$set': {'email': user.email, 'username': user.username}
                 }, ip=client_ip)
                 track_event(user.id, 'oauth_flow_completed', {
                     'oauth_provider': provider,
