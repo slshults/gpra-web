@@ -1598,7 +1598,10 @@ def api_login():
     client_ip = get_client_ip()
     track_event(user.id, 'user_logged_in', {
         'login_method': 'email',
-        'oauth_provider': None
+        'oauth_provider': None,
+        # Backfill identity person properties for pre-existing users and keep
+        # them fresh after email/username changes.
+        '$set': {'email': user.email, 'username': user.username}
     }, ip=client_ip)
 
     # Track reCAPTCHA event if token was provided
@@ -1795,7 +1798,10 @@ def api_register():
         client_ip = get_client_ip()
         track_event(user.id, 'user_registered', {
             'registration_method': 'email',
-            'oauth_provider': None
+            'oauth_provider': None,
+            # Set identity person properties so backend-only users (who never
+            # accept frontend cookies) are still identifiable in PostHog.
+            '$set': {'email': user.email, 'username': user.username}
         }, ip=client_ip)
 
         # Track reCAPTCHA success
