@@ -90,8 +90,10 @@ const App = () => {
       .then(data => {
         setUserStatus(data);
 
-        // Identify user with PostHog if authenticated
-        if (data.authenticated && window.posthog) {
+        // Identify user with PostHog if authenticated. Skipped in cookieless
+        // mode (no consent): a PII distinct_id would defeat the anonymous
+        // server-side hashing.
+        if (data.authenticated && window.posthog && !window.__phCookieless) {
           // Use posthog_distinct_id (email or tidalNNNNN) to coordinate with backend
           window.posthog.identify(data.posthog_distinct_id, {
             email: data.email,

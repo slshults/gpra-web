@@ -98,7 +98,9 @@ const LoginPage = () => {
           const authResponse = await fetch('/api/auth/status');
           const authData = await authResponse.json();
 
-          if (authData.authenticated && window.posthog) {
+          // Skipped in cookieless mode (no consent): a PII distinct_id would
+          // defeat the anonymous server-side hashing.
+          if (authData.authenticated && window.posthog && !window.__phCookieless) {
             // Use posthog_distinct_id (email or tidalNNNNN) to coordinate with backend
             window.posthog.identify(authData.posthog_distinct_id, {
               email: authData.email,
