@@ -2,9 +2,11 @@
 PostHog LLM Analytics utility for manual capture
 Implements PostHog LLM Analytics with comprehensive properties tracking
 
-NOTE: Auto-instrumentation via create_instrumented_anthropic_client() captures basic $ai_generation events.
-This module provides manual tracking for ADDITIONAL custom properties (item_name, section_count, etc.)
-that aren't captured by auto-instrumentation.
+NOTE: This module is the single source of truth for $ai_generation events. It captures each
+generation explicitly with the correct per-user distinct_id and rich custom properties
+(item_name, section_count, cache hits, etc.). PostHog's posthog.ai.anthropic auto-instrumentation
+is intentionally NOT enabled (see create_instrumented_anthropic_client) to avoid emitting a
+duplicate $ai_generation for every call already tracked here.
 """
 
 import os

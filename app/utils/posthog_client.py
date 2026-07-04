@@ -266,63 +266,39 @@ def _get_user_subscription_tier(user_id: int) -> Optional[str]:
 
 def create_instrumented_anthropic_client(api_key: str, user_id: Optional[int] = None):
     """
-    Create an Anthropic client with PostHog LLM auto-instrumentation.
+    Create an Anthropic client for autocreate LLM calls.
 
-    This automatically captures $ai_generation events with:
-    - Tokens (input/output)
-    - Cost (calculated from model pricing)
-    - Latency (response time)
-    - Model name
-    - Provider (anthropic)
-    - Correct distinct_id (user email or tidalNNNNN)
+    $ai_generation events are captured explicitly by app.utils.llm_analytics
+    (the ``track_generation`` calls in routes_v2), which already attach the
+    correct per-user distinct_id (user email or tidalNNNNN) plus rich custom
+    properties (item name, file counts, cache hits, etc.) at every call site.
+    That manual path is the single source of truth for LLM analytics, so this
+    returns a plain Anthropic client and does NOT enable PostHog's
+    posthog.ai.anthropic auto-instrumentation.
+
+    Why not the auto-instrumented client: it would emit a second $ai_generation
+    for every generation already tracked manually, doubling event counts,
+    tokens, and cost in LLM analytics. (It was also never actually active — the
+    previous constructor call passed the per-request kwarg ``posthog_distinct_id``,
+    which the Anthropic constructor rejects with TypeError, so the code always
+    fell back to a plain client while logging a noisy warning on every request.)
 
     Args:
         api_key: Anthropic API key
-        user_id: User ID for PostHog distinct_id (CRITICAL for multi-tenant analytics)
+        user_id: User ID, retained for signature compatibility / logging. Actual
+            per-user attribution happens in llm_analytics via get_posthog_distinct_id.
 
     Returns:
-        Anthropic client with PostHog instrumentation (or standard client if PostHog unavailable)
+        A standard Anthropic client.
     """
-    # Calculate distinct_id for this user
-    distinct_id = None
     if user_id:
-        distinct_id = get_posthog_distinct_id(user_id)
-        logger.debug(f"PostHog distinct_id for user {user_id}: {distinct_id}")
-
-    if not posthog_client:
-        logger.warning("PostHog not initialized, creating standard Anthropic client")
-        import anthropic
-        return anthropic.Anthropic(api_key=api_key)
-
-    try:
-        # Use PostHog's instrumented Anthropic client class
-        # This automatically tracks all API calls as $ai_generation events
-        from posthog.ai.anthropic import Anthropic
-
-        # Create instrumented client with distinct_id for proper user attribution
-        # The distinct_id is passed to all auto-captured events
-        client = Anthropic(
-            posthog_client=posthog_client,
-            api_key=api_key,
-            posthog_distinct_id=distinct_id  # CRITICAL: Use proper distinct_id for multi-tenant analytics
+        logger.debug(
+            f"Creating Anthropic client for user {user_id}; "
+            f"$ai_generation attribution handled by llm_analytics manual tracking"
         )
-        logger.info(f"Anthropic client created with PostHog LLM instrumentation (distinct_id: {distinct_id})")
-        return client
-    except ImportError as e:
-        logger.warning(f"PostHog LLM instrumentation not available: {e}. Creating standard Anthropic client.")
-        logger.info("Manual tracking via llm_analytics.py will still work.")
-        import anthropic
-        return anthropic.Anthropic(api_key=api_key)
-    except TypeError as e:
-        # posthog_distinct_id parameter might not be supported in older SDK versions
-        logger.warning(f"PostHog LLM instrumentation doesn't support distinct_id parameter: {e}. Falling back.")
-        logger.info("Manual tracking via llm_analytics.py will use correct distinct_id.")
-        import anthropic
-        return anthropic.Anthropic(api_key=api_key)
-    except Exception as e:
-        logger.error(f"Failed to create instrumented Anthropic client: {str(e)}")
-        import anthropic
-        return anthropic.Anthropic(api_key=api_key)
+
+    import anthropic
+    return anthropic.Anthropic(api_key=api_key)
 
 
 def call_posthog_endpoint(endpoint_name: str, variables: Dict[str, Any]) -> Optional[list]:
