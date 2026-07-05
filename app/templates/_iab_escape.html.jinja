@@ -1,0 +1,119 @@
+{# In-app browser (WebView) escape.
+   Meta's in-app browsers break scrolling on the landing page (~80% of FB ad
+   sessions never scroll, per PostHog replay data, July 2026). We don't support
+   in-app browsers at all: auto-escape to the device's default browser, and
+   block the page with a full-screen prompt so the in-app copy is never usable.
+   Escape schemes are an arms race with Meta — if they stop working, the
+   blocking overlay + button is the fallback experience. #}
+<script>
+(function () {
+    'use strict';
+
+    // Installed PWAs run in standalone display mode inside an OS web view —
+    // on iOS the UA has no "Safari/" token, which would false-positive the
+    // WebView detection below and lock installed-app users out. Bail first.
+    if ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+        navigator.standalone === true) {
+        return;
+    }
+
+    var ua = navigator.userAgent || '';
+
+    // Meta apps (Facebook, Instagram, Messenger) tag their WebView UA.
+    var isMetaApp = /FBAN|FBAV|FB_IAB|FB4A|FBIOS|Instagram|Messenger/i.test(ua);
+
+    // Generic Android WebView carries a "wv" token real Chrome never has.
+    var isAndroid = /Android/i.test(ua);
+    var isAndroidWebView = isAndroid && /;\s*wv\)/.test(ua);
+
+    // Generic iOS WebView: WebKit UA without "Safari/" (real Safari, CriOS,
+    // FxiOS, and EdgiOS all include it; embedded WKWebViews don't).
+    var isIOS = /iPhone|iPad|iPod/i.test(ua);
+    var isIOSWebView = isIOS && /AppleWebKit/i.test(ua) && !/Safari\//i.test(ua);
+
+    if (!(isMetaApp || isAndroidWebView || isIOSWebView)) return;
+
+    function captureEvent(name, props) {
+        if (window.posthog && window.posthog.capture) {
+            window.posthog.capture(name, props);
+        }
+    }
+
+    function escapeToBrowser() {
+        // No location.hash here: a raw "#" would terminate the intent:// data
+        // URI early. The iOS branch keeps the hash; Android loses it (the
+        // fallback URL below still carries the full href).
+        var pathQuery = location.pathname + location.search;
+        if (isAndroid) {
+            // intent:// hands the URL to Android's default https handler (a
+            // real browser). If the WebView blocks the intent, the fallback
+            // URL reloads this page in place — the sessionStorage guard below
+            // keeps that from looping.
+            location.href = 'intent://' + location.host + pathQuery +
+                '#Intent;scheme=https;S.browser_fallback_url=' +
+                encodeURIComponent(location.href) + ';end';
+        } else if (isIOS) {
+            // x-safari-https: opens the URL directly in Safari.
+            location.href = 'x-safari-https://' + location.host + pathQuery + location.hash;
+        } else {
+            window.open(location.href, '_blank');
+        }
+    }
+
+    function showOverlay() {
+        if (document.getElementById('iab-escape-overlay')) return;
+        var overlay = document.createElement('div');
+        overlay.id = 'iab-escape-overlay';
+        overlay.setAttribute('role', 'alertdialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'iab-escape-message');
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;' +
+            'background:#111827;color:#d1d5db;display:flex;flex-direction:column;' +
+            'align-items:center;justify-content:center;text-align:center;padding:32px;' +
+            'font-family:system-ui,-apple-system,sans-serif;';
+
+        var msg = document.createElement('p');
+        msg.id = 'iab-escape-message';
+        msg.textContent = "Sorry, the app you're using is not a web browser, " +
+            "so the site won't work correctly. Hit the button to open the " +
+            "site in your preferred web browser";
+        msg.style.cssText = 'font-size:18px;line-height:1.6;max-width:34ch;margin:0 0 28px;';
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Open GPRA';
+        btn.style.cssText = 'height:48px;padding:8px 40px;border:0;border-radius:6px;' +
+            'background:#ea580c;color:#fff;font-size:17px;font-weight:600;cursor:pointer;';
+        btn.addEventListener('click', function () {
+            captureEvent('iab_escape_button_clicked');
+            escapeToBrowser();
+        });
+
+        overlay.appendChild(msg);
+        overlay.appendChild(btn);
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+        btn.focus();
+    }
+
+    // Always block the page — even when the auto-escape succeeds, the in-app
+    // copy stays open behind the real browser and must not be usable.
+    if (document.body) {
+        showOverlay();
+    } else {
+        document.addEventListener('DOMContentLoaded', showOverlay);
+    }
+
+    // Auto-escape once per session. If sessionStorage is unavailable we skip
+    // the automatic attempt (no loop protection) and rely on the button.
+    try {
+        if (!sessionStorage.getItem('iabEscapeAttempted')) {
+            sessionStorage.setItem('iabEscapeAttempted', '1');
+            captureEvent('iab_escape_attempted', {
+                iab_kind: isMetaApp ? 'meta' : (isAndroidWebView ? 'android_webview' : 'ios_webview')
+            });
+            setTimeout(escapeToBrowser, 50);
+        }
+    } catch (e) { /* storage blocked — button-only escape */ }
+})();
+</script>

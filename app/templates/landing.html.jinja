@@ -541,5 +541,8 @@
 
     <!-- PostHog Analytics (shared partial) -->
     {% include "_posthog_init.html.jinja" %}
+
+    {# After _posthog_init so iab_escape_attempted can capture #}
+    {% include '_iab_escape.html.jinja' %}
 </body>
 </html>
