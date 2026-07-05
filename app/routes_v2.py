@@ -943,12 +943,12 @@ def autocreate_chord_charts():
                 }
             }), 429
 
-        # Initialize Anthropic client with PostHog instrumentation
+        # Initialize Anthropic client; $ai_generation events are tracked
+        # manually via llm_analytics (auto-instrumentation intentionally off)
         from app.utils.llm_analytics import track_llm_generation, track_llm_span
-        from app.utils.posthog_client import create_instrumented_anthropic_client
+        from app.utils.posthog_client import create_anthropic_client
 
-        # Create client with LLM auto-instrumentation and proper distinct_id
-        client = create_instrumented_anthropic_client(api_key, user_id=user_id)
+        client = create_anthropic_client(api_key, user_id=user_id)
         app.logger.info(f"[AUTOCREATE] Anthropic client initialized successfully")
 
         # Prepare the Claude analysis request
