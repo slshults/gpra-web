@@ -4,7 +4,7 @@ PostHog Python SDK client wrapper for GPRA.
 Provides:
 - Auto-enrichment of events with subscription tier
 - Helper functions for event tracking
-- Anthropic client wrapping for LLM auto-instrumentation
+- Anthropic client creation for autocreate ($ai_generation tracking handled by llm_analytics)
 """
 
 import hmac
@@ -264,7 +264,7 @@ def _get_user_subscription_tier(user_id: int) -> Optional[str]:
         return None
 
 
-def create_instrumented_anthropic_client(api_key: str, user_id: Optional[int] = None):
+def create_anthropic_client(api_key: str, user_id: Optional[int] = None):
     """
     Create an Anthropic client for autocreate LLM calls.
 
@@ -285,8 +285,8 @@ def create_instrumented_anthropic_client(api_key: str, user_id: Optional[int] = 
 
     Args:
         api_key: Anthropic API key
-        user_id: User ID, retained for signature compatibility / logging. Actual
-            per-user attribution happens in llm_analytics via get_posthog_distinct_id.
+        user_id: User ID, used only for debug logging. Actual per-user
+            attribution happens in llm_analytics via get_posthog_distinct_id.
 
     Returns:
         A standard Anthropic client.
