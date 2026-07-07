@@ -3,8 +3,14 @@
    sessions never scroll, per PostHog replay data, July 2026). We don't support
    in-app browsers at all: auto-escape to the device's default browser, and
    block the page with a full-screen prompt so the in-app copy is never usable.
-   Escape schemes are an arms race with Meta — if they stop working, the
-   blocking overlay + button is the fallback experience. #}
+
+   Escape schemes are an arms race with Meta. Field results (2026-07-06):
+   - Android: intent:// works but Chromium requires a user gesture, so the
+     gestureless auto-attempt is blocked — the first tap on the overlay (or
+     the button) carries the gesture and fires the real escape.
+   - iOS FB app v568+ intercepts x-safari-https:// and opens ANOTHER internal
+     browser view instead of Safari, so for iOS Meta apps we show manual
+     "open in browser" instructions instead of a button. #}
 <script>
 (function () {
     'use strict';
@@ -33,9 +39,16 @@
 
     if (!(isMetaApp || isAndroidWebView || isIOSWebView)) return;
 
+    var iabKind = isMetaApp ? 'meta' : (isAndroidWebView ? 'android_webview' : 'ios_webview');
+    // FB iOS v568+ hijacks x-safari-https:// into a nested in-app view, so a
+    // button that fires it makes things worse — manual instructions instead.
+    var iosMetaManualOnly = isIOS && isMetaApp;
+
     function captureEvent(name, props) {
         if (window.posthog && window.posthog.capture) {
-            window.posthog.capture(name, props);
+            // send_instantly: the escape navigation freezes/kills this context
+            // moments later — a batched event would be lost with it.
+            window.posthog.capture(name, props, { send_instantly: true });
         }
     }
 
@@ -60,6 +73,15 @@
         }
     }
 
+    function escapeWithCapture(trigger) {
+        captureEvent('iab_escape_button_clicked', { iab_kind: iabKind, trigger: trigger });
+        // Give the instant capture a beat to hit the network before the
+        // navigation freezes this context. Chromium's transient user
+        // activation survives a delay this short, so intent:// still counts
+        // as gesture-driven.
+        setTimeout(escapeToBrowser, 200);
+    }
+
     function showOverlay() {
         if (document.getElementById('iab-escape-overlay')) return;
         var overlay = document.createElement('div');
@@ -74,10 +96,23 @@
 
         var msg = document.createElement('p');
         msg.id = 'iab-escape-message';
+        msg.style.cssText = 'font-size:18px;line-height:1.6;max-width:34ch;margin:0 0 28px;';
+
+        if (iosMetaManualOnly) {
+            msg.textContent = "Sorry, the app you're using is not a web browser, " +
+                "so the site won't work correctly. Tap the ⋯ menu, then " +
+                "“Open in system browser” to use GPRA.";
+            msg.setAttribute('tabindex', '-1');
+            overlay.appendChild(msg);
+            document.body.appendChild(overlay);
+            document.body.style.overflow = 'hidden';
+            msg.focus();
+            return;
+        }
+
         msg.textContent = "Sorry, the app you're using is not a web browser, " +
             "so the site won't work correctly. Hit the button to open the " +
             "site in your preferred web browser";
-        msg.style.cssText = 'font-size:18px;line-height:1.6;max-width:34ch;margin:0 0 28px;';
 
         var btn = document.createElement('button');
         btn.type = 'button';
@@ -85,8 +120,7 @@
         btn.style.cssText = 'height:48px;padding:8px 40px;border:0;border-radius:6px;' +
             'background:#ea580c;color:#fff;font-size:17px;font-weight:600;cursor:pointer;';
         btn.addEventListener('click', function () {
-            captureEvent('iab_escape_button_clicked');
-            escapeToBrowser();
+            escapeWithCapture('button');
         });
 
         overlay.appendChild(msg);
@@ -94,6 +128,17 @@
         document.body.appendChild(overlay);
         document.body.style.overflow = 'hidden';
         btn.focus();
+
+        // Android's intent:// needs a user gesture (the gestureless auto
+        // attempt below is silently blocked), so the FIRST tap anywhere on
+        // the overlay escapes — users don't have to hit the button exactly.
+        if (isAndroid) {
+            overlay.addEventListener('pointerdown', function onFirstTap(e) {
+                overlay.removeEventListener('pointerdown', onFirstTap);
+                if (e.target === btn) return; // button's click handler covers it
+                escapeWithCapture('overlay_tap');
+            });
+        }
     }
 
     // Always block the page — even when the auto-escape succeeds, the in-app
@@ -104,16 +149,17 @@
         document.addEventListener('DOMContentLoaded', showOverlay);
     }
 
-    // Auto-escape once per session. If sessionStorage is unavailable we skip
-    // the automatic attempt (no loop protection) and rely on the button.
+    // Auto-escape once per session. Blocked on Android (no gesture) and
+    // intercepted by FB iOS v568+, but harmless and free where it still
+    // works (Instagram Android, older app versions, other WebViews). If
+    // sessionStorage is unavailable we skip the automatic attempt (no loop
+    // protection) and rely on the gesture/button path.
     try {
         if (!sessionStorage.getItem('iabEscapeAttempted')) {
             sessionStorage.setItem('iabEscapeAttempted', '1');
-            captureEvent('iab_escape_attempted', {
-                iab_kind: isMetaApp ? 'meta' : (isAndroidWebView ? 'android_webview' : 'ios_webview')
-            });
+            captureEvent('iab_escape_attempted', { iab_kind: iabKind });
             setTimeout(escapeToBrowser, 50);
         }
-    } catch (e) { /* storage blocked — button-only escape */ }
+    } catch (e) { /* storage blocked — gesture/button-only escape */ }
 })();
 </script>
