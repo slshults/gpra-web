@@ -116,18 +116,36 @@
         msg.style.cssText = 'font-size:18px;line-height:1.6;max-width:34ch;margin:0 0 28px;outline:none;';
 
         // Shared escape-hatch line: gpra.app 301s to the site, and is short
-        // enough to retype in a real browser when all else fails.
+        // enough to retype in a real browser when all else fails. NOT a link
+        // — a link would just open in yet another in-app view. Tapping it
+        // copies the URL for pasting into a real browser instead.
         var fallbackNote = document.createElement('p');
         fallbackNote.style.cssText = 'font-size:15px;line-height:1.6;max-width:34ch;margin:24px 0 0;color:#9ca3af;';
         fallbackNote.appendChild(document.createTextNode("If that doesn't work, please open "));
-        var fallbackLink = document.createElement('a');
-        fallbackLink.href = 'https://gpra.app';
-        fallbackLink.target = '_blank';
-        fallbackLink.rel = 'noopener';
-        fallbackLink.textContent = 'gpra.app';
-        fallbackLink.style.cssText = 'color:#f97316;text-decoration:underline;';
-        fallbackNote.appendChild(fallbackLink);
-        fallbackNote.appendChild(document.createTextNode(' in your default web browser'));
+        var fallbackCopy = document.createElement('button');
+        fallbackCopy.type = 'button';
+        fallbackCopy.textContent = 'gpra.app';
+        fallbackCopy.setAttribute('aria-label', 'Copy gpra.app to clipboard');
+        fallbackCopy.style.cssText = 'border:0;padding:0;background:transparent;cursor:pointer;' +
+            'font:inherit;color:#f97316;text-decoration:underline;';
+        fallbackCopy.addEventListener('click', function () {
+            function confirmCopied() {
+                fallbackCopy.textContent = 'gpra.app — copied!';
+                fallbackCopy.style.textDecoration = 'none';
+                setTimeout(function () {
+                    fallbackCopy.textContent = 'gpra.app';
+                    fallbackCopy.style.textDecoration = 'underline';
+                }, 2000);
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText('https://gpra.app').then(confirmCopied, function () {
+                    // Clipboard denied (some WebViews) — nothing sensible to
+                    // do; the text itself remains the instruction.
+                });
+            }
+        });
+        fallbackNote.appendChild(fallbackCopy);
+        fallbackNote.appendChild(document.createTextNode(' in your default web browser (tap to copy)'));
 
         if (iosMetaManualOnly) {
             msg.textContent = "Sorry, the app you're using is not a web browser, " +
@@ -167,11 +185,11 @@
         // the overlay escapes — users don't have to hit the button exactly.
         if (isAndroid) {
             overlay.addEventListener('pointerdown', function onFirstTap(e) {
-                // Button, dismiss, and link taps have their own behavior —
-                // return BEFORE consuming the one-shot, so those taps don't
-                // burn the background-tap escape.
+                // Button, dismiss, and copy-control taps have their own
+                // behavior — return BEFORE consuming the one-shot, so those
+                // taps don't burn the background-tap escape.
                 if (btn.contains(e.target) || closeBtn.contains(e.target) ||
-                    fallbackLink.contains(e.target)) {
+                    fallbackCopy.contains(e.target)) {
                     return;
                 }
                 overlay.removeEventListener('pointerdown', onFirstTap);
