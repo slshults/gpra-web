@@ -46,9 +46,9 @@
 
     function captureEvent(name, props) {
         if (window.posthog && window.posthog.capture) {
-            // send_instantly: the escape navigation freezes/kills this context
-            // moments later — a batched event would be lost with it.
-            window.posthog.capture(name, props, { send_instantly: true });
+            // send_instantly skips the batch queue; sendBeacon survives the
+            // escape navigation freezing/killing this context moments later.
+            window.posthog.capture(name, props, { send_instantly: true, transport: 'sendBeacon' });
         }
     }
 
@@ -74,7 +74,7 @@
     }
 
     function escapeWithCapture(trigger) {
-        captureEvent('iab_escape_button_clicked', { iab_kind: iabKind, trigger: trigger });
+        captureEvent('iab_escape_triggered', { iab_kind: iabKind, trigger: trigger });
         // Give the instant capture a beat to hit the network before the
         // navigation freezes this context. Chromium's transient user
         // activation survives a delay this short, so intent:// still counts
@@ -119,7 +119,7 @@
         // enough to retype in a real browser when all else fails.
         var fallbackNote = document.createElement('p');
         fallbackNote.style.cssText = 'font-size:15px;line-height:1.6;max-width:34ch;margin:24px 0 0;color:#9ca3af;';
-        fallbackNote.appendChild(document.createTextNode("If something isn't working, please open "));
+        fallbackNote.appendChild(document.createTextNode("If that doesn't work, please open "));
         var fallbackLink = document.createElement('a');
         fallbackLink.href = 'https://gpra.app';
         fallbackLink.target = '_blank';
@@ -127,7 +127,7 @@
         fallbackLink.textContent = 'gpra.app';
         fallbackLink.style.cssText = 'color:#f97316;text-decoration:underline;';
         fallbackNote.appendChild(fallbackLink);
-        fallbackNote.appendChild(document.createTextNode(' in your preferred browser'));
+        fallbackNote.appendChild(document.createTextNode(' in your default web browser'));
 
         if (iosMetaManualOnly) {
             msg.textContent = "Sorry, the app you're using is not a web browser, " +
@@ -167,9 +167,14 @@
         // the overlay escapes — users don't have to hit the button exactly.
         if (isAndroid) {
             overlay.addEventListener('pointerdown', function onFirstTap(e) {
+                // Button, dismiss, and link taps have their own behavior —
+                // return BEFORE consuming the one-shot, so those taps don't
+                // burn the background-tap escape.
+                if (btn.contains(e.target) || closeBtn.contains(e.target) ||
+                    fallbackLink.contains(e.target)) {
+                    return;
+                }
                 overlay.removeEventListener('pointerdown', onFirstTap);
-                // Button, dismiss, and link taps have their own behavior.
-                if (e.target === btn || e.target === closeBtn || e.target === fallbackLink) return;
                 escapeWithCapture('overlay_tap');
             });
         }
