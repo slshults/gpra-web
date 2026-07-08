@@ -94,9 +94,40 @@
             'align-items:center;justify-content:center;text-align:center;padding:32px;' +
             'font-family:system-ui,-apple-system,sans-serif;';
 
+        // Dismiss control — field feedback: when the escape fails AND the
+        // instructions don't land, a hard-blocked page is a dead end. Let
+        // users close the overlay and take their chances with the IAB.
+        var closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.textContent = '×';
+        closeBtn.setAttribute('aria-label', 'Dismiss');
+        closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;width:44px;height:44px;' +
+            'border:0;border-radius:6px;background:transparent;color:#9ca3af;' +
+            'font-size:30px;line-height:1;cursor:pointer;';
+        closeBtn.addEventListener('click', function () {
+            captureEvent('iab_escape_dismissed', { iab_kind: iabKind });
+            overlay.remove();
+            document.body.style.overflow = '';
+        });
+        overlay.appendChild(closeBtn);
+
         var msg = document.createElement('p');
         msg.id = 'iab-escape-message';
-        msg.style.cssText = 'font-size:18px;line-height:1.6;max-width:34ch;margin:0 0 28px;';
+        msg.style.cssText = 'font-size:18px;line-height:1.6;max-width:34ch;margin:0 0 28px;outline:none;';
+
+        // Shared escape-hatch line: gpra.app 301s to the site, and is short
+        // enough to retype in a real browser when all else fails.
+        var fallbackNote = document.createElement('p');
+        fallbackNote.style.cssText = 'font-size:15px;line-height:1.6;max-width:34ch;margin:24px 0 0;color:#9ca3af;';
+        fallbackNote.appendChild(document.createTextNode("If something isn't working, please open "));
+        var fallbackLink = document.createElement('a');
+        fallbackLink.href = 'https://gpra.app';
+        fallbackLink.target = '_blank';
+        fallbackLink.rel = 'noopener';
+        fallbackLink.textContent = 'gpra.app';
+        fallbackLink.style.cssText = 'color:#f97316;text-decoration:underline;';
+        fallbackNote.appendChild(fallbackLink);
+        fallbackNote.appendChild(document.createTextNode(' in your preferred browser'));
 
         if (iosMetaManualOnly) {
             msg.textContent = "Sorry, the app you're using is not a web browser, " +
@@ -104,6 +135,7 @@
                 "“Open in system browser” to use GPRA.";
             msg.setAttribute('tabindex', '-1');
             overlay.appendChild(msg);
+            overlay.appendChild(fallbackNote);
             document.body.appendChild(overlay);
             document.body.style.overflow = 'hidden';
             msg.focus();
@@ -125,6 +157,7 @@
 
         overlay.appendChild(msg);
         overlay.appendChild(btn);
+        overlay.appendChild(fallbackNote);
         document.body.appendChild(overlay);
         document.body.style.overflow = 'hidden';
         btn.focus();
@@ -135,14 +168,15 @@
         if (isAndroid) {
             overlay.addEventListener('pointerdown', function onFirstTap(e) {
                 overlay.removeEventListener('pointerdown', onFirstTap);
-                if (e.target === btn) return; // button's click handler covers it
+                // Button, dismiss, and link taps have their own behavior.
+                if (e.target === btn || e.target === closeBtn || e.target === fallbackLink) return;
                 escapeWithCapture('overlay_tap');
             });
         }
     }
 
-    // Always block the page — even when the auto-escape succeeds, the in-app
-    // copy stays open behind the real browser and must not be usable.
+    // Block the page by default — the in-app copy shouldn't be usable — but
+    // the overlay is dismissable (×) as a last resort when the escape fails.
     if (document.body) {
         showOverlay();
     } else {
