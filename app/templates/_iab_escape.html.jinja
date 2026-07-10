@@ -4,13 +4,16 @@
    in-app browsers at all: auto-escape to the device's default browser, and
    block the page with a full-screen prompt so the in-app copy is never usable.
 
-   Escape schemes are an arms race with Meta. Field results (2026-07-06):
-   - Android: intent:// works but Chromium requires a user gesture, so the
-     gestureless auto-attempt is blocked — the first tap on the overlay (or
-     the button) carries the gesture and fires the real escape.
+   Escape schemes are an arms race with Meta, and Meta has beaten both
+   programmatic routes (field data, 2026-07-06..09):
    - iOS FB app v568+ intercepts x-safari-https:// and opens ANOTHER internal
-     browser view instead of Safari, so for iOS Meta apps we show manual
-     "open in browser" instructions instead of a button. #}
+     browser view instead of Safari.
+   - FB's Android WebView blocks intent:// even WITH a genuine user gesture
+     (41 users fired gesture-driven escapes post-deploy; 1 reached a real
+     browser — and that one was a non-FB WebView).
+   So ALL Meta apps get manual "open in browser" instructions instead of a
+   button. The tap/button escape remains for non-Meta WebViews, where the
+   escape schemes still work (intent:// confirmed on Android). #}
 <script>
 (function () {
     'use strict';
@@ -40,9 +43,10 @@
     if (!(isMetaApp || isAndroidWebView || isIOSWebView)) return;
 
     var iabKind = isMetaApp ? 'meta' : (isAndroidWebView ? 'android_webview' : 'ios_webview');
-    // FB iOS v568+ hijacks x-safari-https:// into a nested in-app view, so a
-    // button that fires it makes things worse — manual instructions instead.
-    var iosMetaManualOnly = isIOS && isMetaApp;
+    // Meta blocks both escape schemes (x-safari-https:// hijacked on iOS,
+    // intent:// swallowed even with a gesture on Android), so a button that
+    // fires them makes things worse — manual instructions instead.
+    var metaManualOnly = isMetaApp;
 
     function captureEvent(name, props) {
         if (window.posthog && window.posthog.capture) {
@@ -147,10 +151,21 @@
         fallbackNote.appendChild(fallbackCopy);
         fallbackNote.appendChild(document.createTextNode(' in your default web browser'));
 
-        if (iosMetaManualOnly) {
-            msg.textContent = "Sorry, the app you're using is not a web browser, " +
-                "so the site won't work correctly. Tap the ⋯ menu, then " +
-                "“Open in system browser” to use GPRA.";
+        if (metaManualOnly) {
+            // Menu glyph and item label differ per platform: Android FB uses
+            // a vertical ⋮ / "Open in external browser", iOS FB uses ⋯ /
+            // "Open in system browser". Blank lines (pre-line + \n\n) break
+            // the instructions into short scannable blocks for mobile users.
+            msg.style.whiteSpace = 'pre-line';
+            msg.textContent = isAndroid
+                ? "Sorry, the app you're using is not a web browser, " +
+                  "so the site won't work right. Please...\n\n" +
+                  "Tap the ⋮ menu, then:\n\n" +
+                  "“Open in external browser”"
+                : "Sorry, the app you're using is not a web browser, " +
+                  "so the site won't work right. Please...\n\n" +
+                  "Tap the ⋯ menu, then:\n\n" +
+                  "“Open in system browser”";
             msg.setAttribute('tabindex', '-1');
             overlay.appendChild(msg);
             overlay.appendChild(fallbackNote);
@@ -206,9 +221,9 @@
         document.addEventListener('DOMContentLoaded', showOverlay);
     }
 
-    // Auto-escape once per session. Blocked on Android (no gesture) and
-    // intercepted by FB iOS v568+, but harmless and free where it still
-    // works (Instagram Android, older app versions, other WebViews). If
+    // Auto-escape once per session. Meta blocks it on both platforms and
+    // Chromium blocks it gestureless everywhere, but it's harmless and free
+    // where it still works (older app versions, permissive WebViews). If
     // sessionStorage is unavailable we skip the automatic attempt (no loop
     // protection) and rely on the gesture/button path.
     try {
