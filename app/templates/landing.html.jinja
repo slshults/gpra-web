@@ -117,8 +117,10 @@
            interactive. Non-interactive itself (pointer-events:none); fades out after ~3s. */
         .video-info-tooltip { position:absolute; top:12px; left:50%; transform:translateX(-50%); z-index:2; max-width:88%; padding:10px 14px; border-radius:8px; background:rgba(17,24,39,.92); color:#fff; font-size:13px; line-height:1.45; font-weight:500; text-align:center; box-shadow:0 8px 24px -8px rgba(0,0,0,.6); pointer-events:none; opacity:0; transition:opacity .25s ease; }
         .video-info-tooltip.is-visible { opacity:1; }
+        /* width/height attributes on the media elements give the browser the aspect ratio,
+           so width:100% + height:auto reserves the final box before load (prevents CLS).
+           Images narrower than the column carry an inline max-width at their natural size. */
         .frame__body > img, .frame__body > video { display:block; width:100%; height:auto; }
-        .frame__body > img.contain { width:auto; max-width:100%; }
         .cta-arrow { display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:15px; color:var(--accent); text-decoration:none; transition:gap .15s; }
         .cta-arrow:hover { gap:13px; }
         .btn-cta { display:inline-flex; align-items:center; justify-content:center; border-radius:6px; text-decoration:none; height:44px; padding:8px 32px; background:var(--btn); color:#fff; font-size:16px; font-weight:600; transition:background .15s; }
@@ -211,7 +213,7 @@
                 </div>
                 <div class="feature__media" data-reveal data-reveal-delay="90">
                     <div class="frame"><div class="frame__body">
-                        <video class="lazy-video" muted loop playsinline preload="none" aria-label="Autocreating chord charts from a YouTube link">
+                        <video class="lazy-video" width="534" height="480" muted loop playsinline preload="none" aria-label="Autocreating chord charts from a YouTube link">
                             <source src="{{ url_for('static', filename='images/tour/ChartsFromYouTubeURL.mp4') }}" type="video/mp4">
                         </video>
                     </div></div>
@@ -230,7 +232,7 @@
                 </div>
                 <div class="feature__media" data-reveal data-reveal-delay="90">
                     <div class="frame"><div class="frame__body">
-                        <video class="lazy-video" muted loop playsinline preload="none">
+                        <video class="lazy-video" width="1120" height="1080" muted loop playsinline preload="none">
                             <source src="{{ url_for('static', filename='images/tour/CreateItem.mp4') }}" type="video/mp4">
                         </video>
                     </div></div>
@@ -249,7 +251,7 @@
                 </div>
                 <div class="feature__media" data-reveal data-reveal-delay="90">
                     <div class="frame"><div class="frame__body">
-                        <video class="lazy-video" muted loop playsinline preload="none">
+                        <video class="lazy-video" width="1308" height="1080" muted loop playsinline preload="none">
                             <source src="{{ url_for('static', filename='images/tour/CreateRoutine.mp4') }}" type="video/mp4">
                         </video>
                     </div></div>
@@ -268,7 +270,7 @@
                 </div>
                 <div class="feature__media" data-reveal data-reveal-delay="90">
                     <div class="frame"><div class="frame__body">
-                        <video class="lazy-video" muted loop playsinline preload="none">
+                        <video class="lazy-video" width="1488" height="1080" muted loop playsinline preload="none">
                             <source src="{{ url_for('static', filename='images/tour/AddItemsToRoutine.mp4') }}" type="video/mp4">
                         </video>
                     </div></div>
@@ -287,7 +289,7 @@
                 </div>
                 <div class="feature__media" data-reveal data-reveal-delay="90">
                     <div class="frame"><div class="frame__body">
-                        <img src="{{ url_for('static', filename='images/dragndrop.png') }}" alt="Drag-and-drop reordering" loading="lazy">
+                        <img src="{{ url_for('static', filename='images/dragndrop.png') }}" width="1074" height="613" alt="Drag-and-drop reordering" loading="lazy">
                     </div></div>
                 </div>
             </div>
@@ -304,7 +306,7 @@
                 </div>
                 <div class="feature__media" data-reveal data-reveal-delay="90">
                     <div class="frame"><div class="frame__body">
-                        <video class="lazy-video" muted loop playsinline preload="none">
+                        <video class="lazy-video" width="1312" height="1278" muted loop playsinline preload="none">
                             <source src="{{ url_for('static', filename='images/Timer.mp4') }}" type="video/mp4">
                         </video>
                     </div></div>
@@ -323,7 +325,7 @@
                 </div>
                 <div class="feature__media" data-reveal data-reveal-delay="90">
                     <div class="frame"><div class="frame__body">
-                        <img class="contain" src="{{ url_for('static', filename='images/Stats.jpg') }}" alt="Practice stats" loading="lazy">
+                        <img src="{{ url_for('static', filename='images/Stats.jpg') }}" width="1138" height="1332" style="max-width:1138px" alt="Practice stats" loading="lazy">
                     </div></div>
                 </div>
             </div>
@@ -340,7 +342,7 @@
                 </div>
                 <div class="feature__media" data-reveal data-reveal-delay="90">
                     <div class="frame"><div class="frame__body">
-                        <img class="contain" src="{{ url_for('static', filename='images/download.png') }}" alt="Download your data" loading="lazy">
+                        <img src="{{ url_for('static', filename='images/download.png') }}" width="757" height="718" style="max-width:757px" alt="Download your data" loading="lazy">
                     </div></div>
                 </div>
             </div>
