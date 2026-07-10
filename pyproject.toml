@@ -39,7 +39,11 @@ dependencies = [
     "fpdf2",
     "numpy",
     "opentelemetry-sdk",
-    "opentelemetry-exporter-otlp-proto-http"
+    "opentelemetry-exporter-otlp-proto-http",
+    "opentelemetry-instrumentation-flask",
+    "opentelemetry-instrumentation-sqlalchemy",
+    "opentelemetry-instrumentation-requests",
+    "opentelemetry-instrumentation-httpx"
 ]
 
 [tool.setuptools]

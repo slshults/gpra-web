@@ -431,6 +431,11 @@ app.logger.info('Guitar Practice Routine App startup')
 from app.utils.otel_logs import setup_otel_logging
 setup_otel_logging(app)
 
+# Ship distributed traces to PostHog Tracing (opt-in via POSTHOG_TRACES_ENABLED).
+# Must run before init_admin below so FAB's engine is also instrumented.
+from app.utils.otel_traces import setup_otel_tracing
+setup_otel_tracing(app)
+
 # Also enable Flask-AppBuilder debug logging
 logging.getLogger('flask_appbuilder').setLevel(logging.DEBUG)
 
