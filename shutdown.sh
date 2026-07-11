@@ -133,14 +133,26 @@ fi
 if [ $REDIS_RUNNING -eq 0 ]; then
     echo -e "${BLUE}Stopping Redis...${NC}"
 
-    # Try graceful shutdown via redis-cli
-    if command -v redis-cli &> /dev/null; then
-        redis-cli shutdown 2>/dev/null
-        sleep 1
-    fi
+    # If Redis is running as a systemd service (apt install enables it at
+    # boot), it runs as the 'redis' user with Restart=always — redis-cli
+    # shutdown gets respawned instantly and pkill lacks permission. Stop it
+    # through systemd instead.
+    if systemctl is-active --quiet redis-server 2>/dev/null; then
+        if sudo systemctl stop redis-server; then
+            echo -e "${GREEN}  ✓ Redis stopped via systemctl${NC}"
+        else
+            echo -e "${RED}  ✗ Failed to stop Redis service (try: sudo systemctl stop redis-server)${NC}"
+        fi
+    else
+        # User-started Redis (daemonized by gpr.sh)
+        if command -v redis-cli &> /dev/null; then
+            redis-cli shutdown 2>/dev/null
+            sleep 1
+        fi
 
-    # Force stop if still running
-    stop_process "Redis" "redis-server" 2
+        # Force stop if still running
+        stop_process "Redis" "redis-server" 2
+    fi
 
     echo ""
 fi
