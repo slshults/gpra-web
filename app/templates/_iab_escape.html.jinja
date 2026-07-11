@@ -2,7 +2,9 @@
    Meta's in-app browsers break scrolling on the landing page (~80% of FB ad
    sessions never scroll, per PostHog replay data, July 2026). We don't support
    in-app browsers at all: auto-escape to the device's default browser, and
-   block the page with a full-screen prompt so the in-app copy is never usable.
+   block the page with a centered modal prompt (dimmed backdrop, page visible
+   above/below) so the in-app copy is never usable, while making it obvious
+   the prompt can be dismissed.
 
    Escape schemes are an arms race with Meta, and Meta has beaten both
    programmatic routes (field data, 2026-07-06..09):
@@ -88,19 +90,32 @@
 
     function showOverlay() {
         if (document.getElementById('iab-escape-overlay')) return;
+
+        // Backdrop: dims the page but leaves it visible above/below the
+        // modal card, so it's obvious there's a dismissable prompt sitting
+        // on top of a real page rather than a dead end.
         var overlay = document.createElement('div');
         overlay.id = 'iab-escape-overlay';
         overlay.setAttribute('role', 'alertdialog');
         overlay.setAttribute('aria-modal', 'true');
         overlay.setAttribute('aria-labelledby', 'iab-escape-message');
         overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;' +
-            'background:#111827;color:#d1d5db;display:flex;flex-direction:column;' +
-            'align-items:center;justify-content:center;text-align:center;padding:32px;' +
+            'background:rgba(17,24,39,0.75);display:flex;' +
+            'align-items:center;justify-content:center;padding:24px;' +
             'font-family:system-ui,-apple-system,sans-serif;';
+
+        // Modal card: the actual prompt content, sized and centered so the
+        // page shows around it on all sides.
+        var modal = document.createElement('div');
+        modal.style.cssText = 'position:relative;background:#111827;color:#d1d5db;' +
+            'display:flex;flex-direction:column;align-items:center;text-align:center;' +
+            'width:100%;max-width:360px;padding:32px;border-radius:12px;' +
+            'box-shadow:0 10px 40px rgba(0,0,0,0.5);';
+        overlay.appendChild(modal);
 
         // Dismiss control — field feedback: when the escape fails AND the
         // instructions don't land, a hard-blocked page is a dead end. Let
-        // users close the overlay and take their chances with the IAB.
+        // users close the modal and take their chances with the IAB.
         var closeBtn = document.createElement('button');
         closeBtn.type = 'button';
         closeBtn.textContent = '×';
@@ -113,7 +128,7 @@
             overlay.remove();
             document.body.style.overflow = '';
         });
-        overlay.appendChild(closeBtn);
+        modal.appendChild(closeBtn);
 
         var msg = document.createElement('p');
         msg.id = 'iab-escape-message';
@@ -167,8 +182,8 @@
                   "Tap the ⋯ menu, then:\n\n" +
                   "“Open in system browser”";
             msg.setAttribute('tabindex', '-1');
-            overlay.appendChild(msg);
-            overlay.appendChild(fallbackNote);
+            modal.appendChild(msg);
+            modal.appendChild(fallbackNote);
             document.body.appendChild(overlay);
             document.body.style.overflow = 'hidden';
             msg.focus();
@@ -188,16 +203,17 @@
             escapeWithCapture('button');
         });
 
-        overlay.appendChild(msg);
-        overlay.appendChild(btn);
-        overlay.appendChild(fallbackNote);
+        modal.appendChild(msg);
+        modal.appendChild(btn);
+        modal.appendChild(fallbackNote);
         document.body.appendChild(overlay);
         document.body.style.overflow = 'hidden';
         btn.focus();
 
         // Android's intent:// needs a user gesture (the gestureless auto
         // attempt below is silently blocked), so the FIRST tap anywhere on
-        // the overlay escapes — users don't have to hit the button exactly.
+        // the overlay (backdrop or modal) escapes — users don't have to hit
+        // the button exactly.
         if (isAndroid) {
             overlay.addEventListener('pointerdown', function onFirstTap(e) {
                 // Button, dismiss, and copy-control taps have their own
@@ -214,7 +230,7 @@
     }
 
     // Block the page by default — the in-app copy shouldn't be usable — but
-    // the overlay is dismissable (×) as a last resort when the escape fails.
+    // the modal is dismissable (×) as a last resort when the escape fails.
     if (document.body) {
         showOverlay();
     } else {
