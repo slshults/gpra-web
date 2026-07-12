@@ -20,9 +20,38 @@ Env vars:
 """
 
 import atexit
+import functools
 import os
 
 DEFAULT_ENDPOINT = 'https://us.i.posthog.com/i/v1/traces'
+
+
+def carry_otel_context(fn):
+    """Wrap fn so it runs under the caller's OTel context in a worker thread.
+
+    OTel context doesn't propagate into ThreadPoolExecutor threads on its own,
+    so spans created there (e.g. instrumented requests calls) would show up as
+    orphan roots instead of children of the Flask request span. Call this in
+    the request thread and submit the wrapper to the pool.
+
+    No-op passthrough when OpenTelemetry isn't installed or tracing is off.
+    """
+    try:
+        from opentelemetry import context as otel_context
+    except ImportError:
+        return fn
+
+    ctx = otel_context.get_current()
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        token = otel_context.attach(ctx)
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            otel_context.detach(token)
+
+    return wrapper
 
 # Skip spans for asset/crawler noise; only real application routes get traced.
 EXCLUDED_URLS = '/static/,/robots.txt,/sitemap.xml,/favicon'

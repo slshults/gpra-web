@@ -8199,10 +8199,19 @@ def get_practice_stats():
 
     variables = {'distinct_id': distinct_id, 'days_back': days_back}
 
-    # Call all three endpoints
-    summary_rows = call_posthog_endpoint('user_practice_summary', variables)
-    daily_rows = call_posthog_endpoint('user_daily_practice', variables)
-    top_items_rows = call_posthog_endpoint('user_top_items', variables)
+    # Call all three endpoints in parallel - each is an independent HTTPS
+    # round trip to PostHog, so wall time drops to the slowest single call.
+    # carry_otel_context keeps their spans nested under the request trace.
+    from concurrent.futures import ThreadPoolExecutor
+    from app.utils.otel_traces import carry_otel_context
+    call_endpoint = carry_otel_context(call_posthog_endpoint)
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        summary_future = pool.submit(call_endpoint, 'user_practice_summary', variables)
+        daily_future = pool.submit(call_endpoint, 'user_daily_practice', variables)
+        top_items_future = pool.submit(call_endpoint, 'user_top_items', variables)
+        summary_rows = summary_future.result()
+        daily_rows = daily_future.result()
+        top_items_rows = top_items_future.result()
 
     # If all three failed, PostHog is likely down
     if summary_rows is None and daily_rows is None and top_items_rows is None:

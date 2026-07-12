@@ -52,7 +52,17 @@
                 session_recording: {
                     maskAllInputs: true
                 },
-                before_send: dropResizeObserverNoise
+                before_send: dropResizeObserverNoise,
+                loaded: function(ph) {
+                    // A stale persisted opt-out can survive consent changes,
+                    // because opt_in_capturing() is ignored while the SDK is in
+                    // cookieless mode and the consent-off cleanup doesn't remove
+                    // the __ph_opt_in_out_* flag. localStorage.cookieConsent is
+                    // the source of truth: the user accepted, so clear it.
+                    if (consent === 'all' && ph.has_opted_out_capturing()) {
+                        ph.opt_in_capturing();
+                    }
+                }
             });
         } else {
             // No consent (pending or declined) — cookieless mode. Nothing is
