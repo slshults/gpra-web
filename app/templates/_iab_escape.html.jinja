@@ -125,7 +125,7 @@
             'border:0;border-radius:6px;background:transparent;color:#9ca3af;' +
             'font-size:30px;line-height:1;cursor:pointer;';
         closeBtn.addEventListener('click', function () {
-            captureEvent('iab_escape_dismissed', { iab_kind: iabKind });
+            captureEvent('iab_escape_dismissed', { iab_kind: iabKind, trigger: 'close_button' });
             overlay.remove();
             document.body.style.overflow = '';
         });
@@ -188,6 +188,20 @@
             document.body.appendChild(overlay);
             document.body.style.overflow = 'hidden';
             msg.focus();
+
+            // Field data (PostHog replay, session 019f5407-a157-...,
+            // 2026-07-12): Meta users tap the dimmed backdrop expecting the
+            // page they can see around the modal to dismiss it (that's the
+            // whole point of showing it) — 6 dead clicks on
+            // #iab-escape-overlay itself, then the user gave up. Only the ×
+            // had a handler. Dismiss on a direct tap on the backdrop too;
+            // e.target === overlay excludes bubbled taps from the modal card.
+            overlay.addEventListener('click', function (e) {
+                if (e.target !== overlay) return;
+                captureEvent('iab_escape_dismissed', { iab_kind: iabKind, trigger: 'backdrop' });
+                overlay.remove();
+                document.body.style.overflow = '';
+            });
             return;
         }
 
