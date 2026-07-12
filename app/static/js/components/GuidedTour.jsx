@@ -240,6 +240,8 @@ const GuidedTour = () => {
         {
           element: '[data-tour="chord-charts-section"]',
           onHighlighted: (element) => {
+            // `element` can be undefined if Driver.js highlights a missing target
+            if (!element) return;
             // After Driver.js positions, scroll so element appears BELOW the popover
             // The popover is CSS-positioned at top: 10%, so we scroll the element
             // to appear in the lower half of the viewport
@@ -294,6 +296,8 @@ const GuidedTour = () => {
         {
           element: '[data-tour="api-key-input"]',
           onHighlighted: (element) => {
+            // `element` can be undefined if Driver.js highlights a missing target
+            if (!element) return;
             // After Driver.js positions, scroll to show element with title above it
             setTimeout(() => {
               element.scrollIntoView({ behavior: 'smooth', block: 'center' });
