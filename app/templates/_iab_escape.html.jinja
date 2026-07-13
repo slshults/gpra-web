@@ -114,6 +114,12 @@
             'box-shadow:0 10px 40px rgba(0,0,0,0.5);';
         overlay.appendChild(modal);
 
+        function dismissOverlay(trigger) {
+            captureEvent('iab_escape_dismissed', { iab_kind: iabKind, trigger: trigger });
+            overlay.remove();
+            document.body.style.overflow = '';
+        }
+
         // Dismiss control — field feedback: when the escape fails AND the
         // instructions don't land, a hard-blocked page is a dead end. Let
         // users close the modal and take their chances with the IAB.
@@ -125,9 +131,7 @@
             'border:0;border-radius:6px;background:transparent;color:#9ca3af;' +
             'font-size:30px;line-height:1;cursor:pointer;';
         closeBtn.addEventListener('click', function () {
-            captureEvent('iab_escape_dismissed', { iab_kind: iabKind, trigger: 'close_button' });
-            overlay.remove();
-            document.body.style.overflow = '';
+            dismissOverlay('close_button');
         });
         modal.appendChild(closeBtn);
 
@@ -198,9 +202,7 @@
             // e.target === overlay excludes bubbled taps from the modal card.
             overlay.addEventListener('click', function (e) {
                 if (e.target !== overlay) return;
-                captureEvent('iab_escape_dismissed', { iab_kind: iabKind, trigger: 'backdrop' });
-                overlay.remove();
-                document.body.style.overflow = '';
+                dismissOverlay('backdrop');
             });
             return;
         }
@@ -228,8 +230,15 @@
         // Android's intent:// needs a user gesture (the gestureless auto
         // attempt below is silently blocked), so the FIRST tap anywhere on
         // the overlay (backdrop or modal) escapes — users don't have to hit
-        // the button exactly.
-        if (isAndroid) {
+        // the button exactly. Once per session: if the WebView blocks the
+        // intent, its fallback URL reloads this page, and re-arming the
+        // one-shot would make every backdrop tap re-escape and re-reload —
+        // backdrop-dismiss below would be unreachable. After one failed
+        // gesture escape, taps degrade to dismissal (button still escapes).
+        var escapeTapAt = 0;
+        var gestureEscapeUsed = false;
+        try { gestureEscapeUsed = !!sessionStorage.getItem('iabGestureEscapeAttempted'); } catch (e) {}
+        if (isAndroid && !gestureEscapeUsed) {
             overlay.addEventListener('pointerdown', function onFirstTap(e) {
                 // Button, dismiss, and copy-control taps have their own
                 // behavior — return BEFORE consuming the one-shot, so those
@@ -239,9 +248,20 @@
                     return;
                 }
                 overlay.removeEventListener('pointerdown', onFirstTap);
+                try { sessionStorage.setItem('iabGestureEscapeAttempted', '1'); } catch (e) {}
+                escapeTapAt = Date.now();
                 escapeWithCapture('overlay_tap');
             });
         }
+
+        // Backdrop taps dismiss here too (matching the Meta path) — but the
+        // first Android tap is the escape gesture above, so its trailing
+        // click event gets a pass before backdrop dismissal kicks in.
+        overlay.addEventListener('click', function (e) {
+            if (e.target !== overlay) return;
+            if (Date.now() - escapeTapAt < 600) return;
+            dismissOverlay('backdrop');
+        });
     }
 
     // Block the page by default — the in-app copy shouldn't be usable — but
