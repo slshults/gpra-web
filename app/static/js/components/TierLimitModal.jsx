@@ -53,6 +53,11 @@ const TierLimitModal = ({ isOpen, onClose, limitType, currentTier, currentCount,
             <div className="text-gray-700 dark:text-gray-300">
               {getMessage()}
             </div>
+            {limitType === 'routines' && (
+              <div className="text-gray-700 dark:text-gray-300">
+                Go to the <a href="/#Items" className="text-blue-400 hover:text-blue-300 underline">items page</a> to create new items to add to this routine.
+              </div>
+            )}
           </DialogDescription>
         </DialogHeader>
 
