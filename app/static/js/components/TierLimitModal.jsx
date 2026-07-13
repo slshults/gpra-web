@@ -14,7 +14,7 @@ const TierLimitModal = ({ isOpen, onClose, limitType, currentTier, currentCount,
 
   const getMessage = () => {
     if (limitType === 'routines') {
-      return `Your plan only includes ${limitAmount} routine${limitAmount !== 1 ? 's' : ''}, you're at the max. Pick a button:`;
+      return `Your plan only includes ${limitAmount} routine${limitAmount !== 1 ? 's' : ''}, you're at the max.`;
     } else {
       return `Your plan only includes ${limitAmount} item${limitAmount !== 1 ? 's' : ''}, you're at the max. Pick a button:`;
     }
@@ -55,7 +55,7 @@ const TierLimitModal = ({ isOpen, onClose, limitType, currentTier, currentCount,
             </div>
             {limitType === 'routines' && (
               <div className="text-gray-700 dark:text-gray-300">
-                Go to the <a href="/#Items" className="text-blue-400 hover:text-blue-300 underline">items page</a> to create new items to add to this routine.
+                Go to the <a href="/#Items" className="text-blue-400 hover:text-blue-300 underline">items page</a> to create new items to add to this routine or pick a button:
               </div>
             )}
           </DialogDescription>
