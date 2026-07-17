@@ -22,17 +22,34 @@
 
         !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init Ce js Ls Te Fs Ds capture Ye calculateEventProperties Us register register_once register_for_session unregister unregister_for_session Ws getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Bs zs createPersonProfile Hs Ms Gs opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing Ns debug L qs getPageViewId captureTraceFeedback captureTraceMetric".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
 
-        // Drop the benign "ResizeObserver loop completed with undelivered
-        // notifications" browser warning (emitted by Radix UI primitives).
-        var dropResizeObserverNoise = function(event) {
+        // Drop exceptions that aren't our bugs:
+        //   - The benign "ResizeObserver loop completed with undelivered
+        //     notifications" browser warning (emitted by Radix UI primitives).
+        //   - Errors thrown by injected browser extensions (autofill /
+        //     password managers), e.g. "xbrowser is not defined" with an
+        //     "execute_auto_fill" stack frame. These reference globals and
+        //     functions that don't exist in our code, so they're extension
+        //     noise, not app bugs.
+        var dropThirdPartyNoise = function(event) {
             if (event && event.event === '$exception') {
                 var exceptionList = (event.properties &&
                     event.properties.$exception_list) || [];
                 for (var i = 0; i < exceptionList.length; i++) {
-                    var value = exceptionList[i] && exceptionList[i].value;
+                    var exception = exceptionList[i] || {};
+                    var value = exception.value;
                     if (typeof value === 'string' &&
-                        value.indexOf('ResizeObserver loop') !== -1) {
+                        (value.indexOf('ResizeObserver loop') !== -1 ||
+                         value.indexOf('xbrowser is not defined') !== -1)) {
                         return null;
+                    }
+                    var frames = (exception.stacktrace &&
+                        exception.stacktrace.frames) || [];
+                    for (var j = 0; j < frames.length; j++) {
+                        var fn = frames[j] && frames[j].function;
+                        if (typeof fn === 'string' &&
+                            fn.indexOf('execute_auto_fill') !== -1) {
+                            return null;
+                        }
                     }
                 }
             }
@@ -52,7 +69,7 @@
                 session_recording: {
                     maskAllInputs: true
                 },
-                before_send: dropResizeObserverNoise,
+                before_send: dropThirdPartyNoise,
                 loaded: function(ph) {
                     // A stale persisted opt-out can survive consent changes,
                     // because opt_in_capturing() is ignored while the SDK is in
@@ -83,7 +100,7 @@
                 capture_pageleave: true,
                 capture_exceptions: true,
                 disable_session_recording: true,
-                before_send: dropResizeObserverNoise
+                before_send: dropThirdPartyNoise
             });
         }
     })();
