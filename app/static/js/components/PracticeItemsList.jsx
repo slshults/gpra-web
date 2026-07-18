@@ -68,8 +68,8 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts, on
       }`}
     >
       <div className="flex items-center min-w-0 flex-1">
-        <div {...attributes} {...listeners} className="flex-shrink-0" aria-label="Drag to reorder item" data-ph-capture-attribute-drag="item-drag-handle">
-          <GripVertical className="h-6 w-6 text-gray-500 mr-2 sm:mr-4 cursor-move" aria-hidden="true" />
+        <div {...attributes} {...listeners} className="flex-shrink-0 cursor-move" aria-label="Drag to reorder item" data-ph-capture-attribute-drag="item-drag-handle">
+          <GripVertical className="h-6 w-6 text-gray-500 mr-2 sm:mr-4" aria-hidden="true" />
         </div>
         <div
           className="flex-1 min-w-0 cursor-pointer"

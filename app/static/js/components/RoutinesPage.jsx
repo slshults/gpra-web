@@ -71,8 +71,8 @@ const SortableItem = React.memo(({ item, itemDetails, handleOpenChordCharts, onR
       }`}
     >
       <div className="flex items-center flex-1 min-w-0">
-        <div {...attributes} {...listeners} aria-label="Drag to reorder item" data-ph-capture-attribute-drag="routine-item-drag-handle">
-          <GripVertical className="h-5 w-5 text-gray-500 mr-4 cursor-move" aria-hidden="true" />
+        <div {...attributes} {...listeners} className="cursor-move" aria-label="Drag to reorder item" data-ph-capture-attribute-drag="routine-item-drag-handle">
+          <GripVertical className="h-5 w-5 text-gray-500 mr-4" aria-hidden="true" />
         </div>
         <div
           className="flex-1 min-w-0 cursor-pointer"
@@ -133,8 +133,8 @@ const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, ha
       } rounded-lg`}
     >
       <div className="flex items-center flex-1 min-w-0">
-        <div {...attributes} {...listeners} aria-label="Drag to reorder routine" data-ph-capture-attribute-drag="routine-drag-handle">
-          <GripVertical className="h-5 w-5 text-gray-500 mr-4 cursor-move" aria-hidden="true" />
+        <div {...attributes} {...listeners} className="cursor-move" aria-label="Drag to reorder routine" data-ph-capture-attribute-drag="routine-drag-handle">
+          <GripVertical className="h-5 w-5 text-gray-500 mr-4" aria-hidden="true" />
         </div>
         <div
           className="flex-1 min-w-0 cursor-pointer"
