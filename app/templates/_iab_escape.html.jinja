@@ -116,6 +116,10 @@
 
         function dismissOverlay(trigger) {
             captureEvent('iab_escape_dismissed', { iab_kind: iabKind, trigger: trigger });
+            // Persist the dismissal for this tab session: the cookie banner's
+            // "Accept all" reloads the page, and without this flag the reload
+            // would resurrect an overlay the user already dismissed.
+            try { sessionStorage.setItem('iabOverlayDismissed', '1'); } catch (e) {}
             overlay.remove();
             document.body.style.overflow = '';
         }
@@ -266,10 +270,17 @@
 
     // Block the page by default — the in-app copy shouldn't be usable — but
     // the modal is dismissable (×) as a last resort when the escape fails.
-    if (document.body) {
-        showOverlay();
-    } else {
-        document.addEventListener('DOMContentLoaded', showOverlay);
+    // Skip it when the user already dismissed it this tab session (see
+    // dismissOverlay) — reloads, including the cookie-consent reload, must
+    // not bring it back.
+    var overlayDismissed = false;
+    try { overlayDismissed = !!sessionStorage.getItem('iabOverlayDismissed'); } catch (e) {}
+    if (!overlayDismissed) {
+        if (document.body) {
+            showOverlay();
+        } else {
+            document.addEventListener('DOMContentLoaded', showOverlay);
+        }
     }
 
     // Auto-escape once per session. Meta blocks it on both platforms and

@@ -170,23 +170,31 @@
         });
     }
 
+    // Storage writes can throw in restricted in-app WebViews (e.g. Meta's,
+    // Safari private mode), so every handler hides the banner FIRST and
+    // guards its writes — a throwing setItem must never leave the banner
+    // stuck on screen (same pattern as _iab_escape.html.jinja).
     document.getElementById('gpra-consent-accept').addEventListener('click', function() {
-        localStorage.setItem('cookieConsent', 'all');
         hideBanner();
-        // Reload so consent-gated PostHog initialises this visit (opt-in regions).
-        window.location.reload();
+        try {
+            localStorage.setItem('cookieConsent', 'all');
+            // Reload so consent-gated PostHog initialises this visit (opt-in
+            // regions). Only when the consent write stuck — reloading without
+            // it would just re-show the banner.
+            window.location.reload();
+        } catch (e) { /* storage blocked — consent can't persist this visit */ }
     });
 
     document.getElementById('gpra-consent-decline').addEventListener('click', function() {
-        localStorage.setItem('cookieConsent', 'essential');
-        clearPostHogStorage();
         hideBanner();
+        try { localStorage.setItem('cookieConsent', 'essential'); } catch (e) {}
+        clearPostHogStorage();
     });
 
     document.getElementById('gpra-consent-dismiss').addEventListener('click', function() {
-        // Quiet for this visit only; cookies stay as-is (on in opt-out, off in opt-in).
-        sessionStorage.setItem('cookieBannerDismissed', '1');
         hideBanner();
+        // Quiet for this visit only; cookies stay as-is (on in opt-out, off in opt-in).
+        try { sessionStorage.setItem('cookieBannerDismissed', '1'); } catch (e) {}
     });
 })();
 </script>
