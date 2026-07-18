@@ -489,6 +489,11 @@ const AccountSettings = () => {
   };
 
   const toggleCard = (cardName) => {
+    // Named event: autocapture only sees "clicked div" for these card headers
+    window.posthog?.capture('settings_card_toggled', {
+      card: cardName,
+      expanded: !!collapsedCards[cardName],  // was collapsed, so now expanding
+    });
     setCollapsedCards(prev => ({
       ...prev,
       [cardName]: !prev[cardName]
@@ -1833,11 +1838,14 @@ const AccountSettings = () => {
                     }`}
                     role="switch"
                     aria-checked={analyticsEnabled}
+                    aria-label="Toggle usage analytics"
+                    data-ph-capture-attribute-button="toggle-analytics-consent"
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                         analyticsEnabled ? 'translate-x-6' : 'translate-x-1'
                       }`}
+                      style={{ pointerEvents: 'none' }}
                     />
                   </button>
                 </div>

@@ -60,8 +60,8 @@ const AvailableItem = React.memo(({ item, onAdd, justCreated = false, highlightF
       } : undefined}
     >
       <div className="flex items-center">
-        <div {...attributes} {...listeners}>
-          <GripVertical className="h-5 w-5 text-gray-500 mr-4 cursor-grab" aria-hidden="true" />
+        <div {...attributes} {...listeners} className="cursor-grab">
+          <GripVertical className="h-5 w-5 text-gray-500 mr-4" aria-hidden="true" />
         </div>
         <span className="text-lg">{item['C']}</span>
         {justCreated && (
@@ -128,8 +128,8 @@ const SortableRoutineItem = React.memo(({ item, onRemove }) => {
       } rounded-lg`}
     >
       <div className="flex items-center">
-        <div {...attributes} {...listeners} aria-label="Drag to reorder item in routine" data-ph-capture-attribute-drag="routine-editor-drag-handle">
-          <GripVertical className="h-5 w-5 text-gray-500 mr-4 cursor-move" aria-hidden="true" />
+        <div {...attributes} {...listeners} className="cursor-move" aria-label="Drag to reorder item in routine" data-ph-capture-attribute-drag="routine-editor-drag-handle">
+          <GripVertical className="h-5 w-5 text-gray-500 mr-4" aria-hidden="true" />
         </div>
         <span className="text-lg">{item.itemDetails?.['C'] || 'Loading...'}</span>
       </div>

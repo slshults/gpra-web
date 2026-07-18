@@ -485,6 +485,15 @@ body.show-ph-widget #ph-conversations-widget-container {
   color: #1e293b !important;
   border-color: #cbd5e1 !important;
 }
+
+/* PostHog autocapture readability: decorative icons inside buttons must not be
+   the click target, or events show as "clicked svg" instead of "clicked button
+   with text ...". Scoped to aria-hidden so interactive SVGs (chord chart
+   editor grid, SVGuitar charts) keep receiving pointer events. */
+button svg[aria-hidden="true"],
+[role="button"] svg[aria-hidden="true"] {
+  pointer-events: none;
+}
 .light-mode #ph-conversations-widget-container form input::placeholder,
 .light-mode #ph-conversations-widget-container form textarea::placeholder {
   color: #94a3b8 !important;

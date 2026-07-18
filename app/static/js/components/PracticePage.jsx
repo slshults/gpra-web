@@ -1728,6 +1728,12 @@ export const PracticePage = () => {
   const toggleItem = async (itemId) => {
     const isCurrentlyExpanded = expandedItems.has(itemId);
 
+    // Named event: autocapture only sees "clicked div/svg/span" for this row
+    window.posthog?.capture(isCurrentlyExpanded ? 'practice_item_collapsed' : 'practice_item_expanded', {
+      item_id: itemId,
+      item_title: routine?.items?.find(item => item['A'] === itemId)?.minimalDetails?.['C'],
+    });
+
     // Auto-expand/collapse chord charts when shortcuts are enabled
     if (keyboardLayout !== 'off') {
       if (isCurrentlyExpanded) {
@@ -2129,6 +2135,13 @@ export const PracticePage = () => {
 
   const toggleChords = (itemId, e) => {
     e?.stopPropagation();
+
+    // Named event: autocapture only sees "clicked div/svg" for this header
+    window.posthog?.capture(
+      expandedChords.has(itemId) ? 'chord_charts_section_collapsed' : 'chord_charts_section_expanded',
+      { item_id: itemId }
+    );
+
     setExpandedChords(prev => {
       const next = new Set(prev);
       if (next.has(itemId)) {
@@ -4253,6 +4266,7 @@ export const PracticePage = () => {
                 aria-expanded={isExpanded}
                 aria-controls={`practice-item-content-${routineItem['A']}`}
                 tabIndex={0}
+                data-ph-capture-attribute-button="toggle-practice-item"
                 data-item-header={routineItem['A']}
                 data-expanded={isExpanded ? 'true' : 'false'}
                 onKeyDown={(e) => {
@@ -4364,6 +4378,7 @@ export const PracticePage = () => {
                         aria-expanded={isChordsExpanded}
                         aria-controls={`chord-charts-content-${routineItem['A']}`}
                         tabIndex={0}
+                        data-ph-capture-attribute-button="toggle-chord-charts-section"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && keyboardLayout === 'off') {
                             e.preventDefault();
