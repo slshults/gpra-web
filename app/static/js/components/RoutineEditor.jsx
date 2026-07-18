@@ -1,7 +1,8 @@
 // app/static/js/components/RoutineEditor.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRoutineEditor } from '@hooks/useRoutineEditor';
+import { ItemEditor } from './ItemEditor';
 import {
   Dialog,
   DialogContent,
@@ -35,8 +36,10 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// Available item in the search list (draggable for cross-column DnD)
-const AvailableItem = React.memo(({ item, onAdd }) => {
+// Available item in the search list (draggable for cross-column DnD).
+// justCreated marks an item just added via the "+ New item" button with a
+// one-time ring + chip highlight; highlightFading transitions it out.
+const AvailableItem = React.memo(({ item, onAdd, justCreated = false, highlightFading = false }) => {
   const {
     attributes,
     listeners,
@@ -51,12 +54,29 @@ const AvailableItem = React.memo(({ item, onAdd }) => {
     <div
       ref={setNodeRef}
       className={`flex items-center justify-between p-4 bg-gray-800 rounded-lg ${isDragging ? 'opacity-50' : ''}`}
+      style={justCreated ? {
+        boxShadow: highlightFading ? 'none' : '0 0 0 1px #3b82f6',
+        transition: 'box-shadow 700ms',
+      } : undefined}
     >
       <div className="flex items-center">
         <div {...attributes} {...listeners}>
           <GripVertical className="h-5 w-5 text-gray-500 mr-4 cursor-grab" aria-hidden="true" />
         </div>
         <span className="text-lg">{item['C']}</span>
+        {justCreated && (
+          <span
+            className="text-[11px] font-semibold text-blue-400 rounded-full ml-2 whitespace-nowrap"
+            style={{
+              backgroundColor: 'rgba(59, 130, 246, 0.12)',
+              padding: '2px 8px',
+              opacity: highlightFading ? 0 : 1,
+              transition: 'opacity 700ms',
+            }}
+          >
+            just created
+          </span>
+        )}
       </div>
       <Button
         variant="ghost"
@@ -127,7 +147,7 @@ const SortableRoutineItem = React.memo(({ item, onRemove }) => {
   );
 });
 
-export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineChange, items = [] }) => {
+export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineChange, items = [], onItemCreated }) => {
   const {
     availableItems,
     selectedItems,
@@ -145,6 +165,33 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
   const [routineName, setRoutineName] = useState(routine?.name || '');
   const [error, setError] = useState(null);
   const [draggedAvailableItem, setDraggedAvailableItem] = useState(null);
+
+  // "+ New item" flow: ItemEditor layered on top; the saved item gets pinned
+  // to the top of Available items with a highlight that fades after ~4s
+  const [showItemEditor, setShowItemEditor] = useState(false);
+  const [justCreatedItem, setJustCreatedItem] = useState(null);
+  const [highlightStage, setHighlightStage] = useState(null); // 'visible' | 'fading' | null
+  const highlightTimersRef = useRef([]);
+
+  const clearHighlightTimers = () => {
+    highlightTimersRef.current.forEach(clearTimeout);
+    highlightTimersRef.current = [];
+  };
+
+  const handleNewItemSaved = (savedItem) => {
+    setJustCreatedItem(savedItem);
+    setHighlightStage('visible');
+    clearHighlightTimers();
+    highlightTimersRef.current = [
+      setTimeout(() => setHighlightStage('fading'), 3500),
+      setTimeout(() => setHighlightStage(null), 4200),
+    ];
+    // Let the parent update its items list so the new item is available here
+    onItemCreated?.(savedItem);
+  };
+
+  // Clean up highlight timers on unmount
+  useEffect(() => clearHighlightTimers, []);
 
   const handleRoutineNameBlur = async () => {
     if (!routine?.id || routineName.trim() === routine.name) return;
@@ -171,12 +218,42 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
     setRoutineName(routine?.name || '');
   }, [routine?.id]);
 
-  // Clear error when modal opens/closes
+  // Clear error when modal opens/closes; reset the new-item highlight so a
+  // reopened editor doesn't show a stale pin/chip
   useEffect(() => {
     if (open) {
       setError(null);
+    } else {
+      clearHighlightTimers();
+      setJustCreatedItem(null);
+      setHighlightStage(null);
+      setShowItemEditor(false);
     }
   }, [open]);
+
+  // Available items with the just-created item pinned to the top (bypassing
+  // the normal sort) until the editor closes
+  const displayedAvailableItems = useMemo(() => {
+    if (!justCreatedItem) return availableItems;
+
+    const rest = availableItems.filter(item => item['B'] !== justCreatedItem['B']);
+    if (rest.length !== availableItems.length) {
+      // Present in the filtered list — move it to the top
+      const pinned = availableItems.find(item => item['B'] === justCreatedItem['B']);
+      return [pinned, ...rest];
+    }
+
+    // Not in the list yet (parent refresh pending) — prepend it ourselves,
+    // unless it's been added to the routine or doesn't match the search
+    const isSelected = selectedItems.some(
+      si => (si.itemDetails?.['B'] ?? si.routineEntry?.['B']) === justCreatedItem['B']
+    );
+    // Match the hook's search normalization (useRoutineEditor filteredItems)
+    const normalizeApostrophes = (str) => str.replace(/[''`]/g, "'");
+    const matchesSearch = normalizeApostrophes((justCreatedItem['C'] || '').toLowerCase())
+      .includes(normalizeApostrophes(searchQuery.toLowerCase()));
+    return (!isSelected && matchesSearch) ? [justCreatedItem, ...availableItems] : availableItems;
+  }, [availableItems, justCreatedItem, selectedItems, searchQuery]);
 
   // Custom collision detection: prefer individual items over the container drop zone
   const preferItemsCollision = (args) => {
@@ -367,6 +444,7 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
   if (hookError) return <div className="text-2xl text-red-500 text-center p-8" role="alert">{hookError}</div>;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh]" modalName="Edit routine">
         <DialogHeader>
@@ -435,7 +513,18 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
             {/* Available Items */}
             <Card className="w-full sm:w-1/2 min-h-[35vh] sm:min-h-0 bg-gray-900">
               <CardHeader>
-                <CardTitle>Available items</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Available items</CardTitle>
+                  <Button
+                    size="sm"
+                    onClick={() => setShowItemEditor(true)}
+                    className="bg-blue-600 hover:bg-blue-700"
+                    data-ph-capture-attribute-button="routine-editor-new-item"
+                  >
+                    <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
+                    New item
+                  </Button>
+                </div>
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
                   <Input
@@ -448,11 +537,13 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 h-[calc(100%-100px)] overflow-y-auto">
-                {availableItems.map(item => (
+                {displayedAvailableItems.map(item => (
                   <AvailableItem
                     key={item['A']}
                     item={item}
                     onAdd={handleAddItem}
+                    justCreated={highlightStage !== null && justCreatedItem?.['B'] === item['B']}
+                    highlightFading={highlightStage === 'fading' && justCreatedItem?.['B'] === item['B']}
                   />
                 ))}
               </CardContent>
@@ -474,6 +565,16 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
 
       </DialogContent>
     </Dialog>
+
+    {/* "Create new item" layered above the routine editor (both Radix dialogs;
+        this one stacks on top). ItemEditor handles the item-limit 403 itself. */}
+    <ItemEditor
+      open={showItemEditor}
+      onOpenChange={setShowItemEditor}
+      item={null}
+      onItemChange={handleNewItemSaved}
+    />
+    </>
   );
 };
 
