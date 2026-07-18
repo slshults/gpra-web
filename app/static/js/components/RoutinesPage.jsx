@@ -3,10 +3,10 @@ import { useAuth } from '@hooks/useAuth';
 import { Button } from '@ui/button';
 import { Input } from '@ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@ui/card';
-import { Plus, Pencil, X, CheckCircle2, GripVertical, Search } from 'lucide-react';
+import { Plus, Pencil, X, CheckCircle2, GripVertical, Search, AlertCircle } from 'lucide-react';
 import { RoutineEditor } from './RoutineEditor';
 import ChordChartsModal from './ChordChartsModal';
-import TierLimitModal from './TierLimitModal';
+import TierLimitModal, { navigateToUpgrade } from './TierLimitModal';
 import RowActionTipModal from './RowActionTipModal';
 import { ChordIcon } from './icons/ChordIcon';
 import {
@@ -203,6 +203,13 @@ const RoutinesPage = () => {
   const [chordChartsModalOpen, setChordChartsModalOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [selectedItemTitle, setSelectedItemTitle] = useState('');
+
+  // Routine-limit redirect modal (shown instead of the create-routine modal
+  // when the user is already at their routine limit)
+  const [showAddItemRedirect, setShowAddItemRedirect] = useState(false);
+  // Limit info from the pre-check, so the whole redirect funnel's PostHog
+  // events carry the same tier/count context as the "shown" event
+  const redirectLimitInfoRef = useRef(null);
 
   // Tier limit modal state
   const [tierLimitModalOpen, setTierLimitModalOpen] = useState(false);
@@ -448,6 +455,60 @@ const RoutinesPage = () => {
     });
     setIsEditOpen(true);
   }, [activeRoutineItems, fetchItemsIfNeeded]);
+
+  // "New" button click: pre-check the routine limit. At-limit users usually
+  // meant to add an *item* to their routine, so redirect them there instead
+  // of letting them name a routine that will be rejected with a paywall.
+  const handleNewRoutineClick = useCallback(async () => {
+    try {
+      const response = await fetch('/api/routines/limits');
+      if (response.ok) {
+        const data = await response.json();
+        if (!data.allowed) {
+          redirectLimitInfoRef.current = {
+            tier: data.tier,
+            routine_count: data.current,
+            routine_limit: data.limit,
+          };
+          setShowAddItemRedirect(true);
+          window.posthog?.capture('routine_limit_redirect_shown', redirectLimitInfoRef.current);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Routine limit pre-check failed:', error);
+      // Fall through to the normal flow; the POST 403 still backstops the limit
+    }
+    setShowNewRoutineModal(true);
+  }, []);
+
+  const handleRedirectAddItem = useCallback(() => {
+    setShowAddItemRedirect(false);
+    window.posthog?.capture('routine_limit_redirect_add_item_clicked', redirectLimitInfoRef.current || {});
+    // Open the routine editor on the active routine; if none is active
+    // (user deactivated it), fall back to their first routine
+    const targetRoutine = activeRoutine || inactiveRoutines[0];
+    if (targetRoutine) {
+      handleEditClick(targetRoutine);
+    } else {
+      // No routines at all — can't happen while at the routine limit,
+      // but fall back to the normal create flow just in case
+      setShowNewRoutineModal(true);
+    }
+  }, [activeRoutine, inactiveRoutines, handleEditClick]);
+
+  const handleRedirectUpgrade = useCallback((e) => {
+    e.preventDefault();
+    setShowAddItemRedirect(false);
+    window.posthog?.capture('routine_limit_redirect_upgrade_clicked', redirectLimitInfoRef.current || {});
+    navigateToUpgrade();
+  }, []);
+
+  // A new item was created from inside the routine editor — add it to the
+  // items list so it shows up as available (RoutineEditor pins it to the top)
+  const handleItemCreated = useCallback((newItem) => {
+    setItems(prev => [...prev, newItem]);
+  }, []);
 
   const handleRoutineChange = useCallback(async () => {
     // Fetch fresh routines list
@@ -829,7 +890,7 @@ const RoutinesPage = () => {
             {isAuthenticated && (
               <div data-tour="new-routine-input">
                 <Button
-                  onClick={() => setShowNewRoutineModal(true)}
+                  onClick={handleNewRoutineClick}
                   className="bg-blue-600 hover:bg-blue-700"
                   data-ph-capture-attribute-button="add-new-routine"
                 >
@@ -1024,6 +1085,41 @@ const RoutinesPage = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {/* Routine-limit redirect modal: at-limit users probably want to add
+            an item, not another routine. Dismisses via X / overlay / Esc only. */}
+        <Dialog open={showAddItemRedirect} onOpenChange={setShowAddItemRedirect}>
+          <DialogContent className="sm:max-w-md" modalName="Routine limit redirect">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-xl">
+                <AlertCircle className="h-6 w-6 text-amber-500" />
+                Add to your practice routine?
+              </DialogTitle>
+              <DialogDescription className="text-left text-base mt-4 text-gray-700 dark:text-gray-300">
+                It looks like you probably want to add a new item to your practice routine.
+              </DialogDescription>
+            </DialogHeader>
+            <div>
+              <Button
+                onClick={handleRedirectAddItem}
+                className="bg-blue-600 hover:bg-blue-700"
+                data-ph-capture-attribute-button="routine-limit-redirect-add-item"
+              >
+                <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
+                Add item
+              </Button>
+            </div>
+            <p className="text-gray-500" style={{ fontSize: '13px' }}>
+              If you do need to create another routine, you'll need to{' '}
+              <a
+                href="/#Account"
+                onClick={handleRedirectUpgrade}
+                className="text-blue-400 hover:text-blue-300 underline"
+              >
+                upgrade
+              </a>.
+            </p>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <RoutineEditor
@@ -1032,6 +1128,7 @@ const RoutinesPage = () => {
         routine={editingRoutine}
         onRoutineChange={handleRoutineChange}
         items={items}
+        onItemCreated={handleItemCreated}
       />
 
       <ChordChartsModal

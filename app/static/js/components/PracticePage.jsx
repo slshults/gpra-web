@@ -420,7 +420,7 @@ export const PracticePage = () => {
   const { fetchItemDetails, getItemDetails, isLoadingItem } = useItemDetails();
   useNavigation();
   
-  const { items: allItems } = usePracticeItems();
+  const { items: allItems, refreshItems } = usePracticeItems();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState(new Set());
   const [expandedNotes, setExpandedNotes] = useState(new Set());
@@ -5267,6 +5267,20 @@ export const PracticePage = () => {
             </div>
           );
         })}
+
+        {/* Ghost row: add an item to this routine (same action as the pencil) */}
+        {routine && (
+          <button
+            type="button"
+            onClick={() => setIsEditOpen(true)}
+            className="w-full flex items-center gap-4 p-5 border-2 border-dashed border-gray-700 rounded-lg text-blue-400 hover:text-blue-300 hover:border-gray-500 transition-colors text-left"
+            title="Add an item to this routine"
+            data-ph-capture-attribute-button="practice-new-item-row"
+          >
+            <Plus className="h-5 w-5" aria-hidden="true" />
+            <span className="text-lg">New item</span>
+          </button>
+        )}
       </div>
 
       {/* Add NoteEditor */}
@@ -6063,6 +6077,7 @@ export const PracticePage = () => {
         routine={routine ? { id: routine.id, name: routine.name } : null}
         onRoutineChange={refreshRoutine}
         items={allItems}
+        onItemCreated={refreshItems}
       />
     </div>
   );

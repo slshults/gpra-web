@@ -9,6 +9,28 @@ import {
 import { Button } from './ui/button';
 import { AlertCircle } from 'lucide-react';
 
+// Navigate to the Account page and scroll to the subscription plans section.
+// Shared with other upgrade links (e.g. the routine-limit redirect modal).
+export const navigateToUpgrade = () => {
+  // Navigate to Account/Settings page using hash routing
+  window.location.hash = '#Account';
+
+  // Wait for navigation and DOM update, then scroll to subscription plans section
+  setTimeout(() => {
+    const subscriptionSection = document.getElementById('subscription-plans');
+    if (subscriptionSection) {
+      // Get element position and scroll with offset to keep heading visible
+      const elementPosition = subscriptionSection.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - 100; // 100px offset for header
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  }, 100);
+};
+
 const TierLimitModal = ({ isOpen, onClose, limitType, currentTier, currentCount, limitAmount }) => {
   if (!isOpen) return null;
 
@@ -22,23 +44,7 @@ const TierLimitModal = ({ isOpen, onClose, limitType, currentTier, currentCount,
 
   const handleUpgrade = () => {
     onClose();
-    // Navigate to Account/Settings page using hash routing
-    window.location.hash = '#Account';
-
-    // Wait for navigation and DOM update, then scroll to subscription plans section
-    setTimeout(() => {
-      const subscriptionSection = document.getElementById('subscription-plans');
-      if (subscriptionSection) {
-        // Get element position and scroll with offset to keep heading visible
-        const elementPosition = subscriptionSection.getBoundingClientRect().top;
-        const offsetPosition = elementPosition + window.pageYOffset - 100; // 100px offset for header
-
-        window.scrollTo({
-          top: offsetPosition,
-          behavior: 'smooth'
-        });
-      }
-    }, 100);
+    navigateToUpgrade();
   };
 
   return (

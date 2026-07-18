@@ -3262,6 +3262,60 @@ def items_lightweight():
     lightweight = [{"A": item["A"], "C": item["C"]} for item in items]
     return jsonify(lightweight)
 
+def _check_routine_limit(user_id):
+    """Routine-limit status for a user: (allowed, tier, limit, count, tier_config).
+
+    Shared by POST /api/routines (enforcement) and GET /api/routines/limits
+    (pre-check) so the two can't drift.
+
+    IMPORTANT: Uses SessionLocal with explicit cleanup to avoid scoped session
+    conflicts. Scoped sessions are thread-local, so we must properly clean up
+    after the tier check — otherwise a following transaction (e.g. routine
+    creation) would get a corrupted session.
+    """
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        # Get user's subscription tier (default to 'free' if no subscription)
+        subscription = db.execute(text("""
+            SELECT tier, is_complimentary FROM subscriptions WHERE user_id = :user_id
+        """), {'user_id': user_id}).fetchone()
+        tier = subscription[0] if subscription else 'free'
+        is_complimentary = subscription[1] if subscription else False
+
+        tier_config = get_tier_limits(tier, is_complimentary)
+        routines_limit = tier_config['routines_limit']
+
+        # Count existing routines for this user
+        routine_count = db.execute(text("""
+            SELECT COUNT(*) FROM routines WHERE user_id = :user_id
+        """), {'user_id': user_id}).fetchone()[0]
+
+        app.logger.info(f"User {user_id} has {routine_count} routines (tier '{tier}' limit: {routines_limit})")
+        return routine_count < routines_limit, tier, routines_limit, routine_count, tier_config
+    finally:
+        db.close()
+        # CRITICAL: Remove scoped session from thread-local storage
+        # This ensures the next SessionLocal() call creates a fresh session
+        # instead of reusing the closed session, which prevents commit issues
+        SessionLocal.remove()
+
+@app.route('/api/routines/limits', methods=['GET'])
+@require_user_context
+def routine_limits():
+    """Pre-check whether the current user can create another routine.
+
+    Used by the Routines page to redirect at-limit users toward adding an
+    item instead of showing the create-routine flow.
+    """
+    allowed, tier, routines_limit, routine_count, _ = _check_routine_limit(current_user.id)
+    return jsonify({
+        "allowed": allowed,
+        "tier": tier,
+        "limit": routines_limit,
+        "current": routine_count
+    })
+
 # Routines API - Now using data layer
 @app.route('/api/routines', methods=['GET', 'POST'])
 @require_user_context
@@ -3282,49 +3336,16 @@ def routines():
             app.logger.info(f"Creating routine with name: {routine_name}")
 
             # Check subscription tier limits
-            # IMPORTANT: Use DatabaseTransaction to avoid scoped session conflicts
-            # Scoped sessions are thread-local, so we must properly clean up after tier check
-            # Otherwise the routine creation transaction will get a corrupted session
-            from app.database import SessionLocal
-            db = SessionLocal()
-            try:
-                # Get user's subscription tier
-                subscription = db.execute(text("""
-                    SELECT tier, is_complimentary FROM subscriptions WHERE user_id = :user_id
-                """), {'user_id': current_user.id}).fetchone()
-
-                # Default to 'free' tier if no subscription
-                tier = subscription[0] if subscription else 'free'
-                is_complimentary = subscription[1] if subscription else False
-                app.logger.info(f"User {current_user.id} has subscription tier: {tier}")
-
-                # Get tier limits
-                tier_config = get_tier_limits(tier, is_complimentary)
-                routines_limit = tier_config['routines_limit']
-
-                # Count existing routines for this user
-                routine_count = db.execute(text("""
-                    SELECT COUNT(*) FROM routines WHERE user_id = :user_id
-                """), {'user_id': current_user.id}).fetchone()[0]
-
-                app.logger.info(f"User {current_user.id} has {routine_count} routines (tier '{tier}' limit: {routines_limit})")
-
-                # Check if limit reached
-                if routine_count >= routines_limit:
-                    app.logger.warning(f"User {current_user.id} reached routine limit: {routine_count}/{routines_limit}")
-                    return jsonify({
-                        "error": "Routine limit reached",
-                        "message": f"You've reached the {routines_limit} routine limit for the {tier_config['display_name']} tier. Please upgrade to create more routines.",
-                        "tier": tier,
-                        "limit": routines_limit,
-                        "current": routine_count
-                    }), 403
-            finally:
-                db.close()
-                # CRITICAL: Remove scoped session from thread-local storage
-                # This ensures the next SessionLocal() call creates a fresh session
-                # instead of reusing the closed session, which prevents commit issues
-                SessionLocal.remove()
+            allowed, tier, routines_limit, routine_count, tier_config = _check_routine_limit(current_user.id)
+            if not allowed:
+                app.logger.warning(f"User {current_user.id} reached routine limit: {routine_count}/{routines_limit}")
+                return jsonify({
+                    "error": "Routine limit reached",
+                    "message": f"You've reached the {routines_limit} routine limit for the {tier_config['display_name']} tier. Please upgrade to create more routines.",
+                    "tier": tier,
+                    "limit": routines_limit,
+                    "current": routine_count
+                }), 403
 
             # Transform to sheets format for data layer
             # Note: No 'A' field (ID) for new routines - let database auto-generate
