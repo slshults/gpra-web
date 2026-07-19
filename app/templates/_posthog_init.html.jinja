@@ -22,17 +22,30 @@
 
         !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init Ce js Ls Te Fs Ds capture Ye calculateEventProperties Us register register_once register_for_session unregister unregister_for_session Ws getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Bs zs createPersonProfile Hs Ms Gs opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing Ns debug L qs getPageViewId captureTraceFeedback captureTraceMetric".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
 
-        // Drop the benign "ResizeObserver loop completed with undelivered
-        // notifications" browser warning (emitted by Radix UI primitives).
-        var dropResizeObserverNoise = function(event) {
+        // Drop unhandled exceptions we don't own and can't fix, so they don't
+        // pollute error tracking:
+        // - "ResizeObserver loop completed with undelivered notifications":
+        //   a benign browser warning emitted by Radix UI primitives.
+        // - "window.webkit.messageHandlers": thrown by the JavaScript Meta
+        //   injects into every page loaded in its in-app browser (Instagram/
+        //   Facebook WebViews, UA tagged "IABMV"). Meta's own pagehide handler
+        //   (sendPageHideMessage -> sendDataToNative) hits the native WebKit
+        //   bridge unguarded; it appears to originate from our page only
+        //   because Meta injects the script inline. First-party code never
+        //   touches this API, so the match can't suppress a real bug of ours.
+        var INJECTED_NOISE = ['ResizeObserver loop', "window.webkit.messageHandlers"];
+        var dropInjectedNoise = function(event) {
             if (event && event.event === '$exception') {
                 var exceptionList = (event.properties &&
                     event.properties.$exception_list) || [];
                 for (var i = 0; i < exceptionList.length; i++) {
                     var value = exceptionList[i] && exceptionList[i].value;
-                    if (typeof value === 'string' &&
-                        value.indexOf('ResizeObserver loop') !== -1) {
-                        return null;
+                    if (typeof value === 'string') {
+                        for (var j = 0; j < INJECTED_NOISE.length; j++) {
+                            if (value.indexOf(INJECTED_NOISE[j]) !== -1) {
+                                return null;
+                            }
+                        }
                     }
                 }
             }
@@ -52,7 +65,7 @@
                 session_recording: {
                     maskAllInputs: true
                 },
-                before_send: dropResizeObserverNoise,
+                before_send: dropInjectedNoise,
                 loaded: function(ph) {
                     // A stale persisted opt-out can survive consent changes,
                     // because opt_in_capturing() is ignored while the SDK is in
@@ -83,7 +96,7 @@
                 capture_pageleave: true,
                 capture_exceptions: true,
                 disable_session_recording: true,
-                before_send: dropResizeObserverNoise
+                before_send: dropInjectedNoise
             });
         }
     })();
