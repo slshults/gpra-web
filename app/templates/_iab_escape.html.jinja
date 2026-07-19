@@ -124,6 +124,37 @@
             document.body.style.overflow = '';
         }
 
+        // Set by the Android one-shot gesture escape below; the swipe and
+        // backdrop-click dismissers skip the trailing events of that same
+        // gesture so an escape tap doesn't also dismiss.
+        var escapeTapAt = 0;
+
+        // Swipe-to-dismiss — field data (PostHog replay 019f7ba8-9d98-...,
+        // 2026-07-19): a trapped FB-Android user swiped 8 times in 15s
+        // (zero taps) trying to scroll the page visible behind the
+        // backdrop, then gave up. Swipes fire no click, so the backdrop
+        // dismisser never ran. Treat a swipe anywhere on the overlay as
+        // dismissal, except swipes that scroll an overflowing modal card.
+        var swipeStart = null;
+        overlay.addEventListener('touchstart', function (e) {
+            swipeStart = {
+                x: e.touches[0].clientX,
+                y: e.touches[0].clientY,
+                onCard: modal.contains(e.target)
+            };
+        }, { passive: true });
+        overlay.addEventListener('touchmove', function (e) {
+            if (!swipeStart) return;
+            if (Math.abs(e.touches[0].clientX - swipeStart.x) < 30 &&
+                Math.abs(e.touches[0].clientY - swipeStart.y) < 30) {
+                return;
+            }
+            if (swipeStart.onCard && modal.scrollHeight > modal.clientHeight) return;
+            if (Date.now() - escapeTapAt < 600) return;
+            swipeStart = null;
+            dismissOverlay('swipe');
+        }, { passive: true });
+
         // Dismiss control — field feedback: when the escape fails AND the
         // instructions don't land, a hard-blocked page is a dead end. Let
         // users close the modal and take their chances with the IAB.
@@ -239,7 +270,6 @@
         // one-shot would make every backdrop tap re-escape and re-reload —
         // backdrop-dismiss below would be unreachable. After one failed
         // gesture escape, taps degrade to dismissal (button still escapes).
-        var escapeTapAt = 0;
         var gestureEscapeUsed = false;
         try { gestureEscapeUsed = !!sessionStorage.getItem('iabGestureEscapeAttempted'); } catch (e) {}
         if (isAndroid && !gestureEscapeUsed) {
