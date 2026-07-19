@@ -58,7 +58,7 @@ const fetchWithBackoff = async (url, options = {}, maxRetries = 3, onRetry = nul
   throw new Error(`Failed after ${maxRetries} attempts`);
 };
 
-export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = null, insertionContext = null, defaultTuning = 'EADGBE', saveButtonLabel = null, showLineBreak = true, initialChordId = null, initialChordName = null }) => {
+export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = null, insertionContext = null, defaultTuning = 'EADGBE', saveButtonLabel = null, showLineBreak = true, initialChordId = null, initialChordName = null, mobileLayout = false }) => {
   const [title, setTitle] = useState('');
   const [startingFret, setStartingFret] = useState(1);
   const [numFrets, setNumFrets] = useState(5);
@@ -86,6 +86,32 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
   const [selectedFinger, setSelectedFinger] = useState(null); // Track selected finger for number input [string, fret]
   const [addLineBreak, setAddLineBreak] = useState(false); // Whether to add line break after this chord
   const [chartsInitialized, setChartsInitialized] = useState(false); // Flips true after SVGuitar loads — re-fires the draw effect with the latest state closure
+
+  // Mobile redesign (design 2b): single WYSIWYG chart below the sm breakpoint.
+  // Gated behind the mobileLayout prop so only opted-in contexts (currently the
+  // public chord finder) get the new layout.
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const update = () => setIsMobile(mq.matches);
+    // Listen to both: some environments (emulated viewports) resize without
+    // firing matchMedia change events
+    mq.addEventListener('change', update);
+    window.addEventListener('resize', update);
+    return () => {
+      mq.removeEventListener('change', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+  const useMobileUI = mobileLayout && isMobile;
+  // Current-value mirror for event handlers (layoutRef below is different: it
+  // tracks the *previous* value to detect layout flips)
+  const useMobileUIRef = useRef(useMobileUI);
+  useEffect(() => {
+    useMobileUIRef.current = useMobileUI;
+  }, [useMobileUI]);
 
   const editorChartRef = useRef(null);
   const resultChartRef = useRef(null);
@@ -367,26 +393,54 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
     
     // Cleanup on unmount
     return () => {
-      if (currentHandlerRef.current && currentHandlerRef.current.svg) {
-        currentHandlerRef.current.svg.removeEventListener('click', currentHandlerRef.current.clickHandler);
-        currentHandlerRef.current.svg.removeEventListener('mousedown', currentHandlerRef.current.mousedownHandler);
-      }
+      removeEditorHandlers();
     };
   }, []);
 
   const initializeCharts = () => {
     try {
       editorChartRef.current = new window.svguitar.SVGuitarChord('#editor-chart');
-      resultChartRef.current = new window.svguitar.SVGuitarChord('#result-chart');
+      // The mobile layout renders a single WYSIWYG chart — no #result-chart element
+      resultChartRef.current = document.querySelector('#result-chart')
+        ? new window.svguitar.SVGuitarChord('#result-chart')
+        : null;
       setChartsInitialized(true);
     } catch (error) {
       console.error('Error initializing charts:', error);
     }
   };
 
+  // Re-create the SVGuitar instances when the layout flips between mobile and
+  // desktop — the switch remounts the chart containers, so the old instances
+  // point at detached DOM. (layoutRef holds the previous layout for flip
+  // detection; useMobileUIRef above is the current-value mirror for handlers.)
+  const layoutRef = useRef(useMobileUI);
+  useEffect(() => {
+    if (layoutRef.current === useMobileUI) return;
+    layoutRef.current = useMobileUI;
+    if (!window.svguitar) return;
+    lastChordDataRef.current = null;
+    initializeCharts();
+    updateCharts();
+  }, [useMobileUI]);
+
   // Store the current event handler reference
   const currentHandlerRef = useRef(null);
+
+  // In-flight mobile barre drag ({ fret, from, to, moved } | null)
+  const barreDragRef = useRef(null);
   
+  const removeEditorHandlers = () => {
+    const h = currentHandlerRef.current;
+    if (!h || !h.svg) return;
+    h.svg.removeEventListener('click', h.clickHandler);
+    h.svg.removeEventListener('mousedown', h.mousedownHandler);
+    h.svg.removeEventListener('pointerdown', h.pointerdownHandler);
+    h.svg.removeEventListener('pointermove', h.pointermoveHandler);
+    h.svg.removeEventListener('pointerup', h.pointerupHandler);
+    h.svg.removeEventListener('pointercancel', h.pointercancelHandler);
+  };
+
   const setupEditorInteraction = () => {
     if (!editorContainerRef.current) {
       return;
@@ -398,11 +452,8 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
     }
 
     // Remove the old handlers if they exist
-    if (currentHandlerRef.current && currentHandlerRef.current.svg) {
-      currentHandlerRef.current.svg.removeEventListener('click', currentHandlerRef.current.clickHandler);
-      currentHandlerRef.current.svg.removeEventListener('mousedown', currentHandlerRef.current.mousedownHandler);
-    }
-    
+    removeEditorHandlers();
+
     // Prevent text selection on rapid clicks/double-clicks
     const mousedownHandler = (event) => {
       // Prevent text selection on multiple rapid clicks (double-click, etc.)
@@ -411,35 +462,147 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
         event.stopPropagation();
         return false;
       }
-      
+
       // Always prevent default mousedown behavior on SVG to avoid text selection
       event.preventDefault();
     };
-    
+
     // Handle the actual click interaction
     const clickHandler = (event) => {
       event.stopPropagation(); // Prevent event bubbling
       event.preventDefault();  // Prevent any remaining default behavior
-      
+
       handleEditorClick(event);
     };
-    
+
+    // Mobile barres mode: drag across strings to draw a barre. The drag is
+    // tracked here via pointer events; the click that fires after pointerup is
+    // ignored for barres on mobile (see handleEditorClick).
+    const pointerdownHandler = (event) => {
+      if (!useMobileUIRef.current || editModeRef.current !== 'barres') return;
+      const pos = getPositionFromPoint(svg, event.clientX, event.clientY);
+      if (!pos || pos.zone !== 'fret') return;
+      barreDragRef.current = { fret: pos.fret, from: pos.string, to: pos.string, moved: false };
+      try { svg.setPointerCapture(event.pointerId); } catch { /* older browsers */ }
+    };
+    const pointermoveHandler = (event) => {
+      const drag = barreDragRef.current;
+      if (!drag) return;
+      const pos = getPositionFromPoint(svg, event.clientX, event.clientY);
+      if (!pos || pos.zone !== 'fret') return;
+      if (pos.string !== drag.to) {
+        drag.to = pos.string;
+        drag.moved = true;
+      }
+    };
+    const pointerupHandler = () => {
+      const drag = barreDragRef.current;
+      if (!drag) return;
+      barreDragRef.current = null;
+      commitBarreDrag(drag);
+    };
+    const pointercancelHandler = () => {
+      barreDragRef.current = null;
+    };
+
     // Apply CSS user-select none to SVG for comprehensive text selection prevention
     svg.style.userSelect = 'none';
     svg.style.webkitUserSelect = 'none';
     svg.style.mozUserSelect = 'none';
     svg.style.msUserSelect = 'none';
-    
-    // Add both handlers
+
+    // Add the handlers
     svg.addEventListener('mousedown', mousedownHandler);
     svg.addEventListener('click', clickHandler);
-    
+    svg.addEventListener('pointerdown', pointerdownHandler);
+    svg.addEventListener('pointermove', pointermoveHandler);
+    svg.addEventListener('pointerup', pointerupHandler);
+    svg.addEventListener('pointercancel', pointercancelHandler);
+
     // Store references for cleanup
-    currentHandlerRef.current = { 
-      svg, 
+    currentHandlerRef.current = {
+      svg,
       clickHandler,
-      mousedownHandler
+      mousedownHandler,
+      pointerdownHandler,
+      pointermoveHandler,
+      pointerupHandler,
+      pointercancelHandler
     };
+  };
+
+  // Translate a client-space point into chart coordinates.
+  // Returns { zone: 'nut', string } | { zone: 'fret', string, fret } | null.
+  //
+  // SVGuitar layout analysis:
+  // - There's padding around the actual fretboard
+  // - Strings are vertical lines, frets are horizontal
+  // - Frets are the spaces BETWEEN the fret wires, not the wires themselves
+  const getPositionFromPoint = (svg, clientX, clientY) => {
+    const rect = svg.getBoundingClientRect();
+    const svgViewBox = svg.viewBox.baseVal;
+
+    // Check if SVG is ready - if not, just skip this interaction
+    if (!svgViewBox || svgViewBox.width === 0 || svgViewBox.height === 0 ||
+        rect.width === 0 || rect.height === 0) {
+      return null;
+    }
+
+    // Account for SVG scaling - the SVG viewBox vs actual display size
+    const scaleX = svgViewBox.width / rect.width;
+    const scaleY = svgViewBox.height / rect.height;
+    if (!isFinite(scaleX) || !isFinite(scaleY)) {
+      console.error('Invalid scale values:', { scaleX, scaleY });
+      return null;
+    }
+
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
+
+    // Use SVG viewBox dimensions for calculations, not display dimensions
+    const chartWidth = svgViewBox.width;
+    const chartHeight = svgViewBox.height;
+
+    // Adjusted margins based on SVGuitar's actual layout. SVGuitar uses
+    // relatively consistent top/bottom margins - the position indicator
+    // doesn't significantly change the chord chart area.
+    const marginX = chartWidth * 0.15;
+    const marginY = chartHeight * 0.08;
+
+    const fretboardWidth = chartWidth - (marginX * 2);
+    const fretboardHeight = chartHeight - (marginY * 2);
+
+    // Outside the chart area entirely
+    if (x < marginX || x > chartWidth - marginX) {
+      return null;
+    }
+
+    // Calculate string (vertical position across width) - same for both nut and fretboard
+    const stringRatio = (x - marginX) / fretboardWidth;
+    const stringIndex = Math.floor(stringRatio * numStrings);
+    if (stringIndex < 0 || stringIndex >= numStrings) {
+      return null;
+    }
+
+    // Convert to SVGuitar's string numbering (1-based, high E = 1)
+    const svguitarString = numStrings - stringIndex; // Flip the order
+
+    // Nut area is above the fretboard proper
+    if (y < marginY) {
+      return { zone: 'nut', string: svguitarString };
+    }
+    if (y > chartHeight - marginY) {
+      return null;
+    }
+
+    // Calculate fret (horizontal position down height). SVGuitar uses 1-based
+    // fret numbering relative to the chart position.
+    const fretIndex = Math.ceil(((y - marginY) / fretboardHeight) * numFrets);
+    if (fretIndex < 1 || fretIndex > numFrets) {
+      return null;
+    }
+
+    return { zone: 'fret', string: svguitarString, fret: fretIndex };
   };
 
   const handleEditorClick = (event) => {
@@ -447,116 +610,35 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
       console.error('handleEditorClick called with invalid event');
       return;
     }
-    
+
     const currentEditMode = editModeRef.current;
     if (currentEditMode !== 'dots' && currentEditMode !== 'fingers' && currentEditMode !== 'barres') return;
 
-    const svg = event.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    
-    // Calculate coordinates relative to the SVG
-    const rawX = event.clientX - rect.left;
-    const rawY = event.clientY - rect.top;
-    
-    // Account for SVG scaling - the SVG viewBox vs actual display size
-    const svgViewBox = svg.viewBox.baseVal;
-    
-    // Check if SVG is ready - if not, retry after a short delay
-    if (!svgViewBox || svgViewBox.width === 0 || svgViewBox.height === 0 || 
-        rect.width === 0 || rect.height === 0) {
-      
-      // Don't retry - just skip this click
-      return;
-    }
-    
-    const scaleX = svgViewBox.width / rect.width;
-    const scaleY = svgViewBox.height / rect.height;
-    
-    // Additional safety check for valid scale values
-    if (!isFinite(scaleX) || !isFinite(scaleY)) {
-      console.error('Invalid scale values:', { scaleX, scaleY });
-      return;
-    }
-    
-    const x = rawX * scaleX;
-    const y = rawY * scaleY;
+    const pos = getPositionFromPoint(event.currentTarget, event.clientX, event.clientY);
+    if (!pos) return;
 
-    // SVGuitar layout analysis:
-    // - There's padding around the actual fretboard
-    // - Strings are vertical lines, frets are horizontal
-    // - Frets are the spaces BETWEEN the fret wires, not the wires themselves
-    
-    // Use SVG viewBox dimensions for calculations, not display dimensions
-    const chartWidth = svgViewBox.width;
-    const chartHeight = svgViewBox.height;
-    
-    // Adjusted margins based on SVGuitar's actual layout
-    const marginX = chartWidth * 0.15;
-    
-    // Consistent margin calculation - SVGuitar uses relatively consistent top/bottom margins
-    // The position indicator doesn't significantly change the chord chart area
-    const marginY = chartHeight * 0.08;
-    
-    const fretboardWidth = chartWidth - (marginX * 2);
-    const fretboardHeight = chartHeight - (marginY * 2);
-    
-    // Check if click is outside the chart area entirely
-    if (x < marginX || x > chartWidth - marginX) {
+    debugLog('ChordEditor', 'Click debug:', pos);
+
+    if (pos.zone === 'nut') {
+      toggleNutMarker(pos.string);
       return;
     }
-    
-    // Calculate string (vertical position across width) - same for both nut and fretboard
-    const relativeX = x - marginX;
-    const stringRatio = relativeX / fretboardWidth;
-    const stringIndex = Math.floor(stringRatio * numStrings);
-    
-    if (stringIndex < 0 || stringIndex >= numStrings) {
-      return;
-    }
-    
-    // Convert to SVGuitar's string numbering (1-based, high E = 1)
-    const svguitarString = numStrings - stringIndex; // Flip the order
-    
-    // Check if click is in the nut area (above the fretboard)
-    // Nut area is above the fretboard proper 
-    if (y < marginY) {
-      toggleNutMarker(svguitarString);
-      return;
-    }
-    
-    // Check if click is within fretboard area
-    // Use same adjusted marginY for bottom boundary
-    if (y > chartHeight - marginY) {
-      return;
-    }
-    
-    // Calculate fret (horizontal position down height)
-    // SVGuitar uses 1-based fret numbering relative to the chart position
-    // Map click position to the correct fret number within the visible fret range
-    const relativeY = y - marginY;
-    const fretRatio = relativeY / fretboardHeight;
-    // Remove the +1 that was causing offset issues - frets should be 1-indexed naturally
-    const fretIndex = Math.ceil(fretRatio * numFrets);
-    
-    // Debug logging to verify click positioning
-    debugLog('ChordEditor', 'Click debug:', {
-      rawX, rawY, x, y, svguitarString, fretIndex,
-      marginX, marginY, fretRatio, relativeY, fretboardHeight
-    });
-    
-    // SVGuitar expects fret numbers relative to the startingFret position  
-    // Ensure fretIndex is within valid bounds
-    if (fretIndex < 1 || fretIndex > numFrets) {
-      return; // Click outside valid fret range
-    }
-    
+
     // Handle the click based on current edit mode
     if (currentEditMode === 'dots') {
-      toggleFinger(svguitarString, fretIndex);
+      toggleFinger(pos.string, pos.fret);
     } else if (currentEditMode === 'fingers') {
-      selectFingerForNumbering(svguitarString, fretIndex);
+      if (useMobileUIRef.current) {
+        // No keyboard on mobile: tapping cycles the finger number instead
+        cycleFingerNumber(pos.string, pos.fret);
+      } else {
+        selectFingerForNumbering(pos.string, pos.fret);
+      }
     } else if (currentEditMode === 'barres') {
-      toggleBarre(svguitarString, fretIndex);
+      // Mobile barres are handled by the pointer drag handlers
+      if (!useMobileUIRef.current) {
+        toggleBarre(pos.string, pos.fret);
+      }
     }
   };
 
@@ -649,6 +731,61 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
     });
   };
 
+  // Mobile barres mode: commit a finished drag (or tap) from the pointer handlers.
+  const commitBarreDrag = ({ fret, from, to, moved }) => {
+    // Same wire-above compensation as toggleBarre
+    const barreFret = fret + 1;
+    const fromString = Math.max(from, to);
+    const toString = Math.min(from, to);
+
+    setBarres(prev => {
+      const existingIndex = prev.findIndex(barre => barre.fret === barreFret);
+      if (existingIndex >= 0) {
+        // A drag over an existing barre re-spans it; a plain tap removes it
+        return moved
+          ? prev.map((barre, i) => (i === existingIndex ? { ...barre, fromString, toString } : barre))
+          : prev.filter((_, i) => i !== existingIndex);
+      }
+      // A drag draws just the spanned strings; a plain tap draws a full barre
+      return [...prev, moved
+        ? { fromString, toString, fret: barreFret, text: '1' }
+        : { fromString: numStrings, toString: 1, fret: barreFret, text: '1' }];
+    });
+  };
+
+  // Mobile fingers mode: tap a position to cycle its finger number
+  // (no dot → 1 → 2 → 3 → 4 → T → back to a plain dot).
+  // Note: desktop's keyboard flow stores thumb as '5'; here it's 'T'. Finger
+  // values are opaque display text end-to-end (nothing parses them), so the
+  // asymmetry is intentional — 'T' is the conventional label and reads better
+  // on a chart.
+  const FINGER_CYCLE = ['1', '2', '3', '4', 'T'];
+  const cycleFingerNumber = (string, fret) => {
+    // Remove any nut markers when adding a finger position
+    setOpenStrings(prev => {
+      const next = new Set(prev);
+      next.delete(string);
+      return next;
+    });
+    setMutedStrings(prev => {
+      const next = new Set(prev);
+      next.delete(string);
+      return next;
+    });
+
+    setFingers(prev => {
+      const existingIndex = prev.findIndex(([s, f]) => s === string && f === fret);
+      if (existingIndex === -1) {
+        return [...prev, [string, fret, FINGER_CYCLE[0]]];
+      }
+      const [s, f, currentNumber] = prev[existingIndex];
+      const cyclePos = FINGER_CYCLE.indexOf(currentNumber);
+      // Past 'T' → back to an unnumbered dot; unnumbered (-1) → '1'
+      const nextNumber = cyclePos === FINGER_CYCLE.length - 1 ? undefined : FINGER_CYCLE[cyclePos + 1];
+      return prev.map((finger, i) => (i === existingIndex ? [s, f, nextNumber] : finger));
+    });
+  };
+
   const selectFingerForNumbering = (string, fret) => {
     // First ensure there's a finger at this position
     const existingFingerIndex = fingers.findIndex(finger => {
@@ -701,14 +838,15 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
   };
 
   const updateCharts = () => {
-    if (!editorChartRef.current || !resultChartRef.current) {
+    if (!editorChartRef.current) {
       return;
     }
-    
-    // If the chart elements don't exist in DOM, recreate them
+
+    // If the chart element doesn't exist in DOM, skip (the result chart is
+    // optional — the mobile layout renders a single WYSIWYG chart)
     const editorElement = document.querySelector('#editor-chart');
     const resultElement = document.querySelector('#result-chart');
-    if (!editorElement || !resultElement) {
+    if (!editorElement) {
       return;
     }
 
@@ -759,13 +897,15 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
           .chord(chordData)
           .draw();
 
-        resultChartRef.current
-          .configure({
-            ...config,
-            title
-          })
-          .chord(chordData)
-          .draw();
+        if (resultChartRef.current && resultElement) {
+          resultChartRef.current
+            .configure({
+              ...config,
+              title
+            })
+            .chord(chordData)
+            .draw();
+        }
 
       } else {
       }
@@ -786,10 +926,24 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
         
         // Style the SVGs
         if (editorSvg) {
-          editorSvg.style.width = '100%';
-          editorSvg.style.height = '100%';
-          editorSvg.style.maxWidth = '128px';  // Reduced ~20% (was 160)
-          editorSvg.style.maxHeight = '180px'; // Reduced ~20% (was 224)
+          if (useMobileUIRef.current) {
+            // Mobile WYSIWYG chart: scale the finished SVG up into the larger
+            // touch-friendly container (never change the SVGuitar config per
+            // size). height + width:auto keeps the element box at the viewBox
+            // aspect ratio, which the tap coordinate math depends on.
+            editorSvg.style.width = 'auto';
+            editorSvg.style.height = '290px';
+            editorSvg.style.maxWidth = '100%';
+            editorSvg.style.maxHeight = 'none';
+          } else {
+            editorSvg.style.width = '100%';
+            editorSvg.style.height = '100%';
+            editorSvg.style.maxWidth = '128px';  // Reduced ~20% (was 160)
+            editorSvg.style.maxHeight = '180px'; // Reduced ~20% (was 224)
+          }
+          // Barre dragging needs the browser's touch gestures disabled;
+          // leave scrolling alone in the other modes
+          editorSvg.style.touchAction = (useMobileUIRef.current && editModeRef.current === 'barres') ? 'none' : '';
         }
 
         if (resultSvg) {
@@ -833,11 +987,243 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
     }
   }, [editMode, selectedFinger]);
 
+  // Keep touch-action in sync with the current mode (barre dragging must not
+  // fight the browser's scroll gesture; other modes should scroll normally)
+  useEffect(() => {
+    const svg = editorContainerRef.current?.querySelector('svg');
+    if (!svg) return;
+    svg.style.touchAction = (useMobileUI && editMode === 'barres') ? 'none' : '';
+  }, [editMode, useMobileUI]);
+
   // Determine if the save button should be enabled.
   // Public editor (saveButtonLabel set): enabled when any chart content exists.
   // In-app editor: enabled when the chord has a title.
   const hasChartContent = title.trim() || fingers.length > 0 || barres.length > 0 || openStrings.size > 0 || mutedStrings.size > 0;
   const canSave = saveButtonLabel ? hasChartContent : Boolean(title.trim());
+
+  const handleSave = () => {
+    const saveData = {
+      title,
+      startingFret,
+      numFrets,
+      numStrings,
+      tuning,
+      capo,
+      fingers,
+      barres,
+      openStrings: Array.from(openStrings),
+      mutedStrings: Array.from(mutedStrings),
+      // Both new and existing chords use startOnNewLine to affect the previous chord
+      startOnNewLine: addLineBreak,
+      editingChordId,  // Pass this so the save handler knows whether to create or update
+      // Include insertion context for proper positioning and section metadata
+      insertionContext
+    };
+
+    debugLog('ChordEditor', 'Saving chord with line break data:', {
+      title,
+      addLineBreak,
+      startOnNewLine: addLineBreak,
+      editingChordId
+    });
+
+    onSave(saveData);
+  };
+
+  // Mobile WYSIWYG layout (design 2b): one live chart, segmented mode control,
+  // tap/drag interactions, stepper settings. Only one layout subtree mounts at
+  // a time (this early return), so the #editor-chart id is never duplicated.
+  if (useMobileUI) {
+    const helperText = {
+      dots: 'Tap a fret to place or remove a dot · tap above the nut for open / mute',
+      fingers: 'Tap a dot to cycle its finger number 1–4 · T for thumb',
+      barres: 'Drag across strings on a fret to draw a barre · tap a barre to remove it',
+    }[editMode];
+
+    return (
+      <div className="bg-gray-800 p-3" style={{ borderRadius: '12px' }}>
+        <div className="space-y-3">
+          {/* Chord name field */}
+          <div>
+            <div className="text-xs text-blue-400 mb-1">Chord name</div>
+            <div className="relative">
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={() => tryAutofill(title)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    e.target.blur(); // dismisses the keyboard; blur triggers autofill
+                  }
+                }}
+                placeholder="Type a chord name, e.g. Am7"
+                className="bg-gray-900"
+                style={{ height: '44px', fontSize: '15px' }}
+                disabled={isLoadingChord}
+              />
+              {isLoadingChord && (
+                <div className="absolute right-2 top-3 text-yellow-400 text-xs" role="status" aria-live="polite">
+                  <span className="sr-only">Loading chord data</span>
+                  <span aria-hidden="true">Loading...</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Mode segmented control */}
+          <div className="flex border border-gray-700 bg-gray-900 overflow-hidden" style={{ borderRadius: '10px' }}>
+            {[['dots', 'Dots'], ['fingers', 'Fingers'], ['barres', 'Barres']].map(([mode, label]) => (
+              <button
+                key={mode}
+                onClick={() => setEditMode(mode)}
+                className={`flex-1 text-sm font-semibold ${editMode === mode ? 'bg-blue-600 text-white' : 'text-gray-300'}`}
+                style={{ height: '44px' }}
+                data-ph-capture-attribute-button={`chord-editor-${mode}-mode`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Live WYSIWYG chart */}
+          <div className="bg-gray-900" style={{ borderRadius: '12px', padding: '16px' }}>
+            <div className="mx-auto flex items-center justify-center overflow-hidden select-none" style={{ maxWidth: '270px', height: '290px' }}>
+              <div id="editor-chart" ref={editorContainerRef} className="cursor-pointer select-none" />
+            </div>
+            <div className="text-xs text-gray-500 text-center mt-2">{helperText}</div>
+          </div>
+
+          {/* Starting fret stepper */}
+          <div className="flex items-center justify-between bg-gray-900 border border-gray-700 px-3" style={{ borderRadius: '10px', height: '52px' }}>
+            <span className="text-sm text-gray-300">Starting fret</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setStartingFret(prev => Math.max(1, prev - 1))}
+                className="border border-gray-700 text-gray-200 text-lg"
+                style={{ width: '44px', height: '40px', borderRadius: '8px' }}
+                aria-label="Decrease starting fret"
+                data-ph-capture-attribute-button="chord-editor-fret-decrease"
+              >
+                −
+              </button>
+              <span
+                className="text-sm text-white text-center"
+                style={{ width: '28px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+              >
+                {startingFret}
+              </span>
+              <button
+                onClick={() => setStartingFret(prev => Math.min(15, prev + 1))}
+                className="border border-gray-700 text-gray-200 text-lg"
+                style={{ width: '44px', height: '40px', borderRadius: '8px' }}
+                aria-label="Increase starting fret"
+                data-ph-capture-attribute-button="chord-editor-fret-increase"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Line break option */}
+          {showLineBreak && (
+            <div className="flex items-center justify-between bg-gray-900 border border-gray-700 px-3" style={{ borderRadius: '10px', height: '52px' }}>
+              <label htmlFor="addLineBreakMobile" className="text-sm text-gray-300 cursor-pointer">
+                Line break after ↩️
+              </label>
+              <input
+                type="checkbox"
+                id="addLineBreakMobile"
+                checked={addLineBreak}
+                onChange={(e) => setAddLineBreak(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-900 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+              />
+            </div>
+          )}
+
+          {/* More settings toggle */}
+          <button
+            type="button"
+            className="block text-left text-blue-400 cursor-pointer"
+            style={{ fontSize: '13px' }}
+            onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+          >
+            {showAdvancedSettings ? 'Hide settings…' : 'More settings…'}
+          </button>
+
+          {showAdvancedSettings && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-sm text-white mb-1">Tuning</div>
+                <Input
+                  value={tuning}
+                  onChange={(e) => setTuning(e.target.value)}
+                  placeholder="EADGBE"
+                  className="bg-gray-900"
+                />
+              </div>
+              <div>
+                <div className="text-sm text-white mb-1">Capo</div>
+                <Input
+                  type="number"
+                  min="0"
+                  max="12"
+                  value={capo}
+                  onChange={(e) => setCapo(parseInt(e.target.value) || 0)}
+                  className="bg-gray-900"
+                />
+              </div>
+              <div>
+                <div className="text-sm text-white mb-1">Number of frets</div>
+                <Input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={numFrets}
+                  onChange={(e) => setNumFrets(parseInt(e.target.value) || 5)}
+                  className="bg-gray-900"
+                />
+              </div>
+              <div>
+                <div className="text-sm text-white mb-1">Number of strings</div>
+                <Input
+                  type="number"
+                  min="4"
+                  max="12"
+                  value={numStrings}
+                  onChange={(e) => setNumStrings(parseInt(e.target.value) || 6)}
+                  className="bg-gray-900"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <Button
+            onClick={handleSave}
+            className={`w-full ${canSave ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
+            style={{ height: '48px', borderRadius: '10px' }}
+            disabled={!canSave}
+            data-ph-capture-attribute-button={editingChordId ? "chord-editor-update" : "chord-editor-save"}
+          >
+            {saveButtonLabel || (editingChordId ? 'Update chord chart' : 'Add chord chart')}
+          </Button>
+
+          {onCancel && (
+            <Button
+              onClick={onCancel}
+              variant="outline"
+              className="w-full border-gray-600 text-gray-300 hover:bg-gray-700"
+              style={{ height: '48px', borderRadius: '10px' }}
+              data-ph-capture-attribute-button="chord-editor-cancel"
+            >
+              Cancel
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
@@ -1051,35 +1437,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
         {/* Action buttons */}
         <div className="flex gap-2">
           <Button
-            onClick={() => {
-
-              const saveData = {
-                title,
-                startingFret,
-                numFrets,
-                numStrings,
-                tuning,
-                capo,
-                fingers,
-                barres,
-                openStrings: Array.from(openStrings),
-                mutedStrings: Array.from(mutedStrings),
-                // Both new and existing chords use startOnNewLine to affect the previous chord
-                startOnNewLine: addLineBreak,
-                editingChordId,  // Pass this so the save handler knows whether to create or update
-                // Include insertion context for proper positioning and section metadata
-                insertionContext
-              };
-
-              debugLog('ChordEditor', 'Saving chord with line break data:', {
-                title,
-                addLineBreak,
-                startOnNewLine: addLineBreak,
-                editingChordId
-              });
-
-              onSave(saveData);
-            }}
+            onClick={handleSave}
             className={`flex-1 ${canSave ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
             disabled={!canSave}
             data-ph-capture-attribute-button={editingChordId ? "chord-editor-update" : "chord-editor-save"}
