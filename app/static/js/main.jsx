@@ -19,7 +19,9 @@ import KofiWidget from '@components/KofiWidget';
 import AutocreateWatcher from '@components/AutocreateWatcher';
 import StatsPage from '@components/StatsPage';
 import ErrorBoundary from '@components/ErrorBoundary';
+import MobileTabBar, { TAB_BAR_HEIGHT } from '@components/MobileTabBar';
 import { useLightweightItems } from '@hooks/useLightweightItems';
+import { useIsMobile } from '@hooks/useIsMobile';
 import { setUserContext } from './utils/analytics';
 
 // Initialize rate limit handling (intercepts fetch for 429 errors)
@@ -66,9 +68,14 @@ const App = () => {
   const { activePage, setActivePage } = useNavigation();
   const [showUnpluggedModal, setShowUnpluggedModal] = useState(false);
   const [unpluggedTarget, setUnpluggedTarget] = useState('');
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
 
   const isImpersonating = userStatus?.impersonating === true;
   const bannerOffset = isImpersonating ? IMPERSONATION_BANNER_HEIGHT : 0;
+  const isMobile = useIsMobile();
+  // Reserve room for the fixed bottom tab bar on mobile so page content can
+  // scroll clear of it
+  const bottomNavPadding = isMobile ? TAB_BAR_HEIGHT + 8 : 0;
 
   useEffect(() => {
     const updateHeaderHeight = () => {
@@ -138,13 +145,15 @@ const App = () => {
       {/* Global autocreate completion watcher - shows modal when user is on a different page */}
       <AutocreateWatcher />
 
-      {/* Ko-fi floating widget - shown only for free/dollarstore/basic tiers, and not on Practice/Routines/Items/Stats */}
+      {/* Ko-fi floating widget - shown only for free/dollarstore/basic tiers, and not on Practice/Routines/Items/Stats.
+          Hidden while the mobile More sheet is open so it doesn't float over the sheet. */}
       {userStatus?.tier &&
+        !mobileMoreOpen &&
         activePage !== 'Practice' &&
         activePage !== 'Routines' &&
         activePage !== 'Items' &&
         activePage !== 'Stats' && (
-          <KofiWidget currentTier={userStatus.tier} />
+          <KofiWidget currentTier={userStatus.tier} bottomOffset={bottomNavPadding} />
         )}
 
       {/* Lapsed Subscription Modal */}
@@ -197,8 +206,23 @@ const App = () => {
         <PageContent userStatus={userStatus} />
       </div>
 
+      {/* Mobile bottom tab bar (replaces the header nav tabs on <640px) */}
+      {isMobile && (
+        <MobileTabBar
+          userStatus={userStatus}
+          onMoreToggle={setMobileMoreOpen}
+          onUnpluggedAttempt={(page) => {
+            setUnpluggedTarget(page.toLowerCase());
+            setShowUnpluggedModal(true);
+          }}
+        />
+      )}
+
       {/* Footer */}
-      <footer className="bg-gray-800 border-t border-gray-700 mt-8 py-6">
+      <footer
+        className="bg-gray-800 border-t border-gray-700 mt-8 py-6"
+        style={{ marginBottom: bottomNavPadding ? `${bottomNavPadding}px` : undefined }}
+      >
         <div className="container mx-auto px-4 text-center text-sm text-gray-400">
           <div className="space-x-4">
             <a href="/about" className="hover:text-orange-400 transition-colors">
