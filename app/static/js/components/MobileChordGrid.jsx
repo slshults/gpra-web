@@ -58,25 +58,29 @@ const whitenBarres = (svg) => {
   });
 };
 
+// Wait for the SVGuitar UMD script (PracticePage loads it on mount). Returns a
+// cancel fn so the caller can stop polling on unmount. Usually resolves
+// synchronously since the script is loaded well before an item is expanded.
 const waitForSvguitar = (cb) => {
-  if (window.svguitar) { cb(); return; }
+  if (window.svguitar) { cb(); return () => {}; }
   let tries = 0;
   const id = setInterval(() => {
     tries += 1;
     if (window.svguitar) { clearInterval(id); cb(); }
     else if (tries > 40) { clearInterval(id); } // ~4s, then give up quietly
   }, 100);
+  return () => clearInterval(id);
 };
 
-// One rendered chart. `showFingers` toggles finger numbers; `big` scales it up
-// for the enlarge overlay.
+// One rendered chart. `showFingers` toggles finger numbers (numbers show at
+// 3-across); the enlarge overlay just uses a larger container.
 const MobileChordChart = ({ chart, showFingers }) => {
   const ref = useRef(null);
 
   useEffect(() => {
     if (!ref.current) return;
     let cancelled = false;
-    waitForSvguitar(() => {
+    const cancelWait = waitForSvguitar(() => {
       if (cancelled || !ref.current) return;
       try {
         const chartData = chart.chordData || chart;
@@ -98,7 +102,7 @@ const MobileChordChart = ({ chart, showFingers }) => {
         console.error('Error rendering mobile chord chart:', e);
       }
     });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; cancelWait(); };
   }, [chart, showFingers]);
 
   return <div ref={ref} className="w-full h-full flex items-center justify-center" />;
@@ -108,6 +112,14 @@ const MobileChordGrid = ({ sections, density }) => {
   const [enlarged, setEnlarged] = useState(null); // chart object | null
   const showFingers = density === 3; // numbers only at 3-across
   const cols = density; // 3 or 4
+
+  // Close the enlarge overlay on Escape (backdrop tap also closes it).
+  useEffect(() => {
+    if (!enlarged) return;
+    const onKey = (e) => { if (e.key === 'Escape') setEnlarged(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [enlarged]);
 
   if (!sections || sections.length === 0) {
     return <div className="text-xs text-gray-500 py-2">No chord charts for this item yet.</div>;

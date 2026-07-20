@@ -104,7 +104,16 @@ const MobilePracticePage = ({
               {/* Row header */}
               <div
                 data-item-header={entryId}
+                role="button"
+                tabIndex={0}
+                aria-expanded={expanded}
                 onClick={() => onToggleItem(entryId)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onToggleItem(entryId);
+                  }
+                }}
                 className="flex items-center cursor-pointer"
                 style={{
                   height: '52px',

@@ -91,7 +91,10 @@ const App = () => {
     updateHeaderHeight();
     window.addEventListener('resize', updateHeaderHeight);
     return () => window.removeEventListener('resize', updateHeaderHeight);
-  }, []);
+    // Re-measure when the header un-hides: on mobile Practice it's hidden at
+    // mount (offsetHeight 0, skipped by the guard), so it must be measured
+    // again when the user navigates to a page where it's shown.
+  }, [activePage, isMobile, bannerOffset]);
 
   // Check auth status on mount
   useEffect(() => {

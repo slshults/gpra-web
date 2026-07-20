@@ -19,6 +19,9 @@ const readLocal = () => {
 export const useChordDensity = () => {
   const [density, setDensity] = useState(readLocal);
   const didReconcile = useRef(false);
+  // Once the user has toggled, don't let a late-resolving mount GET overwrite
+  // their choice (the POST has already committed it server-side).
+  const userChanged = useRef(false);
 
   // Reconcile with the server once on mount. If the stored server value differs
   // from the local mirror, adopt the server's (it's authoritative across
@@ -30,7 +33,7 @@ export const useChordDensity = () => {
     fetch('/api/user/preferences/chord-density')
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
-        if (cancelled || !data) return;
+        if (cancelled || !data || userChanged.current) return;
         const serverDensity = data.chord_density;
         if (VALID.includes(serverDensity)) {
           setDensity(serverDensity);
@@ -43,6 +46,7 @@ export const useChordDensity = () => {
 
   const changeDensity = useCallback((next) => {
     if (!VALID.includes(next)) return;
+    userChanged.current = true;
     setDensity(next);
     localStorage.setItem(STORAGE_KEY, String(next));
     fetch('/api/user/preferences/chord-density', {

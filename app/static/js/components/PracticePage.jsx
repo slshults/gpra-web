@@ -1234,7 +1234,7 @@ export const PracticePage = () => {
     }
   }, [routine?.items]); // Re-run when routine items are available
 
-  const loadChordChartsForItem = async (itemReferenceId) => {
+  const loadChordChartsForItem = useCallback(async (itemReferenceId) => {
     // Skip if already loaded
     if (chordCharts[itemReferenceId]) {
       return;
@@ -1294,8 +1294,10 @@ export const PracticePage = () => {
     } catch (error) {
       console.error('Error loading chord charts for item:', itemReferenceId, error);
     }
-  };
-  
+    // Stable reference except when the chart cache changes, so the mobile
+    // expand effect doesn't re-run on every render (e.g. each timer tick).
+  }, [chordCharts]);
+
   const completedItemIds = useMemo(() => {
     if (routine?.items) {
       return new Set(
