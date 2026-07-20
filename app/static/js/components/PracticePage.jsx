@@ -23,6 +23,8 @@ import { ChevronDown, ChevronRight, Check, Plus, FileText, Book, Music, Upload, 
 import { NoteEditor, renderMarkdown } from './NoteEditor';
 import { ChordChartEditor } from './ChordChartEditor';
 import { RoutineEditor } from '@components/RoutineEditor';
+import { useIsMobile } from '@hooks/useIsMobile';
+import MobilePracticePage from '@components/MobilePracticePage';
 import ApiErrorModal, { resetRateLimitBackoff } from './ApiErrorModal';
 import AutocreateSuccessModal from './AutocreateSuccessModal';
 import UpsellAutocreateModal from './UpsellAutocreateModal';
@@ -421,6 +423,7 @@ export const PracticePage = () => {
   useNavigation();
   
   const { items: allItems, refreshItems } = usePracticeItems();
+  const isMobile = useIsMobile();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState(new Set());
   const [expandedNotes, setExpandedNotes] = useState(new Set());
@@ -1847,7 +1850,7 @@ export const PracticePage = () => {
     }
   };
 
-  const toggleTimer = async (itemId, e) => {
+  const toggleTimer = async (itemId, e, skipSoundModal = false) => {
     e?.stopPropagation(); // Prevent expand/collapse when clicking timer
     const routineItem = routine.items.find(item => item['A'] === itemId);  // Column A is ID
     if (routineItem) {
@@ -1896,8 +1899,9 @@ export const PracticePage = () => {
         const permanentlyDismissed = localStorage.getItem('timerSoundModalDismissed') === 'true';
         const sessionDismissed = sessionStorage.getItem('timerSoundModalDismissedSession') === 'true';
 
-        if (permanentlyDismissed || sessionDismissed) {
-          // User has seen the modal before - just start timer
+        if (skipSoundModal || permanentlyDismissed || sessionDismissed) {
+          // User has seen the modal before (or we're on mobile, which doesn't
+          // render the sound modal) - just start the timer. The sound still plays.
           await startTimerWithPreference(itemId, true);
         } else {
           // First timer start this session - show info modal
@@ -4156,6 +4160,30 @@ export const PracticePage = () => {
       });
   };
 
+
+  // Mobile Practice list (design 2a). PracticePage stays the state owner; the
+  // mobile view is a focused render of the same state + handlers. Desktop
+  // (>=640px) falls through to the existing layout below, untouched.
+  if (isMobile) {
+    return (
+      <MobilePracticePage
+        routine={routine}
+        getItemDetails={getItemDetails}
+        completedItems={completedItems}
+        activeTimers={activeTimers}
+        timers={timers}
+        expandedItems={expandedItems}
+        chordSections={chordSections}
+        totalMinutes={totalMinutes}
+        completedMinutes={completedMinutes}
+        onToggleItem={toggleItem}
+        onToggleTimer={(id, e) => toggleTimer(id, e, true)}
+        onToggleComplete={toggleComplete}
+        onResetProgress={resetProgress}
+        onLoadChordCharts={loadChordChartsForItem}
+      />
+    );
+  }
 
   return (
     <div className="max-w-1130px mx-auto border border-gray-700 rounded-lg p-6" style={{maxWidth: '1130px'}}>

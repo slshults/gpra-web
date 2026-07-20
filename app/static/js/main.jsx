@@ -79,7 +79,10 @@ const App = () => {
 
   useEffect(() => {
     const updateHeaderHeight = () => {
-      if (headerRef.current) {
+      // Only measure when the header is actually visible — on mobile Practice
+      // it's hidden (offsetHeight 0), and we must not let that corrupt the
+      // height used to pad other pages.
+      if (headerRef.current && headerRef.current.offsetHeight > 0) {
         const height = headerRef.current.offsetHeight;
         setHeaderHeight(height + 20); // Add 20px buffer
       }
@@ -177,8 +180,10 @@ const App = () => {
         <ImpersonationBanner username={userStatus.user} />
       )}
 
-      {/* Fixed Header - offset down when impersonation banner is showing */}
-      <div ref={headerRef} className="fixed left-0 right-0 z-50 bg-gray-900" style={{top: `${bannerOffset}px`}}>
+      {/* Fixed Header - offset down when impersonation banner is showing.
+          Hidden on mobile Practice, where MobilePracticePage renders its own
+          52px top bar in its place (design 2a). */}
+      <div ref={headerRef} className="fixed left-0 right-0 z-50 bg-gray-900" style={{top: `${bannerOffset}px`, display: (isMobile && activePage === 'Practice') ? 'none' : undefined}}>
         <div className="container mx-auto px-4 pt-4 pb-1">
           <h1 className="text-2xl sm:text-4xl font-bold text-orange-500 mb-2" data-tour="app-title">Guitar Practice Routine App</h1>
           <NavMenu
@@ -192,8 +197,12 @@ const App = () => {
         </div>
       </div>
 
-      {/* Scrollable Content with dynamic top padding to account for fixed header + impersonation banner */}
-      <div className="pb-4 px-4 container mx-auto" style={{paddingTop: `${headerHeight + bannerOffset}px`}}>
+      {/* Scrollable Content with dynamic top padding to account for fixed header + impersonation banner.
+          On mobile Practice the app header is hidden and MobilePracticePage is full-bleed with its own bar. */}
+      <div
+        className={`pb-4 container mx-auto ${(isMobile && activePage === 'Practice') ? 'px-0' : 'px-4'}`}
+        style={{paddingTop: (isMobile && activePage === 'Practice') ? `${bannerOffset}px` : `${headerHeight + bannerOffset}px`}}
+      >
         {/* Deletion Banner - shows when account deletion is scheduled */}
         {userStatus?.deletion_scheduled_for && (
           <DeletionBanner
