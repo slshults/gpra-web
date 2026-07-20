@@ -52,6 +52,7 @@ const PublicChordEditor = () => {
       showLineBreak={false}
       initialChordId={initialChordId}
       initialChordName={initialChordName}
+      mobileLayout={true}
     />
   );
 };
