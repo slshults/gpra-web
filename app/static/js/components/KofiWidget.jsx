@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 const KOFI_URL = 'https://ko-fi.com/gprakofi';
 const ELIGIBLE_TIERS = ['free', 'dollarstore', 'basic'];
 
-const KofiWidget = ({ currentTier }) => {
+const KofiWidget = ({ currentTier, bottomOffset = 0 }) => {
   const isEligible = ELIGIBLE_TIERS.includes(currentTier);
 
   if (!isEligible) return null;
@@ -16,7 +16,7 @@ const KofiWidget = ({ currentTier }) => {
       title="Support this app on Ko-fi"
       style={{
         position: 'fixed',
-        bottom: '50px',
+        bottom: `${50 + bottomOffset}px`,
         left: '16px',
         zIndex: 9999,
         display: 'flex',
