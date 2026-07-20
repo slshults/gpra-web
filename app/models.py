@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Index, JSON, Numeric
+from sqlalchemy import Column, Integer, SmallInteger, String, Text, DateTime, Boolean, ForeignKey, Index, JSON, Numeric
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -290,6 +290,9 @@ class UserPreferences(Base):
     user_id = Column(Integer, nullable=False, unique=True, index=True)
     tour_completed = Column(Boolean, default=False, nullable=False)
     first_item_guidance_shown = Column(Boolean, default=False, nullable=False)
+    # Mobile chord density preference: 3 or 4 charts across (default 4). See the
+    # mobile Practice-page redesign; persisted so it follows the user across devices.
+    chord_density = Column(SmallInteger, default=4, nullable=False)
     last_data_download_at = Column(DateTime(timezone=True), nullable=True)
     data_expiration_reminder_dismissed_until = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

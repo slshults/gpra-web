@@ -2863,6 +2863,93 @@ def complete_first_item_guidance():
         db.rollback()
         return jsonify({"error": "Failed to mark first item guidance as shown"}), 500
 
+@app.route('/api/user/preferences/chord-density', methods=['GET'])
+def get_chord_density():
+    """
+    Get the user's mobile chord-density preference (3 or 4 charts across).
+
+    Returns:
+        {
+            "chord_density": 3 | 4  # defaults to 4 when no record exists
+        }
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        from app import appbuilder
+        from app.models import UserPreferences
+
+        db = appbuilder.session
+        user_id = current_user.id
+
+        preferences = db.query(UserPreferences).filter_by(user_id=user_id).first()
+
+        if preferences:
+            chord_density = preferences.chord_density
+        else:
+            chord_density = 4
+
+        return jsonify({"chord_density": chord_density})
+
+    except Exception as e:
+        app.logger.error(f"Error fetching chord density for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to fetch chord density"}), 500
+
+@app.route('/api/user/preferences/chord-density', methods=['POST'])
+def set_chord_density():
+    """
+    Set the user's mobile chord-density preference.
+
+    Creates or updates the user_preferences record. Only 3 or 4 are valid.
+
+    Request body:
+        {
+            "chord_density": 3 | 4
+        }
+
+    Returns:
+        {
+            "success": true,
+            "chord_density": 3 | 4
+        }
+    """
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+
+    data = request.get_json(silent=True) or {}
+    density = data.get('chord_density')
+    if density not in (3, 4):
+        return jsonify({"error": "chord_density must be 3 or 4"}), 400
+
+    try:
+        from app import appbuilder
+        from app.models import UserPreferences
+
+        db = appbuilder.session
+        user_id = current_user.id
+
+        preferences = db.query(UserPreferences).filter_by(user_id=user_id).first()
+
+        if preferences:
+            preferences.chord_density = density
+        else:
+            preferences = UserPreferences(user_id=user_id, chord_density=density)
+            db.add(preferences)
+
+        db.commit()
+
+        return jsonify({"success": True, "chord_density": density})
+
+    except Exception as e:
+        app.logger.error(f"Error setting chord density for user {current_user.id}: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        db.rollback()
+        return jsonify({"error": "Failed to set chord density"}), 500
+
 @app.route('/api/user/password-change', methods=['POST'])
 def change_password():
     """
