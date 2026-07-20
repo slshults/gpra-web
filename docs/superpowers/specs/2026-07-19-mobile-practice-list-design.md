@@ -83,14 +83,14 @@ scaling is uniform so dot geometry is preserved at every size.
 - **Model:** add `chord_density = Column(SmallInteger, default=4, nullable=False)`
   to `UserPreferences` (app/models.py). Alembic migration (default 4 for
   existing rows).
-- **Endpoint:** follow the existing `/api/user/*` pattern (e.g. api-key routes).
-  Prefer extending/adding a small preferences route:
-  - `GET /api/user/preferences` → `{ chord_density: 4, ... }` (create-on-read
-    default if no row yet), and
-  - `POST /api/user/preferences` `{ chord_density: 3|4 }` → validates ∈ {3,4},
-    upserts, returns saved value.
-  (If a general preferences GET/POST already exists, extend it instead of adding
-  a parallel one — check during implementation.)
+- **Endpoints (as implemented):** dedicated per-preference sub-routes matching
+  the neighboring `tour-status` / `first-item-guidance-status` pattern:
+  - `GET /api/user/preferences/chord-density` → `{ "chord_density": N }`.
+    Returns the default `4` when the user has no row yet, **without** creating
+    one (side-effect-free read, like the sibling GETs).
+  - `POST /api/user/preferences/chord-density` `{ "chord_density": 3|4 }` →
+    validates ∈ {3,4} (400 otherwise), upserts the row, returns
+    `{ "success": true, "chord_density": N }`.
 - **Client:** `localStorage` mirror (`gpra_chord_density`) for instant first
   paint; on load, read localStorage → render immediately, then reconcile with
   the server value; on toggle, update state + localStorage + POST. Server is the

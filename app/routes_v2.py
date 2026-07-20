@@ -2863,6 +2863,7 @@ def complete_first_item_guidance():
         db.rollback()
         return jsonify({"error": "Failed to mark first item guidance as shown"}), 500
 
+# Chord Density Routes
 @app.route('/api/user/preferences/chord-density', methods=['GET'])
 def get_chord_density():
     """
@@ -2935,9 +2936,11 @@ def set_chord_density():
 
         if preferences:
             preferences.chord_density = density
+            app.logger.info(f"Updated chord density for user {user_id} to {density}")
         else:
             preferences = UserPreferences(user_id=user_id, chord_density=density)
             db.add(preferences)
+            app.logger.info(f"Created chord density for user {user_id} as {density}")
 
         db.commit()
 
