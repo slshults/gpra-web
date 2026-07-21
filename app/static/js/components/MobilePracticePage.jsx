@@ -2,9 +2,10 @@
 // Mobile Practice-page list state (design 2a). Rendered by PracticePage below
 // the 640px breakpoint; PracticePage stays the owner of all practice state and
 // passes the subset this view needs (plus handlers) as props.
-import { useEffect } from 'react';
-import { Check, ChevronDown, ChevronRight, Music, RotateCcw, Play, Pause } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Check, ChevronDown, ChevronRight, Music, RotateCcw, Play } from 'lucide-react';
 import MobileChordGrid from '@components/MobileChordGrid';
+import MobilePlayMode from '@components/MobilePlayMode';
 import { useChordDensity } from '@hooks/useChordDensity';
 
 const fmt = (totalSeconds) => {
@@ -30,7 +31,21 @@ const MobilePracticePage = ({
   onLoadChordCharts,
 }) => {
   const { density, changeDensity } = useChordDensity();
+  const [playModeEntryId, setPlayModeEntryId] = useState(null);
   const items = routine?.items || [];
+
+  // The list ▶ launches Play mode: start the timer if it isn't already running,
+  // then go full-screen. (Product decision: ▶ always enters Play mode.)
+  const launchPlayMode = (entryId, e) => {
+    e?.stopPropagation();
+    if (!activeTimers.has(entryId)) onToggleTimer(entryId, e);
+    setPlayModeEntryId(entryId);
+  };
+
+  // Stable identities so Play mode's effects (Escape listener, auto-advance)
+  // don't re-subscribe on every parent render.
+  const exitPlayMode = useCallback(() => setPlayModeEntryId(null), []);
+  const navigatePlayMode = useCallback((id) => setPlayModeEntryId(id), []);
 
   // Ensure chords load for any expanded item (loadChordChartsForItem no-ops if
   // already cached). Mirrors the desktop lazy-load, but on mobile chords are
@@ -48,6 +63,7 @@ const MobilePracticePage = ({
   };
 
   return (
+    <>
     <div style={{ padding: '10px 12px 64px', boxSizing: 'border-box' }}>
       {/* Sticky top bar */}
       <div
@@ -162,23 +178,23 @@ const MobilePracticePage = ({
                     style={{ backgroundColor: '#111827', borderRadius: '10px', padding: '10px 12px', gap: '12px', marginBottom: '10px' }}
                   >
                     <button
-                      onClick={(e) => onToggleTimer(entryId, e)}
+                      onClick={(e) => launchPlayMode(entryId, e)}
                       className="flex items-center justify-center shrink-0"
                       style={{ width: '52px', height: '52px', borderRadius: '99px', backgroundColor: '#16351f', border: '2px solid #22c55e' }}
-                      aria-label={timerActive ? 'Pause timer' : 'Start timer'}
-                      data-ph-capture-attribute-button="mobile-toggle-timer"
+                      aria-label="Open Play mode"
+                      data-ph-capture-attribute-button="mobile-launch-play-mode"
                     >
-                      {timerActive
-                        ? <Pause size={22} color="#22c55e" fill="#22c55e" />
-                        : <Play size={22} color="#22c55e" fill="#22c55e" />}
+                      <Play size={22} color="#22c55e" fill="#22c55e" />
                     </button>
                     <div className="flex-1 min-w-0">
                       <div style={{ fontSize: '30px', color: '#f3f4f6', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', lineHeight: 1 }}>
                         {fmt(secondsFor(entryId, durationMin))}
                       </div>
-                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                        {timerActive ? 'Timer running' : '▶ starts the practice timer'}
-                      </div>
+                      {timerActive && (
+                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                          Timer running
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={(e) => onToggleComplete(entryId, e)}
@@ -205,7 +221,7 @@ const MobilePracticePage = ({
                           key={n}
                           onClick={() => changeDensity(n)}
                           style={{
-                            width: '40px', height: '32px', fontSize: '13px', fontWeight: 600,
+                            width: '26px', height: '24px', fontSize: '11px', fontWeight: 600,
                             backgroundColor: density === n ? '#f97316' : 'transparent',
                             color: density === n ? '#111827' : '#9ca3af',
                           }}
@@ -227,6 +243,23 @@ const MobilePracticePage = ({
         })}
       </div>
     </div>
+    {playModeEntryId && (
+      <MobilePlayMode
+        routine={routine}
+        entryId={playModeEntryId}
+        getItemDetails={getItemDetails}
+        timers={timers}
+        activeTimers={activeTimers}
+        completedItems={completedItems}
+        chordSections={chordSections}
+        onToggleTimer={onToggleTimer}
+        onToggleComplete={onToggleComplete}
+        onExit={exitPlayMode}
+        onNavigate={navigatePlayMode}
+        onLoadChordCharts={onLoadChordCharts}
+      />
+    )}
+    </>
   );
 };
 
