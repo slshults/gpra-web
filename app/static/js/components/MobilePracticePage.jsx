@@ -2,7 +2,7 @@
 // Mobile Practice-page list state (design 2a). Rendered by PracticePage below
 // the 640px breakpoint; PracticePage stays the owner of all practice state and
 // passes the subset this view needs (plus handlers) as props.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Check, ChevronDown, ChevronRight, Music, RotateCcw, Play } from 'lucide-react';
 import MobileChordGrid from '@components/MobileChordGrid';
 import MobilePlayMode from '@components/MobilePlayMode';
@@ -41,6 +41,11 @@ const MobilePracticePage = ({
     if (!activeTimers.has(entryId)) onToggleTimer(entryId, e);
     setPlayModeEntryId(entryId);
   };
+
+  // Stable identities so Play mode's effects (Escape listener, auto-advance)
+  // don't re-subscribe on every parent render.
+  const exitPlayMode = useCallback(() => setPlayModeEntryId(null), []);
+  const navigatePlayMode = useCallback((id) => setPlayModeEntryId(id), []);
 
   // Ensure chords load for any expanded item (loadChordChartsForItem no-ops if
   // already cached). Mirrors the desktop lazy-load, but on mobile chords are
@@ -243,11 +248,12 @@ const MobilePracticePage = ({
         getItemDetails={getItemDetails}
         timers={timers}
         activeTimers={activeTimers}
+        completedItems={completedItems}
         chordSections={chordSections}
         onToggleTimer={onToggleTimer}
         onToggleComplete={onToggleComplete}
-        onExit={() => setPlayModeEntryId(null)}
-        onNavigate={(id) => setPlayModeEntryId(id)}
+        onExit={exitPlayMode}
+        onNavigate={navigatePlayMode}
         onLoadChordCharts={onLoadChordCharts}
       />
     )}

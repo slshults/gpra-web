@@ -3,7 +3,7 @@
 // Practice list ▶; renders over everything. PracticePage still owns all timer /
 // completion / chord state — this is a focused view of one item plus a few
 // local concerns (auto-scroll speed, wake lock).
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { ChevronDown, Play, Pause } from 'lucide-react';
 import MobileChordChart from '@components/MobileChordChart';
 
@@ -27,6 +27,7 @@ const MobilePlayMode = ({
   getItemDetails,
   timers,
   activeTimers,
+  completedItems,
   chordSections,
   onToggleTimer,
   onToggleComplete,
@@ -43,7 +44,9 @@ const MobilePlayMode = ({
   const durationSec = (parseInt(details?.['E'], 10) || 5) * 60;
   const remaining = typeof timers[entryId] === 'number' ? timers[entryId] : durationSec;
   const running = activeTimers.has(entryId);
-  const sections = chordSections[itemId] || [];
+  // Stable reference so the auto-scroll effect doesn't re-run on unrelated
+  // re-renders (a bare `|| []` yields a fresh array each render).
+  const sections = useMemo(() => chordSections[itemId] || [], [chordSections, itemId]);
   const prevItem = index > 0 ? items[index - 1] : null;
   const nextItem = index >= 0 && index < items.length - 1 ? items[index + 1] : null;
 
@@ -57,16 +60,21 @@ const MobilePlayMode = ({
   }, [itemId, onLoadChordCharts]);
 
   // Auto-advance: when the running timer crosses to 0, mark done + return to
-  // the list. The previous-value ref makes it fire exactly once.
-  const prevRemainingRef = useRef(remaining);
+  // the list. The ref tracks (entryId, remaining) together so a genuine
+  // crossing is only detected WITHIN one item — navigating to an item that is
+  // already at 0 (e.g. a background timer that finished) must not count as a
+  // crossing. Only completes if not already done (onToggleComplete is a toggle,
+  // so calling it on a done item would un-complete it).
+  const prevRef = useRef({ entryId, remaining });
   useEffect(() => {
-    const prev = prevRemainingRef.current;
-    prevRemainingRef.current = remaining;
-    if (running && prev > 0 && remaining === 0) {
-      onToggleComplete(entryId);
+    const prev = prevRef.current;
+    prevRef.current = { entryId, remaining };
+    if (running && prev.entryId === entryId && prev.remaining > 0 && remaining === 0) {
+      if (!completedItems.has(entryId)) onToggleComplete(entryId);
+      window.posthog?.capture('play_mode_auto_advanced', { routine_name: routine?.name, item_title: name });
       onExit();
     }
-  }, [remaining, running, entryId, onToggleComplete, onExit]);
+  }, [remaining, running, entryId, completedItems, onToggleComplete, onExit, routine, name]);
 
   // Auto-scroll the chord area when a speed is set and it overflows.
   useEffect(() => {
@@ -104,7 +112,7 @@ const MobilePlayMode = ({
         setWakeActive(true);
         sentinel.addEventListener('release', () => setWakeActive(false));
       } catch {
-        setWakeActive(false);
+        if (!disposed) setWakeActive(false);
       }
     };
     acquire();
