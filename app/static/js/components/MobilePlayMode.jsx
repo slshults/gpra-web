@@ -51,7 +51,6 @@ const MobilePlayMode = ({
   const nextItem = index >= 0 && index < items.length - 1 ? items[index + 1] : null;
 
   const [scrollSpeed, setScrollSpeed] = useState(readScrollSpeed);
-  const [wakeActive, setWakeActive] = useState(false);
   const scrollRef = useRef(null);
 
   // Load the current item's chords (no-ops if already cached).
@@ -100,7 +99,9 @@ const MobilePlayMode = ({
     return () => cancelAnimationFrame(raf);
   }, [scrollSpeed, sections]);
 
-  // Screen wake lock while active; re-acquire when the tab becomes visible again.
+  // Keep the screen awake while in Play mode; re-acquire when the tab becomes
+  // visible again. Granted silently (no permission dialog); if the API is
+  // unsupported or rejects, the screen simply won't stay awake.
   useEffect(() => {
     if (!('wakeLock' in navigator)) return undefined;
     let sentinel = null;
@@ -108,12 +109,8 @@ const MobilePlayMode = ({
     const acquire = async () => {
       try {
         sentinel = await navigator.wakeLock.request('screen');
-        if (disposed) { sentinel.release().catch(() => {}); return; }
-        setWakeActive(true);
-        sentinel.addEventListener('release', () => setWakeActive(false));
-      } catch {
-        if (!disposed) setWakeActive(false);
-      }
+        if (disposed) sentinel.release().catch(() => {});
+      } catch { /* unsupported or rejected */ }
     };
     acquire();
     const onVis = () => { if (document.visibilityState === 'visible') acquire(); };
@@ -137,8 +134,6 @@ const MobilePlayMode = ({
     localStorage.setItem(SCROLL_KEY, speed);
     window.posthog?.capture('play_mode_scroll_speed_changed', { speed });
   };
-
-  const elapsedPct = Math.min(100, Math.max(0, ((durationSec - remaining) / durationSec) * 100));
 
   return (
     <div className="fixed inset-0 flex flex-col" style={{ zIndex: 80, backgroundColor: '#020817' }}>
@@ -173,11 +168,6 @@ const MobilePlayMode = ({
         </button>
       </div>
 
-      {/* Progress bar */}
-      <div style={{ height: '5px', backgroundColor: '#1f2937', margin: '0 14px', borderRadius: '3px' }}>
-        <div style={{ width: `${elapsedPct}%`, height: '100%', backgroundColor: '#f97316', borderRadius: '3px' }} />
-      </div>
-
       {/* Pills row */}
       <div className="flex items-center" style={{ gap: '8px', padding: '10px 14px', flexWrap: 'wrap' }}>
         <span className="font-bold" style={{ fontSize: '10px', letterSpacing: '0.04em', color: '#22c55e', backgroundColor: 'rgba(34,197,94,0.12)', borderRadius: '99px', padding: '3px 8px' }}>
@@ -203,11 +193,6 @@ const MobilePlayMode = ({
             ))}
           </div>
         </div>
-        {wakeActive && (
-          <span className="font-bold" style={{ fontSize: '10px', letterSpacing: '0.04em', color: '#9ca3af', backgroundColor: '#1f2937', borderRadius: '99px', padding: '3px 8px' }}>
-            SCREEN AWAKE
-          </span>
-        )}
       </div>
 
       {/* Chord area */}
@@ -241,20 +226,24 @@ const MobilePlayMode = ({
         <button
           onClick={() => prevItem && onNavigate(prevItem['A'])}
           disabled={!prevItem}
-          className="flex items-center truncate"
-          style={{ width: '50%', height: '64px', padding: '0 16px', gap: '4px', backgroundColor: '#111827', color: prevItem ? '#9ca3af' : '#374151', borderRight: '1px solid #020817' }}
+          className="flex items-center"
+          style={{ width: '50%', height: '64px', padding: '0 16px', backgroundColor: '#111827', color: prevItem ? '#9ca3af' : '#374151', borderRight: '1px solid #020817' }}
           data-ph-capture-attribute-button="play-mode-prev"
         >
-          {prevItem ? `‹ ${prevItem.minimalDetails?.['C'] || 'Previous'}` : ''}
+          <span className="truncate" style={{ minWidth: 0 }}>
+            {prevItem ? `‹ ${prevItem.minimalDetails?.['C'] || 'Previous'}` : ''}
+          </span>
         </button>
         <button
           onClick={() => nextItem && onNavigate(nextItem['A'])}
           disabled={!nextItem}
-          className="flex items-center justify-end truncate font-bold"
-          style={{ width: '50%', height: '64px', padding: '0 16px', gap: '4px', backgroundColor: '#111827', color: nextItem ? '#f3f4f6' : '#374151' }}
+          className="flex items-center justify-end font-bold"
+          style={{ width: '50%', height: '64px', padding: '0 16px', backgroundColor: '#111827', color: nextItem ? '#f3f4f6' : '#374151' }}
           data-ph-capture-attribute-button="play-mode-next"
         >
-          {nextItem ? `${nextItem.minimalDetails?.['C'] || 'Next'} ›` : ''}
+          <span className="truncate" style={{ minWidth: 0 }}>
+            {nextItem ? `${nextItem.minimalDetails?.['C'] || 'Next'} ›` : ''}
+          </span>
         </button>
       </div>
     </div>

@@ -190,9 +190,11 @@ const MobilePracticePage = ({
                       <div style={{ fontSize: '30px', color: '#f3f4f6', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', lineHeight: 1 }}>
                         {fmt(secondsFor(entryId, durationMin))}
                       </div>
-                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                        {timerActive ? 'Timer running · ▶ opens Play mode' : '▶ opens Play mode'}
-                      </div>
+                      {timerActive && (
+                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                          Timer running
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={(e) => onToggleComplete(entryId, e)}
@@ -219,7 +221,7 @@ const MobilePracticePage = ({
                           key={n}
                           onClick={() => changeDensity(n)}
                           style={{
-                            width: '40px', height: '32px', fontSize: '13px', fontWeight: 600,
+                            width: '32px', height: '28px', fontSize: '12px', fontWeight: 600,
                             backgroundColor: density === n ? '#f97316' : 'transparent',
                             color: density === n ? '#111827' : '#9ca3af',
                           }}
