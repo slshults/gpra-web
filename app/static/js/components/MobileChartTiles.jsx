@@ -13,6 +13,7 @@ const MobileChartTiles = ({ chords, density, onEdit, onDelete, onInsertAfter }) 
   const [enlarged, setEnlarged] = useState(null); // chart object | null
   const showFingers = density === 3; // numbers only at 3-across
   const cols = density; // 3 or 4
+  const editable = !!(onEdit || onDelete || onInsertAfter);
 
   // Close the enlarge overlay on Escape (backdrop tap also closes it).
   useEffect(() => {
@@ -100,7 +101,7 @@ const MobileChartTiles = ({ chords, density, onEdit, onDelete, onInsertAfter }) 
               <button
                 onClick={() => setEnlarged(null)}
                 className="font-semibold"
-                style={{ height: '44px', padding: '0 16px', borderRadius: '10px', border: '1px solid #374151', color: '#f3f4f6' }}
+                style={{ height: '44px', padding: '0 16px', borderRadius: '10px', border: '1px solid #374151', color: '#f3f4f6', minWidth: editable ? undefined : '120px' }}
                 data-ph-capture-attribute-button="mobile-chord-enlarge-close"
               >
                 Close
