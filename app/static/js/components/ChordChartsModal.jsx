@@ -64,6 +64,8 @@ import AutocreateSuccessModal from './AutocreateSuccessModal';
 import UpsellAutocreateModal from './UpsellAutocreateModal';
 import { useAutocreateAccess } from '@hooks/useAutocreateAccess';
 import { useIsMobile } from '@hooks/useIsMobile';
+import { useChordDensity } from '@hooks/useChordDensity';
+import MobileChartTiles from '@components/MobileChartTiles';
 import { serverDebug, debugLog } from '../utils/logging';
 import {
   AlertDialog,
@@ -387,6 +389,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   // Get all items for copy modal
   const { items: allItems } = usePracticeItems();
   const isMobile = useIsMobile();
+  const { density } = useChordDensity();
 
   // State management - copy all the state from PracticePage that chord charts depend on
   const [chordCharts, setChordCharts] = useState({});
@@ -2590,6 +2593,16 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
               {/* Chord grid for this section */}
               {section.chords.length > 0 && (
+                isMobile ? (
+                  /* Dense 3/4-across grid; tap a chart to edit/delete/insert (design 2a) */
+                  <MobileChartTiles
+                    chords={section.chords}
+                    density={density}
+                    onEdit={(chart) => handleEditChordChart(itemReferenceId, chart.id, chart)}
+                    onDelete={(chart) => handleDeleteChordChart(itemReferenceId, chart.id)}
+                    onInsertAfter={(chart) => handleInsertChordAfter(itemReferenceId, chart.id, chart)}
+                  />
+                ) : (
                 <div className="space-y-2">
                   {(() => {
                     // Group chords by line breaks
@@ -2627,6 +2640,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                     ));
                   })()}
                 </div>
+                )
               )}
             </div>
             );
