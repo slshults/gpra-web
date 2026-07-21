@@ -221,7 +221,7 @@ const MobilePracticePage = ({
                           key={n}
                           onClick={() => changeDensity(n)}
                           style={{
-                            width: '32px', height: '28px', fontSize: '12px', fontWeight: 600,
+                            width: '26px', height: '24px', fontSize: '11px', fontWeight: 600,
                             backgroundColor: density === n ? '#f97316' : 'transparent',
                             color: density === n ? '#111827' : '#9ca3af',
                           }}
