@@ -172,6 +172,7 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
   const [justCreatedItem, setJustCreatedItem] = useState(null);
   const [highlightStage, setHighlightStage] = useState(null); // 'visible' | 'fading' | null
   const highlightTimersRef = useRef([]);
+  const searchInputRef = useRef(null);
 
   const clearHighlightTimers = () => {
     highlightTimersRef.current.forEach(clearTimeout);
@@ -446,7 +447,20 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh]" modalName="Edit routine">
+      <DialogContent
+        className="max-w-4xl max-h-[80vh]"
+        modalName="Edit routine"
+        onOpenAutoFocus={(e) => {
+          // When editing an existing routine, land the cursor in the search
+          // (add-items) field instead of the routine-name input Radix would
+          // focus by default — so a stray keystroke can't overwrite the name,
+          // and adding items (the common action) is one tap away.
+          if (routine) {
+            e.preventDefault();
+            requestAnimationFrame(() => searchInputRef.current?.focus());
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {routine ? (
@@ -528,6 +542,7 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
                   <Input
+                    ref={searchInputRef}
                     className="pl-9"
                     placeholder="Search items..."
                     value={searchQuery}
