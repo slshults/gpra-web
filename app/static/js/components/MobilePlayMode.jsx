@@ -1,0 +1,256 @@
+// app/static/js/components/MobilePlayMode.jsx
+// Full-screen hands-free practice view (design 2a play state). Launched from the
+// Practice list ▶; renders over everything. PracticePage still owns all timer /
+// completion / chord state — this is a focused view of one item plus a few
+// local concerns (auto-scroll speed, wake lock).
+import { useState, useEffect, useRef, Fragment } from 'react';
+import { ChevronDown, Play, Pause } from 'lucide-react';
+import MobileChordChart from '@components/MobileChordChart';
+
+const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+const SCROLL_SPEEDS = { off: 0, slow: 8, med: 16, fast: 28 }; // px per second
+const SCROLL_KEY = 'gpra_autoscroll_speed';
+
+const readScrollSpeed = () => {
+  const v = localStorage.getItem(SCROLL_KEY);
+  return ['off', 'slow', 'med', 'fast'].includes(v) ? v : 'off';
+};
+
+const fmt = (seconds) => {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+};
+
+const MobilePlayMode = ({
+  routine,
+  entryId,
+  getItemDetails,
+  timers,
+  activeTimers,
+  chordSections,
+  onToggleTimer,
+  onToggleComplete,
+  onExit,
+  onNavigate,
+  onLoadChordCharts,
+}) => {
+  const items = routine?.items || [];
+  const index = items.findIndex(i => i['A'] === entryId);
+  const item = items[index];
+  const itemId = item?.['B'];
+  const details = getItemDetails(itemId);
+  const name = item?.minimalDetails?.['C'] || details?.['C'] || 'Untitled item';
+  const durationSec = (parseInt(details?.['E'], 10) || 5) * 60;
+  const remaining = typeof timers[entryId] === 'number' ? timers[entryId] : durationSec;
+  const running = activeTimers.has(entryId);
+  const sections = chordSections[itemId] || [];
+  const prevItem = index > 0 ? items[index - 1] : null;
+  const nextItem = index >= 0 && index < items.length - 1 ? items[index + 1] : null;
+
+  const [scrollSpeed, setScrollSpeed] = useState(readScrollSpeed);
+  const [wakeActive, setWakeActive] = useState(false);
+  const scrollRef = useRef(null);
+
+  // Load the current item's chords (no-ops if already cached).
+  useEffect(() => {
+    if (itemId) onLoadChordCharts(itemId);
+  }, [itemId, onLoadChordCharts]);
+
+  // Auto-advance: when the running timer crosses to 0, mark done + return to
+  // the list. The previous-value ref makes it fire exactly once.
+  const prevRemainingRef = useRef(remaining);
+  useEffect(() => {
+    const prev = prevRemainingRef.current;
+    prevRemainingRef.current = remaining;
+    if (running && prev > 0 && remaining === 0) {
+      onToggleComplete(entryId);
+      onExit();
+    }
+  }, [remaining, running, entryId, onToggleComplete, onExit]);
+
+  // Auto-scroll the chord area when a speed is set and it overflows.
+  useEffect(() => {
+    const pxPerSec = SCROLL_SPEEDS[scrollSpeed] || 0;
+    const el = scrollRef.current;
+    if (!pxPerSec || !el) return;
+    let raf;
+    let last = null;
+    // Keep the true position in a float — scrollTop rounds to an integer on
+    // write, so a sub-pixel-per-frame increment read back from scrollTop would
+    // never accumulate.
+    let pos = el.scrollTop;
+    const step = (t) => {
+      if (last != null) {
+        pos += pxPerSec * ((t - last) / 1000);
+        el.scrollTop = pos;
+        if (pos + el.clientHeight >= el.scrollHeight - 1) return; // stop at bottom
+      }
+      last = t;
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [scrollSpeed, sections]);
+
+  // Screen wake lock while active; re-acquire when the tab becomes visible again.
+  useEffect(() => {
+    if (!('wakeLock' in navigator)) return undefined;
+    let sentinel = null;
+    let disposed = false;
+    const acquire = async () => {
+      try {
+        sentinel = await navigator.wakeLock.request('screen');
+        if (disposed) { sentinel.release().catch(() => {}); return; }
+        setWakeActive(true);
+        sentinel.addEventListener('release', () => setWakeActive(false));
+      } catch {
+        setWakeActive(false);
+      }
+    };
+    acquire();
+    const onVis = () => { if (document.visibilityState === 'visible') acquire(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      disposed = true;
+      document.removeEventListener('visibilitychange', onVis);
+      if (sentinel) sentinel.release().catch(() => {});
+    };
+  }, []);
+
+  // Escape exits Play mode (matches the ▾ control).
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onExit(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onExit]);
+
+  const changeScroll = (speed) => {
+    setScrollSpeed(speed);
+    localStorage.setItem(SCROLL_KEY, speed);
+    window.posthog?.capture('play_mode_scroll_speed_changed', { speed });
+  };
+
+  const elapsedPct = Math.min(100, Math.max(0, ((durationSec - remaining) / durationSec) * 100));
+
+  return (
+    <div className="fixed inset-0 flex flex-col" style={{ zIndex: 80, backgroundColor: '#020817' }}>
+      {/* Header */}
+      <div className="flex items-center" style={{ padding: '12px 14px', gap: '10px' }}>
+        <button
+          onClick={onExit}
+          className="flex items-center justify-center shrink-0"
+          style={{ width: '44px', height: '44px', color: '#9ca3af' }}
+          aria-label="Collapse to list"
+          data-ph-capture-attribute-button="play-mode-exit"
+        >
+          <ChevronDown size={24} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="font-bold truncate" style={{ fontSize: '16px', color: '#f3f4f6' }}>{name}</div>
+          <div className="truncate" style={{ fontSize: '11px', color: '#6b7280' }}>
+            {index + 1} of {items.length} · {routine?.name}
+          </div>
+        </div>
+        <div style={{ fontSize: '24px', color: '#f3f4f6', fontFamily: MONO }}>{fmt(remaining)}</div>
+        <button
+          onClick={() => onToggleTimer(entryId)}
+          className="flex items-center justify-center shrink-0"
+          style={{ width: '44px', height: '44px', borderRadius: '99px', border: '2px solid #4b5563' }}
+          aria-label={running ? 'Pause timer' : 'Start timer'}
+          data-ph-capture-attribute-button="play-mode-play-pause"
+        >
+          {running
+            ? <Pause size={20} color="#ef4444" fill="#ef4444" />
+            : <Play size={20} color="#22c55e" fill="#22c55e" />}
+        </button>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ height: '5px', backgroundColor: '#1f2937', margin: '0 14px', borderRadius: '3px' }}>
+        <div style={{ width: `${elapsedPct}%`, height: '100%', backgroundColor: '#f97316', borderRadius: '3px' }} />
+      </div>
+
+      {/* Pills row */}
+      <div className="flex items-center" style={{ gap: '8px', padding: '10px 14px', flexWrap: 'wrap' }}>
+        <span className="font-bold" style={{ fontSize: '10px', letterSpacing: '0.04em', color: '#22c55e', backgroundColor: 'rgba(34,197,94,0.12)', borderRadius: '99px', padding: '3px 8px' }}>
+          AUTO-ADVANCE
+        </span>
+        <div className="flex items-center" style={{ gap: '6px' }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.04em', color: '#6b7280' }}>SCROLL</span>
+          <div className="flex" style={{ border: '1px solid #374151', borderRadius: '99px', overflow: 'hidden' }}>
+            {['off', 'slow', 'med', 'fast'].map(s => (
+              <button
+                key={s}
+                onClick={() => changeScroll(s)}
+                style={{
+                  minWidth: '44px', height: '24px', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
+                  backgroundColor: scrollSpeed === s ? '#f97316' : 'transparent',
+                  color: scrollSpeed === s ? '#111827' : '#9ca3af',
+                }}
+                aria-pressed={scrollSpeed === s}
+                data-ph-capture-attribute-button={`play-mode-scroll-${s}`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+        {wakeActive && (
+          <span className="font-bold" style={{ fontSize: '10px', letterSpacing: '0.04em', color: '#9ca3af', backgroundColor: '#1f2937', borderRadius: '99px', padding: '3px 8px' }}>
+            SCREEN AWAKE
+          </span>
+        )}
+      </div>
+
+      {/* Chord area */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto" style={{ padding: '0 14px 14px' }}>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+          {sections.map(section => (
+            <Fragment key={section.id}>
+              {section.label && (
+                <div className="flex items-center justify-between" style={{ gridColumn: '1 / -1', borderTop: '1px solid #1f2937', paddingTop: '6px', marginTop: '2px' }}>
+                  <span className="uppercase font-bold" style={{ fontSize: '11px', letterSpacing: '0.06em', color: '#fb923c' }}>{section.label}</span>
+                  {section.repeatCount && (
+                    <span className="font-bold" style={{ fontSize: '10px', color: '#9ca3af', backgroundColor: '#1f2937', borderRadius: '99px', padding: '1px 8px' }}>{section.repeatCount}</span>
+                  )}
+                </div>
+              )}
+              {section.chords.map(chart => (
+                <div key={chart.id} className="flex flex-col items-center" style={{ backgroundColor: '#111827', borderRadius: '8px', padding: '4px 4px 2px' }}>
+                  <div style={{ width: '100%', aspectRatio: '144 / 154' }}>
+                    <MobileChordChart chart={chart} showFingers={false} />
+                  </div>
+                  <span className="font-semibold text-center truncate w-full" style={{ fontSize: '12px', color: '#d1d5db' }}>{chart.title}</span>
+                </div>
+              ))}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+
+      {/* Prev / next zones */}
+      <div className="flex" style={{ borderTop: '1px solid #1f2937' }}>
+        <button
+          onClick={() => prevItem && onNavigate(prevItem['A'])}
+          disabled={!prevItem}
+          className="flex items-center truncate"
+          style={{ width: '50%', height: '64px', padding: '0 16px', gap: '4px', backgroundColor: '#111827', color: prevItem ? '#9ca3af' : '#374151', borderRight: '1px solid #020817' }}
+          data-ph-capture-attribute-button="play-mode-prev"
+        >
+          {prevItem ? `‹ ${prevItem.minimalDetails?.['C'] || 'Previous'}` : ''}
+        </button>
+        <button
+          onClick={() => nextItem && onNavigate(nextItem['A'])}
+          disabled={!nextItem}
+          className="flex items-center justify-end truncate font-bold"
+          style={{ width: '50%', height: '64px', padding: '0 16px', gap: '4px', backgroundColor: '#111827', color: nextItem ? '#f3f4f6' : '#374151' }}
+          data-ph-capture-attribute-button="play-mode-next"
+        >
+          {nextItem ? `${nextItem.minimalDetails?.['C'] || 'Next'} ›` : ''}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default MobilePlayMode;
