@@ -63,6 +63,7 @@ import ApiErrorModal, { resetRateLimitBackoff } from './ApiErrorModal';
 import AutocreateSuccessModal from './AutocreateSuccessModal';
 import UpsellAutocreateModal from './UpsellAutocreateModal';
 import { useAutocreateAccess } from '@hooks/useAutocreateAccess';
+import { useIsMobile } from '@hooks/useIsMobile';
 import { serverDebug, debugLog } from '../utils/logging';
 import {
   AlertDialog,
@@ -385,6 +386,7 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
 export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle }) {
   // Get all items for copy modal
   const { items: allItems } = usePracticeItems();
+  const isMobile = useIsMobile();
 
   // State management - copy all the state from PracticePage that chord charts depend on
   const [chordCharts, setChordCharts] = useState({});
@@ -3192,6 +3194,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                   <div data-editor-for-item={itemReferenceId}>
                     <ChordChartEditor
                     itemId={itemReferenceId}
+                    mobileLayout={isMobile}
                     defaultTuning={getItemDetails(itemReferenceId)?.H || 'EADGBE'}
                     editingChordId={editingChordId}
                     insertionContext={insertionContext}
