@@ -2421,24 +2421,33 @@ export const PracticePage = () => {
             if (targetSectionIndex >= 0) {
               const targetSection = { ...updatedSections[targetSectionIndex] };
               const insertOrder = chartData.insertionContext.insertOrder;
-              
+
               // Find insertion point and insert chord
-              const insertionIndex = targetSection.chords.findIndex(chord => 
+              const insertionIndex = targetSection.chords.findIndex(chord =>
                 parseInt(chord.order) >= insertOrder
               );
-              
+
+              // Mirror the backend's insert rebalancing: displaced chords get
+              // order + 1, so a later insert-after in this section computes
+              // against fresh order values without needing a reload
+              const shiftedChords = targetSection.chords.map(chord =>
+                parseInt(chord.order) >= insertOrder
+                  ? { ...chord, order: parseInt(chord.order) + 1 }
+                  : chord
+              );
+
               if (insertionIndex >= 0) {
                 // Insert in the middle of the section
                 targetSection.chords = [
-                  ...targetSection.chords.slice(0, insertionIndex),
+                  ...shiftedChords.slice(0, insertionIndex),
                   savedChart,
-                  ...targetSection.chords.slice(insertionIndex)
+                  ...shiftedChords.slice(insertionIndex)
                 ];
               } else {
                 // Insert at the end of the section
-                targetSection.chords = [...targetSection.chords, savedChart];
+                targetSection.chords = [...shiftedChords, savedChart];
               }
-              
+
               updatedSections[targetSectionIndex] = targetSection;
             } else {
               // Target section not found, add to last section as fallback
@@ -4167,23 +4176,67 @@ export const PracticePage = () => {
   // mobile view is a focused render of the same state + handlers. Desktop
   // (>=640px) falls through to the existing layout below, untouched.
   if (isMobile) {
+    // The editor opens as a full-screen sheet (mobileLayout) for whichever item
+    // has showChordEditor set. Find the item via routine.items so the id keeps
+    // its original type (Object.keys would coerce it to a string).
+    const mobileEditorItem = (routine?.items || []).find(i => showChordEditor[i['B']]);
+    const mobileEditorItemId = mobileEditorItem?.['B'];
     return (
-      <MobilePracticePage
-        routine={routine}
-        getItemDetails={getItemDetails}
-        completedItems={completedItems}
-        activeTimers={activeTimers}
-        timers={timers}
-        expandedItems={expandedItems}
-        chordSections={chordSections}
-        totalMinutes={totalMinutes}
-        completedMinutes={completedMinutes}
-        onToggleItem={toggleItem}
-        onToggleTimer={(id, e) => toggleTimer(id, e, true)}
-        onToggleComplete={toggleComplete}
-        onResetProgress={resetProgress}
-        onLoadChordCharts={loadChordChartsForItem}
-      />
+      <>
+        <MobilePracticePage
+          routine={routine}
+          getItemDetails={getItemDetails}
+          completedItems={completedItems}
+          activeTimers={activeTimers}
+          timers={timers}
+          expandedItems={expandedItems}
+          chordSections={chordSections}
+          totalMinutes={totalMinutes}
+          completedMinutes={completedMinutes}
+          onToggleItem={toggleItem}
+          onToggleTimer={(id, e) => toggleTimer(id, e, true)}
+          onToggleComplete={toggleComplete}
+          onResetProgress={resetProgress}
+          onLoadChordCharts={loadChordChartsForItem}
+          onEditChordChart={(itemId, chart) => handleEditChordChart(itemId, chart.id, chart)}
+          onDeleteChordChart={(itemId, chart) => handleDeleteChordChart(itemId, chart.id)}
+          onInsertChordAfter={(itemId, chart) => handleInsertChordAfter(itemId, chart.id, chart)}
+          onAddChord={(itemId) => {
+            setScrollBackContext({
+              itemId,
+              scrollPosition: window.scrollY
+            });
+            setShowChordEditor(prev => ({ ...prev, [itemId]: true }));
+            // The editor mounts below the routine list; bring it into view
+            // (same pattern as the desktop "+ Add new chord" button)
+            setTimeout(() => {
+              const editorElement = document.querySelector(`[data-editor-for-item="${itemId}"]`);
+              if (editorElement) {
+                editorElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            }, 100);
+          }}
+          onAddSection={addNewSection}
+        />
+        {mobileEditorItemId != null && (
+          <div data-editor-for-item={mobileEditorItemId}>
+            <ChordChartEditor
+              itemId={mobileEditorItemId}
+              mobileLayout={true}
+              defaultTuning={getItemDetails(mobileEditorItemId)?.H || 'EADGBE'}
+              editingChordId={editingChordId}
+              insertionContext={insertionContext}
+              onSave={(chartData) => handleSaveChordChart(mobileEditorItemId, chartData)}
+              onCancel={() => {
+                setShowChordEditor(prev => ({ ...prev, [mobileEditorItemId]: false }));
+                setEditingChordId(null);
+                setInsertionContext(null);
+                scrollBackToChord();
+              }}
+            />
+          </div>
+        )}
+      </>
     );
   }
 

@@ -3,9 +3,11 @@
 // Renders an item's chord sections as a 3- or 4-across grid of scaled charts,
 // with sticky section labels. The tiles + enlarge overlay live in the shared
 // MobileChartTiles component (also used, with edit actions, by the chord modal).
+// Pass onEdit / onDelete / onInsertAfter (each called with the chart object) to
+// surface edit actions in the enlarge overlay; omit them for a view-only grid.
 import MobileChartTiles from '@components/MobileChartTiles';
 
-const MobileChordGrid = ({ sections, density }) => {
+const MobileChordGrid = ({ sections, density, onEdit, onDelete, onInsertAfter }) => {
   if (!sections || sections.length === 0) {
     return <div className="text-xs text-gray-500 py-2">No chord charts for this item yet.</div>;
   }
@@ -43,7 +45,13 @@ const MobileChordGrid = ({ sections, density }) => {
             )}
           </div>
 
-          <MobileChartTiles chords={section.chords} density={density} />
+          <MobileChartTiles
+            chords={section.chords}
+            density={density}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onInsertAfter={onInsertAfter}
+          />
         </div>
       ))}
     </div>

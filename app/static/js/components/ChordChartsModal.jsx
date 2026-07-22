@@ -1163,14 +1163,25 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       } else {
         const newChart = await response.json();
 
+        // Mirror the backend's insert rebalancing: same-section charts at/after
+        // the insertion point get order + 1, so a later insert-after computes
+        // against fresh order values without needing a reload
+        const shiftForInsert = (charts) => charts.map(chart =>
+          insertionContext &&
+          chart.sectionId === insertionContext.sectionId &&
+          parseInt(chart.order) >= insertionContext.insertOrder
+            ? { ...chart, order: parseInt(chart.order) + 1 }
+            : chart
+        );
+
         // Add to local state
         setChordCharts(prev => ({
           ...prev,
-          [itemId]: [...(prev[itemId] || []), newChart]
+          [itemId]: [...shiftForInsert(prev[itemId] || []), newChart]
         }));
 
         // Rebuild sections
-        const updatedCharts = [...(chordCharts[itemId] || []), newChart];
+        const updatedCharts = [...shiftForInsert(chordCharts[itemId] || []), newChart];
         setChordSections(prev => ({
           ...prev,
           [itemId]: buildSectionsFromCharts(updatedCharts)

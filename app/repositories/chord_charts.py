@@ -57,15 +57,33 @@ class ChordChartRepository(BaseRepository):
             logging.warning("batch_create: No user context, chord charts will have NULL user_id")
 
         try:
+            # Plain adds append after the item's existing charts (matching the
+            # sheets version's max_order + 1; a bare enumerate index would sort
+            # new charts to the front of existing items after a reload)
+            existing_charts = self.get_for_item(item_id)
+            next_append_order = max([c.order_col for c in existing_charts if c.order_col is not None], default=-1) + 1
+
             for i, chart_data in enumerate(chord_charts_data):
                 # Determine order - check for insertion context first (matching sheets version)
                 if 'insertionContext' in chart_data and chart_data['insertionContext']:
                     order = chart_data['insertionContext'].get('insertOrder', i)
                     logging.info(f"Inserting chord at order {order} from insertionContext")
+                    # Shift same-section charts at/after the insertion point so
+                    # the new chart doesn't tie with the one it displaces
+                    # (matching the sheets version's order rebalancing). The
+                    # existing_charts snapshot isn't updated between iterations,
+                    # so this assumes at most one insertionContext chart per
+                    # batch — true for all current callers (inserts are always
+                    # single-chart; autocreate/copy use the append path).
+                    target_section_id = chart_data['insertionContext'].get('sectionId')
+                    for existing in existing_charts:
+                        if existing.section_id == target_section_id and (existing.order_col or 0) >= order:
+                            existing.order_col = (existing.order_col or 0) + 1
                 elif 'order' in chart_data:
                     order = chart_data['order']
                 else:
-                    order = i
+                    order = next_append_order
+                    next_append_order += 1
 
                 # Handle three formats: Frontend format, Direct format, and Sheets format
                 if 'title' in chart_data and 'fingers' in chart_data:

@@ -29,6 +29,11 @@ const MobilePracticePage = ({
   onToggleComplete,
   onResetProgress,
   onLoadChordCharts,
+  onEditChordChart,
+  onDeleteChordChart,
+  onInsertChordAfter,
+  onAddChord,
+  onAddSection,
 }) => {
   const { density, changeDensity } = useChordDensity();
   const [playModeEntryId, setPlayModeEntryId] = useState(null);
@@ -234,8 +239,34 @@ const MobilePracticePage = ({
                     </div>
                   </div>
 
-                  {/* Chord density grid */}
-                  <MobileChordGrid sections={sections} density={density} />
+                  {/* Chord density grid — tap a chart to enlarge, edit, delete, or insert */}
+                  <MobileChordGrid
+                    sections={sections}
+                    density={density}
+                    onEdit={(chart) => onEditChordChart(itemId, chart)}
+                    onDelete={(chart) => onDeleteChordChart(itemId, chart)}
+                    onInsertAfter={(chart) => onInsertChordAfter(itemId, chart)}
+                  />
+
+                  {/* Action row — add appends to the last section (same as desktop) */}
+                  <div className="flex" style={{ gap: '8px', marginTop: '10px' }}>
+                    <button
+                      onClick={() => onAddChord(itemId)}
+                      className="flex-1 font-semibold"
+                      style={{ height: '44px', borderRadius: '10px', backgroundColor: '#2563eb', color: '#ffffff', fontSize: '14px' }}
+                      data-ph-capture-attribute-button="mobile-add-chord"
+                    >
+                      + Add chord
+                    </button>
+                    <button
+                      onClick={() => onAddSection(itemId)}
+                      className="flex-1 font-semibold"
+                      style={{ height: '44px', borderRadius: '10px', border: '1px solid #374151', color: '#f3f4f6', fontSize: '14px' }}
+                      data-ph-capture-attribute-button="mobile-add-section"
+                    >
+                      + Add section
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
