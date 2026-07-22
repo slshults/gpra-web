@@ -76,12 +76,15 @@ const App = () => {
   // Reserve room for the fixed bottom tab bar on mobile so page content can
   // scroll clear of it
   const bottomNavPadding = isMobile ? TAB_BAR_HEIGHT + 8 : 0;
+  // Pages whose mobile view renders its own 52px top bar: hide the fixed app
+  // header and go full-bleed (the mobile view manages its own padding)
+  const mobileFullBleed = isMobile && ['Practice', 'Routines'].includes(activePage);
 
   useEffect(() => {
     const updateHeaderHeight = () => {
-      // Only measure when the header is actually visible — on mobile Practice
-      // it's hidden (offsetHeight 0), and we must not let that corrupt the
-      // height used to pad other pages.
+      // Only measure when the header is actually visible — on mobileFullBleed
+      // pages it's hidden (offsetHeight 0), and we must not let that corrupt
+      // the height used to pad other pages.
       if (headerRef.current && headerRef.current.offsetHeight > 0) {
         const height = headerRef.current.offsetHeight;
         setHeaderHeight(height + 20); // Add 20px buffer
@@ -91,9 +94,9 @@ const App = () => {
     updateHeaderHeight();
     window.addEventListener('resize', updateHeaderHeight);
     return () => window.removeEventListener('resize', updateHeaderHeight);
-    // Re-measure when the header un-hides: on mobile Practice it's hidden at
-    // mount (offsetHeight 0, skipped by the guard), so it must be measured
-    // again when the user navigates to a page where it's shown.
+    // Re-measure when the header un-hides: on mobileFullBleed pages it's
+    // hidden at mount (offsetHeight 0, skipped by the guard), so it must be
+    // measured again when the user navigates to a page where it's shown.
   }, [activePage, isMobile, bannerOffset]);
 
   // Check auth status on mount
@@ -184,9 +187,9 @@ const App = () => {
       )}
 
       {/* Fixed Header - offset down when impersonation banner is showing.
-          Hidden on mobile Practice, where MobilePracticePage renders its own
-          52px top bar in its place (design 2a). */}
-      <div ref={headerRef} className="fixed left-0 right-0 z-50 bg-gray-900" style={{top: `${bannerOffset}px`, display: (isMobile && activePage === 'Practice') ? 'none' : undefined}}>
+          Hidden on mobile pages that render their own 52px top bar
+          (Practice, Routines — see mobileFullBleed). */}
+      <div ref={headerRef} className="fixed left-0 right-0 z-50 bg-gray-900" style={{top: `${bannerOffset}px`, display: mobileFullBleed ? 'none' : undefined}}>
         <div className="container mx-auto px-4 pt-4 pb-1">
           <h1 className="text-2xl sm:text-4xl font-bold text-orange-500 mb-2" data-tour="app-title">Guitar Practice Routine App</h1>
           <NavMenu
@@ -201,10 +204,11 @@ const App = () => {
       </div>
 
       {/* Scrollable Content with dynamic top padding to account for fixed header + impersonation banner.
-          On mobile Practice the app header is hidden and MobilePracticePage is full-bleed with its own bar. */}
+          On mobileFullBleed pages the app header is hidden and the mobile view
+          is full-bleed with its own top bar. */}
       <div
-        className={`pb-4 container mx-auto ${(isMobile && activePage === 'Practice') ? 'px-0' : 'px-4'}`}
-        style={{paddingTop: (isMobile && activePage === 'Practice') ? `${bannerOffset}px` : `${headerHeight + bannerOffset}px`}}
+        className={`pb-4 container mx-auto ${mobileFullBleed ? 'px-0' : 'px-4'}`}
+        style={{paddingTop: mobileFullBleed ? `${bannerOffset}px` : `${headerHeight + bannerOffset}px`}}
       >
         {/* Deletion Banner - shows when account deletion is scheduled */}
         {userStatus?.deletion_scheduled_for && (
