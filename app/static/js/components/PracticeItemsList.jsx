@@ -35,6 +35,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@ui/alert-dialog";
+import { useIsMobile } from '@hooks/useIsMobile';
+import MobileItemsList from '@components/MobileItemsList';
 
 // Split out item component for better state isolation
 const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts, onRowTipClick }) => {
@@ -121,6 +123,7 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts, on
 });
 
 export const PracticeItemsList = ({ items = [], onItemsChange }) => {
+  const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -285,7 +288,7 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
     if (!searchQuery) return true;
     const title = item?.['C'] || '';
     // Normalize apostrophes in both search term and title for consistent matching
-    const normalizeApostrophes = (str) => str.replace(/[''`]/g, "'");
+    const normalizeApostrophes = (str) => str.replace(/[’'`]/g, "'");
     const normalizedTitle = normalizeApostrophes(title.toLowerCase());
     const normalizedSearch = normalizeApostrophes(searchQuery.toLowerCase());
     return normalizedTitle.includes(normalizedSearch);
@@ -293,6 +296,21 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
 
   return (
     <>
+      {/* Mobile Items list (design 3b). PracticeItemsList stays the state
+          owner; tapping a row opens the shared ItemEditor below. Desktop
+          (>=640px) renders the existing card. */}
+      {isMobile ? (
+        <MobileItemsList
+          items={items}
+          onNew={() => {
+            setEditingItem(null);
+            setIsEditOpen(true);
+          }}
+          onEdit={handleEditClick}
+          onDelete={handleDelete}
+          onOpenChordCharts={handleOpenChordCharts}
+        />
+      ) : (
       <Card className="w-full max-w-4xl mx-auto bg-gray-900 text-gray-100">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-2xl">Practice items</CardTitle>
@@ -351,6 +369,7 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
           </DndContext>
         </CardContent>
       </Card>
+      )}
 
       {isEditOpen && (
         <ItemEditor
