@@ -103,6 +103,7 @@ const RoutineCard = ({ routine, onEdit, onSetActive, onDelete, dragHandle, dragS
         title="Edit routine"
         aria-label="Edit routine"
         data-ph-capture-attribute-button="edit-routine"
+        data-tour={routine.active ? 'edit-routine-icon' : undefined}
       >
         <Pencil size={15} />
       </button>
@@ -216,7 +217,8 @@ const MobileRoutinesPage = ({ routines, onNew, onEdit, onSetActive, onDelete, on
           onClick={onNew}
           className="font-bold shrink-0"
           style={{ height: '36px', padding: '0 14px', borderRadius: '8px', backgroundColor: '#f97316', color: '#111827', fontSize: '13px' }}
-          data-ph-capture-attribute-button="mobile-new-routine"
+          data-ph-capture-attribute-button="add-new-routine"
+          data-tour="new-routine-input"
         >
           + New
         </button>

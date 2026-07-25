@@ -195,7 +195,7 @@ const MobileItemsList = ({ items, onNew, onEdit, onDelete, onOpenChordCharts, on
           onClick={onNew}
           className="font-bold shrink-0"
           style={{ height: '36px', padding: '0 14px', borderRadius: '8px', backgroundColor: '#f97316', color: '#111827', fontSize: '13px' }}
-          data-ph-capture-attribute-button="mobile-new-item"
+          data-ph-capture-attribute-button="add-new-item"
         >
           + New
         </button>
