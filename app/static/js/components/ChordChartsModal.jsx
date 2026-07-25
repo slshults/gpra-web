@@ -225,7 +225,8 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
     onInsertAfter(chart.id, {
       sectionId: chart.sectionId,
       sectionLabel: chart.sectionLabel,
-      sectionRepeatCount: chart.sectionRepeatCount
+      sectionRepeatCount: chart.sectionRepeatCount,
+      order: chart.order
     });
   };
 
@@ -1046,7 +1047,11 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       afterChordId: chordId,
       sectionId: contextData.sectionId,
       sectionLabel: contextData.sectionLabel,
-      sectionRepeatCount: contextData.sectionRepeatCount
+      sectionRepeatCount: contextData.sectionRepeatCount,
+      // Without this the backend defaults the new chart to order 0 (front of
+      // the section) and the local shiftForInsert mirror never fires — same
+      // computation as PracticePage's handleInsertChordAfter
+      insertOrder: parseInt(contextData.order) + 1
     });
     setScrollBackContext({
       itemId: itemId,
