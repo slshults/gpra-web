@@ -78,7 +78,7 @@ const App = () => {
   const bottomNavPadding = isMobile ? TAB_BAR_HEIGHT + 8 : 0;
   // Pages whose mobile view renders its own 52px top bar: hide the fixed app
   // header and go full-bleed (the mobile view manages its own padding)
-  const mobileFullBleed = isMobile && ['Practice', 'Routines'].includes(activePage);
+  const mobileFullBleed = isMobile && ['Practice', 'Routines', 'Items'].includes(activePage);
 
   useEffect(() => {
     const updateHeaderHeight = () => {
