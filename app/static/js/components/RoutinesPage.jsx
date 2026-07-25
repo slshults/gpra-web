@@ -26,6 +26,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { trackItemOperation, trackRoutineOperation } from '../utils/analytics';
+import { useIsMobile } from '@hooks/useIsMobile';
+import MobileRoutinesPage from '@components/MobileRoutinesPage';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -187,6 +189,7 @@ const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, ha
 
 const RoutinesPage = () => {
   const { isAuthenticated, checking } = useAuth();
+  const isMobile = useIsMobile();
   const [items, setItems] = useState([]);  // Lazy-loaded when needed
   const [newRoutineName, setNewRoutineName] = useState('');
   const [routines, setRoutines] = useState([]);
@@ -788,6 +791,19 @@ const RoutinesPage = () => {
 
   return (
     <>
+      {/* Mobile Routines list (design 3a). RoutinesPage stays the state owner;
+          tapping a card opens the shared RoutineEditor below. Desktop (>=640px)
+          renders the existing two-card grid. */}
+      {isMobile ? (
+        <MobileRoutinesPage
+          routines={routines}
+          onNew={handleNewRoutineClick}
+          onEdit={handleEditClick}
+          onSetActive={handleActivateRoutine}
+          onDeactivate={handleDeactivateRoutine}
+          onDelete={handleDeleteClick}
+        />
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Active Routine Section */}
         <Card className="bg-gray-900 text-gray-100" data-tour="routines-items">
@@ -1008,8 +1024,11 @@ const RoutinesPage = () => {
             )}
           </CardContent>
         </Card>
+      </div>
+      )}
 
-        {/* Delete Confirmation Dialog */}
+        {/* Delete Confirmation Dialog — shared by both branches (Radix portals,
+            position-independent) */}
         <AlertDialog 
           open={!!routineToDelete} 
           onOpenChange={(isOpen) => {
@@ -1120,7 +1139,6 @@ const RoutinesPage = () => {
             </p>
           </DialogContent>
         </Dialog>
-      </div>
 
       <RoutineEditor
         open={isEditOpen}
