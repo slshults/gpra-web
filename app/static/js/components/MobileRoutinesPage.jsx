@@ -4,10 +4,169 @@
 // passes the handlers this view needs as props. Tapping a card opens the
 // existing RoutineEditor dialog (already mobile-responsive) — the mock's edit
 // screen is functionally identical to it, so no separate mobile editor.
+//
+// Cards use the same action language as the desktop rows (green + to activate,
+// blue pencil to edit, red ✕ to delete, drag handle to reorder) so users can
+// move between desktop and mobile without relearning anything. There is no
+// deactivate action: one routine is always active, and the way to "deactivate"
+// one is to activate another.
 import { useState } from 'react';
-import { ChevronRight, Search, X } from 'lucide-react';
+import { GripVertical, Pencil, Plus, Search, X } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
-const MobileRoutinesPage = ({ routines, onNew, onEdit, onSetActive, onDeactivate, onDelete }) => {
+const RoutineCard = ({ routine, onEdit, onSetActive, onDelete, dragHandle, dragStyle, dragRef }) => (
+  <div
+    ref={dragRef}
+    onClick={() => onEdit(routine)}
+    role="button"
+    tabIndex={0}
+    onKeyDown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onEdit(routine);
+      }
+    }}
+    className="flex items-center cursor-pointer"
+    style={{
+      borderRadius: '12px',
+      backgroundColor: '#1f2937',
+      border: `1px solid ${routine.active ? 'rgba(249,115,22,0.45)' : '#1f2937'}`,
+      padding: '8px 8px 8px 14px',
+      gap: '8px',
+      ...dragStyle,
+    }}
+    data-ph-capture-attribute-button="mobile-routine-card"
+  >
+    {dragHandle}
+    <div className="flex-1 min-w-0">
+      <div className="font-semibold truncate" style={{ fontSize: '15px', color: '#f3f4f6' }}>
+        {routine.name}
+      </div>
+      {routine.active && (
+        <span
+          className="inline-block font-extrabold uppercase"
+          style={{
+            fontSize: '9px',
+            letterSpacing: '0.06em',
+            color: '#f97316',
+            backgroundColor: 'rgba(249,115,22,0.14)',
+            borderRadius: '99px',
+            padding: '2px 7px',
+            marginTop: '3px',
+          }}
+        >
+          Active
+        </span>
+      )}
+    </div>
+
+    {/* Actions — same icons as the desktop rows; taps here must not open the
+        editor via the card handler */}
+    <div
+      className="flex items-center shrink-0"
+      style={{ gap: '4px' }}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      {!routine.active && (
+        <button
+          type="button"
+          onClick={() => onSetActive(routine.ID)}
+          className="flex items-center justify-center"
+          style={{ width: '36px', height: '36px', borderRadius: '8px', color: '#22c55e' }}
+          title="Make this the active routine"
+          aria-label="Activate routine"
+          data-ph-capture-attribute-button="activate-routine"
+        >
+          <Plus size={17} />
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => onEdit(routine)}
+        className="flex items-center justify-center"
+        style={{ width: '36px', height: '36px', borderRadius: '8px', color: '#3b82f6' }}
+        title="Edit routine"
+        aria-label="Edit routine"
+        data-ph-capture-attribute-button="edit-routine"
+      >
+        <Pencil size={15} />
+      </button>
+      {!routine.active && (
+        <button
+          type="button"
+          onClick={() => onDelete(routine.ID)}
+          className="flex items-center justify-center"
+          style={{ width: '36px', height: '36px', borderRadius: '8px', color: '#ef4444' }}
+          title="Delete this routine"
+          aria-label="Delete routine"
+          data-ph-capture-attribute-button="delete-routine"
+        >
+          <X size={16} />
+        </button>
+      )}
+    </div>
+  </div>
+);
+
+// Inactive routines get a drag handle for reordering (desktop parity)
+const SortableRoutineCard = ({ routine, onEdit, onSetActive, onDelete }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: routine.ID });
+
+  return (
+    <RoutineCard
+      routine={routine}
+      onEdit={onEdit}
+      onSetActive={onSetActive}
+      onDelete={onDelete}
+      dragRef={setNodeRef}
+      dragStyle={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 1 : 0,
+        position: 'relative',
+      }}
+      dragHandle={
+        <div
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            // Run dnd-kit's KeyboardSensor handler, but don't let Enter/Space
+            // bubble to the card's tap-to-edit handler
+            e.stopPropagation();
+            listeners?.onKeyDown?.(e);
+          }}
+          className="shrink-0 cursor-move flex items-center justify-center"
+          // touch-action: none lets dnd-kit own the touch gesture; without it
+          // the browser scrolls instead of dragging on touch screens
+          style={{ width: '28px', height: '36px', margin: '0 -4px 0 -8px', touchAction: 'none' }}
+          aria-label="Drag to reorder routine"
+          data-ph-capture-attribute-drag="routine-drag-handle"
+        >
+          <GripVertical size={17} color="#6b7280" />
+        </div>
+      }
+    />
+  );
+};
+
+const MobileRoutinesPage = ({ routines, onNew, onEdit, onSetActive, onDelete, onReorder }) => {
   const [query, setQuery] = useState('');
 
   // Active routine pinned first, then inactive by their saved order
@@ -16,8 +175,23 @@ const MobileRoutinesPage = ({ routines, onNew, onEdit, onSetActive, onDeactivate
     .filter(r => !r.active && r.ID != null)
     .sort((a, b) => Number(a.order) - Number(b.order));
   const q = query.trim().toLowerCase();
-  const list = [...(active ? [active] : []), ...inactive]
-    .filter(r => !q || r.name.toLowerCase().includes(q));
+  const filteredInactive = inactive.filter(r => r.name.toLowerCase().includes(q));
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        delay: 100,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const activeCard = active && (!q || active.name.toLowerCase().includes(q)) && (
+    <RoutineCard routine={active} onEdit={onEdit} onSetActive={onSetActive} onDelete={onDelete} />
+  );
 
   return (
     <div style={{ padding: '0 12px 64px', boxSizing: 'border-box' }}>
@@ -71,95 +245,25 @@ const MobileRoutinesPage = ({ routines, onNew, onEdit, onSetActive, onDeactivate
         />
       </div>
 
-      {/* Routine cards */}
+      {/* Routine cards. While searching, show a plain list (no drag-and-drop) —
+          same behavior as the desktop list. */}
       <div className="flex flex-col" style={{ gap: '8px' }}>
-        {list.map(r => (
-          <div
-            key={r.ID}
-            onClick={() => onEdit(r)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onEdit(r);
-              }
-            }}
-            className="cursor-pointer"
-            style={{
-              borderRadius: '12px',
-              backgroundColor: '#1f2937',
-              border: `1px solid ${r.active ? 'rgba(249,115,22,0.45)' : '#1f2937'}`,
-              padding: '12px 14px',
-            }}
-            data-ph-capture-attribute-button="mobile-routine-card"
-          >
-            <div className="flex items-center justify-between" style={{ gap: '8px' }}>
-              <div className="flex items-center min-w-0" style={{ gap: '8px' }}>
-                <span className="font-semibold truncate" style={{ fontSize: '15px', color: '#f3f4f6' }}>
-                  {r.name}
-                </span>
-                {r.active && (
-                  <span
-                    className="font-extrabold uppercase shrink-0"
-                    style={{
-                      fontSize: '9px',
-                      letterSpacing: '0.06em',
-                      color: '#f97316',
-                      backgroundColor: 'rgba(249,115,22,0.14)',
-                      borderRadius: '99px',
-                      padding: '2px 7px',
-                    }}
-                  >
-                    Active
-                  </span>
-                )}
-              </div>
-              <ChevronRight size={16} color="#6b7280" className="shrink-0" />
-            </div>
+        {activeCard}
+        {q ? (
+          filteredInactive.map(r => (
+            <RoutineCard key={r.ID} routine={r} onEdit={onEdit} onSetActive={onSetActive} onDelete={onDelete} />
+          ))
+        ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onReorder}>
+            <SortableContext items={inactive.map(r => r.ID)} strategy={verticalListSortingStrategy}>
+              {inactive.map(r => (
+                <SortableRoutineCard key={r.ID} routine={r} onEdit={onEdit} onSetActive={onSetActive} onDelete={onDelete} />
+              ))}
+            </SortableContext>
+          </DndContext>
+        )}
 
-            {/* Action row — taps here must not open the editor */}
-            <div
-              className="flex items-center justify-between"
-              style={{ marginTop: '6px' }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {r.active ? (
-                <button
-                  type="button"
-                  onClick={() => onDeactivate(r.ID)}
-                  className="font-semibold"
-                  style={{ fontSize: '12px', color: '#9ca3af', padding: '4px 0' }}
-                  data-ph-capture-attribute-button="mobile-deactivate-routine"
-                >
-                  Deactivate
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => onSetActive(r.ID)}
-                  className="font-semibold"
-                  style={{ fontSize: '12px', color: '#fb923c', padding: '4px 0' }}
-                  data-ph-capture-attribute-button="mobile-set-active-routine"
-                >
-                  Set active
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => onDelete(r.ID)}
-                className="flex items-center justify-center"
-                style={{ width: '28px', height: '28px', borderRadius: '6px', color: '#6b7280' }}
-                aria-label="Delete routine"
-                data-ph-capture-attribute-button="mobile-delete-routine"
-              >
-                <X size={15} />
-              </button>
-            </div>
-          </div>
-        ))}
-
-        {list.length === 0 && (
+        {!activeCard && (q ? filteredInactive : inactive).length === 0 && (
           <div className="text-center" style={{ color: '#6b7280', fontSize: '13px', padding: '24px 0' }}>
             {q ? 'No routines match your search' : 'No routines yet — tap + New to create one'}
           </div>
