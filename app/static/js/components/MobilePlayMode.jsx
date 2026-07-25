@@ -8,13 +8,16 @@ import { ChevronDown, Play, Pause } from 'lucide-react';
 import MobileChordChart from '@components/MobileChordChart';
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
-const SCROLL_SPEEDS = { off: 0, slow: 8, med: 16, fast: 28 }; // px per second
+const SCROLL_SPEEDS = { slow: 8, med: 16, fast: 28 }; // px per second
 const SCROLL_KEY = 'gpra_autoscroll_speed';
+const SCROLL_ON_KEY = 'gpra_autoscroll_on';
 
 const readScrollSpeed = () => {
   const v = localStorage.getItem(SCROLL_KEY);
-  return ['off', 'slow', 'med', 'fast'].includes(v) ? v : 'off';
+  // 'off' is the legacy value from when off was a speed rather than a toggle
+  return ['slow', 'med', 'fast'].includes(v) ? v : 'slow';
 };
+const readScrollOn = () => localStorage.getItem(SCROLL_ON_KEY) === '1';
 
 const fmt = (seconds) => {
   const s = Math.max(0, Math.round(seconds));
@@ -51,6 +54,7 @@ const MobilePlayMode = ({
   const nextItem = index >= 0 && index < items.length - 1 ? items[index + 1] : null;
 
   const [scrollSpeed, setScrollSpeed] = useState(readScrollSpeed);
+  const [scrollOn, setScrollOn] = useState(readScrollOn);
   const scrollRef = useRef(null);
 
   // Load the current item's chords (no-ops if already cached).
@@ -75,9 +79,9 @@ const MobilePlayMode = ({
     }
   }, [remaining, running, entryId, completedItems, onToggleComplete, onExit, routine, name]);
 
-  // Auto-scroll the chord area when a speed is set and it overflows.
+  // Auto-scroll the chord area when enabled and it overflows.
   useEffect(() => {
-    const pxPerSec = SCROLL_SPEEDS[scrollSpeed] || 0;
+    const pxPerSec = scrollOn ? (SCROLL_SPEEDS[scrollSpeed] || 0) : 0;
     const el = scrollRef.current;
     if (!pxPerSec || !el) return;
     let raf;
@@ -97,7 +101,7 @@ const MobilePlayMode = ({
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [scrollSpeed, sections]);
+  }, [scrollOn, scrollSpeed, sections]);
 
   // Keep the screen awake while in Play mode; re-acquire when the tab becomes
   // visible again. Granted silently (no permission dialog); if the API is
@@ -129,9 +133,22 @@ const MobilePlayMode = ({
     return () => document.removeEventListener('keydown', onKey);
   }, [onExit]);
 
+  const toggleScroll = () => {
+    const next = !scrollOn;
+    setScrollOn(next);
+    localStorage.setItem(SCROLL_ON_KEY, next ? '1' : '0');
+    window.posthog?.capture('play_mode_scroll_toggled', { enabled: next, speed: scrollSpeed });
+  };
+
+  // Picking a speed also switches scrolling on — tapping "med" while off is a
+  // clear statement of intent
   const changeScroll = (speed) => {
     setScrollSpeed(speed);
     localStorage.setItem(SCROLL_KEY, speed);
+    if (!scrollOn) {
+      setScrollOn(true);
+      localStorage.setItem(SCROLL_ON_KEY, '1');
+    }
     window.posthog?.capture('play_mode_scroll_speed_changed', { speed });
   };
 
@@ -168,30 +185,41 @@ const MobilePlayMode = ({
         </button>
       </div>
 
-      {/* Pills row */}
-      <div className="flex items-center" style={{ gap: '8px', padding: '10px 14px', flexWrap: 'wrap' }}>
-        <span className="font-bold" style={{ fontSize: '10px', letterSpacing: '0.04em', color: '#22c55e', backgroundColor: 'rgba(34,197,94,0.12)', borderRadius: '99px', padding: '3px 8px' }}>
-          AUTO-ADVANCE
-        </span>
-        <div className="flex items-center" style={{ gap: '6px' }}>
-          <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.04em', color: '#6b7280' }}>SCROLL</span>
-          <div className="flex" style={{ border: '1px solid #374151', borderRadius: '99px', overflow: 'hidden' }}>
-            {['off', 'slow', 'med', 'fast'].map(s => (
-              <button
-                key={s}
-                onClick={() => changeScroll(s)}
-                style={{
-                  minWidth: '44px', height: '24px', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
-                  backgroundColor: scrollSpeed === s ? '#f97316' : 'transparent',
-                  color: scrollSpeed === s ? '#111827' : '#9ca3af',
-                }}
-                aria-pressed={scrollSpeed === s}
-                data-ph-capture-attribute-button={`play-mode-scroll-${s}`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+      {/* Scroll control row (auto-advance runs without an indicator; the
+          screen wake lock is likewise silent) */}
+      <div className="flex items-center" style={{ gap: '6px', padding: '10px 14px' }}>
+        {/* The label is the on/off toggle — its "on" orange is a lighter hue
+            than the selected-speed chip so the two states read differently */}
+        <button
+          type="button"
+          onClick={toggleScroll}
+          style={{
+            height: '24px', padding: '0 8px', fontSize: '11px', fontWeight: 700, letterSpacing: '0.02em',
+            borderRadius: '99px',
+            color: scrollOn ? '#111827' : '#6b7280',
+            backgroundColor: scrollOn ? '#fb923c' : 'transparent',
+          }}
+          aria-pressed={scrollOn}
+          data-ph-capture-attribute-button="play-mode-scroll-toggle"
+        >
+          scroll
+        </button>
+        <div className="flex" style={{ border: '1px solid #374151', borderRadius: '99px', overflow: 'hidden' }}>
+          {['slow', 'med', 'fast'].map(s => (
+            <button
+              key={s}
+              onClick={() => changeScroll(s)}
+              style={{
+                minWidth: '44px', height: '24px', fontSize: '11px', fontWeight: 700,
+                backgroundColor: scrollSpeed === s ? (scrollOn ? '#f97316' : '#374151') : 'transparent',
+                color: scrollSpeed === s ? (scrollOn ? '#111827' : '#d1d5db') : '#9ca3af',
+              }}
+              aria-pressed={scrollSpeed === s}
+              data-ph-capture-attribute-button={`play-mode-scroll-${s}`}
+            >
+              {s}
+            </button>
+          ))}
         </div>
       </div>
 

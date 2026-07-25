@@ -25,6 +25,7 @@ import { ChordChartEditor } from './ChordChartEditor';
 import { RoutineEditor } from '@components/RoutineEditor';
 import { useIsMobile } from '@hooks/useIsMobile';
 import MobilePracticePage from '@components/MobilePracticePage';
+import DesktopAutoScroll from '@components/DesktopAutoScroll';
 import ApiErrorModal, { resetRateLimitBackoff } from './ApiErrorModal';
 import AutocreateSuccessModal from './AutocreateSuccessModal';
 import UpsellAutocreateModal from './UpsellAutocreateModal';
@@ -4241,7 +4242,11 @@ export const PracticePage = () => {
   }
 
   return (
-    <div className="max-w-1130px mx-auto border border-gray-700 rounded-lg p-6" style={{maxWidth: '1130px'}}>
+    <div className="max-w-1130px mx-auto border border-gray-700 rounded-lg p-6" style={{maxWidth: '1130px', paddingBottom: '72px'}}>
+      {/* Hands-free auto-scroll (same speeds as mobile Play mode, own storage
+          key). The container's extra bottom padding keeps the fixed pill from
+          covering the last row on short pages. */}
+      <DesktopAutoScroll />
       <div className="flex justify-between items-start mb-8">
         <div className="flex flex-col">
           {routine && (
