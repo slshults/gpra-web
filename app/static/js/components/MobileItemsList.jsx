@@ -4,18 +4,172 @@
 // state and passes the handlers this view needs as props. Tapping a row opens
 // the existing ItemEditor dialog — the mock's edit sheet is functionally
 // identical to it, so no separate mobile editor.
+//
+// Rows use the same action language as the desktop list (drag handle, pencil,
+// chord charts, trash) so users can move between desktop and mobile without
+// relearning anything.
 import { useState } from 'react';
-import { Search, Trash2 } from 'lucide-react';
+import { GripVertical, Pencil, Search, Trash2 } from 'lucide-react';
 import { ChordIcon } from './icons/ChordIcon';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
-const MobileItemsList = ({ items, onNew, onEdit, onDelete, onOpenChordCharts }) => {
+const ItemRow = ({ item, onEdit, onDelete, onOpenChordCharts, dragHandle, dragStyle, dragRef }) => (
+  <div
+    ref={dragRef}
+    onClick={() => onEdit(item)}
+    role="button"
+    tabIndex={0}
+    onKeyDown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onEdit(item);
+      }
+    }}
+    className="flex items-center cursor-pointer"
+    style={{
+      height: '52px',
+      backgroundColor: '#1f2937',
+      borderRadius: '10px',
+      padding: '0 4px 0 8px',
+      gap: '4px',
+      ...dragStyle,
+    }}
+    data-ph-capture-attribute-button="mobile-item-row"
+  >
+    {dragHandle}
+    <span className="flex-1 truncate" style={{ fontSize: '15px', color: '#f3f4f6' }}>
+      {item['C']}
+    </span>
+    <span
+      className="shrink-0"
+      style={{ fontSize: '12px', color: '#9ca3af', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+    >
+      {parseInt(item['E'], 10) || 5} min
+    </span>
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onEdit(item);
+      }}
+      onKeyDown={(e) => e.stopPropagation()}
+      className="flex items-center justify-center shrink-0"
+      style={{ width: '36px', height: '36px', borderRadius: '8px', color: '#d1d5db' }}
+      title="Edit item"
+      aria-label="Edit item"
+      data-ph-capture-attribute-button="edit-item"
+    >
+      <Pencil size={15} />
+    </button>
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpenChordCharts(item['B'], item['C']);
+      }}
+      onKeyDown={(e) => e.stopPropagation()}
+      className="flex items-center justify-center shrink-0"
+      style={{ width: '36px', height: '36px', borderRadius: '8px', color: '#60a5fa' }}
+      title="Add or edit chord charts"
+      aria-label="Chord charts"
+      data-ph-capture-attribute-button="open-chord-charts-modal"
+    >
+      <ChordIcon className="h-5 w-5" aria-hidden="true" />
+    </button>
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onDelete(item['B']);
+      }}
+      onKeyDown={(e) => e.stopPropagation()}
+      className="flex items-center justify-center shrink-0"
+      style={{ width: '36px', height: '36px', borderRadius: '8px', color: '#ef4444' }}
+      title="Delete this item and remove it from all routines"
+      aria-label="Delete item"
+      data-ph-capture-attribute-button="delete-item"
+    >
+      <Trash2 size={16} />
+    </button>
+  </div>
+);
+
+const SortableItemRow = ({ item, onEdit, onDelete, onOpenChordCharts }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item['B'] });
+
+  return (
+    <ItemRow
+      item={item}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      onOpenChordCharts={onOpenChordCharts}
+      dragRef={setNodeRef}
+      dragStyle={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 1 : 0,
+        position: 'relative',
+      }}
+      dragHandle={
+        <div
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            // Run dnd-kit's KeyboardSensor handler, but don't let Enter/Space
+            // bubble to the row's tap-to-edit handler
+            e.stopPropagation();
+            listeners?.onKeyDown?.(e);
+          }}
+          className="shrink-0 cursor-move flex items-center justify-center"
+          // touch-action: none lets dnd-kit own the touch gesture; without it
+          // the browser scrolls instead of dragging on touch screens
+          style={{ width: '28px', height: '52px', touchAction: 'none' }}
+          aria-label="Drag to reorder item"
+          data-ph-capture-attribute-drag="item-drag-handle"
+        >
+          <GripVertical size={17} color="#6b7280" />
+        </div>
+      }
+    />
+  );
+};
+
+const MobileItemsList = ({ items, onNew, onEdit, onDelete, onOpenChordCharts, onReorder, onDragStart }) => {
   const [query, setQuery] = useState('');
 
   // Same apostrophe-normalizing match as the desktop list
   const normalizeApostrophes = (str) => str.replace(/[’'`]/g, "'");
   const q = normalizeApostrophes(query.trim().toLowerCase());
-  const list = items.filter(it =>
+  const filtered = items.filter(it =>
     !q || normalizeApostrophes((it['C'] || '').toLowerCase()).includes(q)
+  );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        delay: 100,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
   );
 
   return (
@@ -70,69 +224,36 @@ const MobileItemsList = ({ items, onNew, onEdit, onDelete, onOpenChordCharts }) 
         />
       </div>
 
-      {/* Item rows */}
+      {/* Item rows. While searching, show a plain list (no drag-and-drop) so a
+          reorder can't act on filtered indexes. */}
       <div className="flex flex-col" style={{ gap: '8px' }}>
-        {list.map(item => (
-          <div
-            key={item['B']}
-            onClick={() => onEdit(item)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onEdit(item);
-              }
-            }}
-            className="flex items-center cursor-pointer"
-            style={{
-              height: '52px',
-              backgroundColor: '#1f2937',
-              borderRadius: '10px',
-              padding: '0 6px 0 14px',
-              gap: '6px',
-            }}
-            data-ph-capture-attribute-button="mobile-item-row"
-          >
-            <span className="flex-1 truncate" style={{ fontSize: '15px', color: '#f3f4f6' }}>
-              {item['C']}
-            </span>
-            <span
-              className="shrink-0"
-              style={{ fontSize: '12px', color: '#9ca3af', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
-            >
-              {parseInt(item['E'], 10) || 5} min
-            </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenChordCharts(item['B'], item['C']);
-              }}
-              className="flex items-center justify-center shrink-0"
-              style={{ width: '36px', height: '36px', borderRadius: '8px', color: '#60a5fa' }}
-              aria-label="Chord charts"
-              data-ph-capture-attribute-button="mobile-item-chord-charts"
-            >
-              <ChordIcon className="h-5 w-5" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(item['B']);
-              }}
-              className="flex items-center justify-center shrink-0"
-              style={{ width: '36px', height: '36px', borderRadius: '8px', color: '#6b7280' }}
-              aria-label="Delete item"
-              data-ph-capture-attribute-button="mobile-delete-item"
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-        ))}
+        {q ? (
+          filtered.map(item => (
+            <ItemRow
+              key={item['B']}
+              item={item}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onOpenChordCharts={onOpenChordCharts}
+            />
+          ))
+        ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onReorder}>
+            <SortableContext items={filtered.map(item => item['B'])} strategy={verticalListSortingStrategy}>
+              {filtered.map(item => (
+                <SortableItemRow
+                  key={item['B']}
+                  item={item}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onOpenChordCharts={onOpenChordCharts}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+        )}
 
-        {list.length === 0 && (
+        {filtered.length === 0 && (
           <div className="text-center" style={{ color: '#6b7280', fontSize: '13px', padding: '24px 0' }}>
             {q ? 'No items match your search' : 'No items yet — tap + New to create one'}
           </div>

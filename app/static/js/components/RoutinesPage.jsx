@@ -73,7 +73,7 @@ const SortableItem = React.memo(({ item, itemDetails, handleOpenChordCharts, onR
       }`}
     >
       <div className="flex items-center flex-1 min-w-0">
-        <div {...attributes} {...listeners} className="cursor-move" aria-label="Drag to reorder item" data-ph-capture-attribute-drag="routine-item-drag-handle">
+        <div {...attributes} {...listeners} className="cursor-move" style={{ touchAction: 'none' }} aria-label="Drag to reorder item" data-ph-capture-attribute-drag="routine-item-drag-handle">
           <GripVertical className="h-5 w-5 text-gray-500 mr-4" aria-hidden="true" />
         </div>
         <div
@@ -135,7 +135,7 @@ const SortableInactiveRoutine = React.memo(({ routine, handleActivateRoutine, ha
       } rounded-lg`}
     >
       <div className="flex items-center flex-1 min-w-0">
-        <div {...attributes} {...listeners} className="cursor-move" aria-label="Drag to reorder routine" data-ph-capture-attribute-drag="routine-drag-handle">
+        <div {...attributes} {...listeners} className="cursor-move" style={{ touchAction: 'none' }} aria-label="Drag to reorder routine" data-ph-capture-attribute-drag="routine-drag-handle">
           <GripVertical className="h-5 w-5 text-gray-500 mr-4" aria-hidden="true" />
         </div>
         <div
@@ -339,29 +339,6 @@ const RoutinesPage = () => {
     }
   }, []);
 
-  const handleDeactivateRoutine = useCallback(async (routineId) => {
-    try {
-      const response = await fetch(`/api/routines/${routineId}/active`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: false })
-      });
-
-      if (!response.ok) throw new Error('Failed to deactivate routine');
-
-      // Fetch fresh routines list
-      const routinesResponse = await fetch('/api/routines');
-      if (routinesResponse.ok) {
-        const freshRoutines = await routinesResponse.json();
-        setRoutines(freshRoutines);
-        setActiveRoutineItems([]); // Clear items when deactivating
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      setError(error.message);
-    }
-  }, []);
-
   const handleDeleteClick = useCallback((routineId) => {
     setRoutineToDelete(routines.find(r => r.ID === routineId));
   }, [routines]);
@@ -488,8 +465,8 @@ const RoutinesPage = () => {
   const handleRedirectAddItem = useCallback(() => {
     setShowAddItemRedirect(false);
     window.posthog?.capture('routine_limit_redirect_add_item_clicked', redirectLimitInfoRef.current || {});
-    // Open the routine editor on the active routine; if none is active
-    // (user deactivated it), fall back to their first routine
+    // Open the routine editor on the active routine; if somehow none is
+    // active, fall back to their first routine
     const targetRoutine = activeRoutine || inactiveRoutines[0];
     if (targetRoutine) {
       handleEditClick(targetRoutine);
@@ -800,8 +777,8 @@ const RoutinesPage = () => {
           onNew={handleNewRoutineClick}
           onEdit={handleEditClick}
           onSetActive={handleActivateRoutine}
-          onDeactivate={handleDeactivateRoutine}
           onDelete={handleDeleteClick}
+          onReorder={handleDragEndInactive}
         />
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -845,16 +822,6 @@ const RoutinesPage = () => {
                       >
                         <Pencil className="h-4 w-4" aria-hidden="true" />
                         <span className="sr-only">Edit routine</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeactivateRoutine(activeRoutine.ID)}
-                        className="text-gray-400 hover:text-gray-200"
-                        title="Deactivate this routine"
-                      >
-                        <X className="h-4 w-4" aria-hidden="true" />
-                        <span className="sr-only">Deactivate routine</span>
                       </Button>
                     </div>
                   </div>

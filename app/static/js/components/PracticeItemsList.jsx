@@ -70,7 +70,7 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts, on
       }`}
     >
       <div className="flex items-center min-w-0 flex-1">
-        <div {...attributes} {...listeners} className="flex-shrink-0 cursor-move" aria-label="Drag to reorder item" data-ph-capture-attribute-drag="item-drag-handle">
+        <div {...attributes} {...listeners} className="flex-shrink-0 cursor-move" style={{ touchAction: 'none' }} aria-label="Drag to reorder item" data-ph-capture-attribute-drag="item-drag-handle">
           <GripVertical className="h-6 w-6 text-gray-500 mr-2 sm:mr-4" aria-hidden="true" />
         </div>
         <div
@@ -309,6 +309,8 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
           onEdit={handleEditClick}
           onDelete={handleDelete}
           onOpenChordCharts={handleOpenChordCharts}
+          onReorder={handleDragEnd}
+          onDragStart={handleDragStart}
         />
       ) : (
       <Card className="w-full max-w-4xl mx-auto bg-gray-900 text-gray-100">
