@@ -113,7 +113,7 @@ const MobilePracticePage = ({
           // minimalDetails carries the title without a full details fetch;
           // full details (with duration) load lazily on expand.
           const name = item.minimalDetails?.['C'] || details?.['C'] || 'Untitled item';
-          const durationMin = parseInt(details?.['E'], 10) || 5;
+          const durationMin = parseInt(details?.['E'] ?? item.minimalDetails?.['E'], 10) || 5;
           const done = completedItems.has(entryId);
           const expanded = expandedItems.has(entryId);
           const timerActive = activeTimers.has(entryId);

@@ -3718,7 +3718,8 @@ def get_active_routine_lightweight():
             },
             "itemMinimal": {
                 "A": item_details.get("A", ""),  # Item ID
-                "C": item_details.get("C", "")   # Item title
+                "C": item_details.get("C", ""),  # Item title
+                "E": item_details.get("E", "")   # Duration (min) — the mobile list shows it pre-expand
             }
         })
 

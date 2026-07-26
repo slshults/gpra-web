@@ -2111,18 +2111,18 @@ export const PracticePage = () => {
     if (!routine?.items) return { totalMinutes: 0, completedMinutes: 0 };
     
     const total = routine.items.reduce((sum, item) => {
-      // Try to get cached details, fallback to estimated default
+      // Cached details, then the lightweight payload's duration, then default
       const itemDetails = getItemDetails(item['B']);
-      const duration = parseInt(itemDetails?.['E']) || 5; // Default 5 minutes
+      const duration = parseInt(itemDetails?.['E'] ?? item.minimalDetails?.['E']) || 5;
       return sum + duration;
     }, 0);
     
     const completed = routine.items
       .filter(item => completedItems.has(item['A']))
       .reduce((sum, item) => {
-        // Try to get cached details, fallback to estimated default
+        // Cached details, then the lightweight payload's duration, then default
         const itemDetails = getItemDetails(item['B']);
-        const duration = parseInt(itemDetails?.['E']) || 5; // Default 5 minutes
+        const duration = parseInt(itemDetails?.['E'] ?? item.minimalDetails?.['E']) || 5;
         return sum + duration;
       }, 0);
     
