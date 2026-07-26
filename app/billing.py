@@ -136,6 +136,75 @@ def create_checkout_session(db: Session):
         return jsonify({'error': 'Failed to create checkout session'}), 500
 
 
+def sync_checkout_session(db: Session):
+    """Reconcile a subscription straight from Stripe after the checkout redirect.
+
+    The success_url redirect and the checkout.session.completed webhook race each
+    other. When the redirect wins, the user lands back on their old tier and the
+    server-side tier limits keep blocking them until the webhook catches up — right
+    after they paid. Stripe's guidance is to drive the same reconciliation from both
+    the webhook and the redirect, so this lets the client force it instead of
+    waiting. Safe to call repeatedly: it no-ops once the row is already current.
+    """
+    try:
+        from flask_login import current_user
+        if not current_user or not current_user.is_authenticated:
+            return jsonify({'error': 'Not authenticated'}), 401
+
+        user_id = current_user.id
+        session_id = (request.json or {}).get('session_id')
+
+        if not session_id or not session_id.startswith('cs_'):
+            return jsonify({'error': 'Missing or invalid session_id'}), 400
+
+        checkout_session = stripe.checkout.Session.retrieve(session_id)
+
+        # The session id comes from the browser, so confirm it really belongs to this
+        # user before letting it touch their subscription row.
+        session_user_id = (checkout_session.get('metadata') or {}).get('user_id')
+        if session_user_id != str(user_id):
+            logger.warning(f"User {user_id} tried to sync checkout session {session_id} belonging to user {session_user_id}")
+            return jsonify({'error': 'Checkout session does not belong to this user'}), 403
+
+        subscription = db.query(Subscription).filter_by(user_id=user_id).first()
+        current_tier = subscription.tier if subscription else 'free'
+
+        # 'unpaid' means a delayed payment method hasn't cleared yet — those belong to
+        # the async payment webhooks, not to us.
+        if checkout_session.get('payment_status') not in ('paid', 'no_payment_required'):
+            logger.info(f"Checkout session {session_id} for user {user_id} is not paid yet, nothing to sync")
+            return jsonify({'tier': current_tier}), 200
+
+        subscription_id = checkout_session.get('subscription')
+        if not subscription_id:
+            logger.info(f"Checkout session {session_id} for user {user_id} has no subscription, nothing to sync")
+            return jsonify({'tier': current_tier}), 200
+
+        # Webhook already won the race
+        if subscription and subscription.stripe_subscription_id == subscription_id:
+            return jsonify({'tier': current_tier}), 200
+
+        stripe_subscription = stripe.Subscription.retrieve(subscription_id)
+        handle_subscription_created(db, stripe_subscription, emit_analytics=False)
+
+        subscription = db.query(Subscription).filter_by(user_id=user_id).first()
+        synced_tier = subscription.tier if subscription else 'free'
+        logger.info(f"Reconciled user {user_id} from checkout redirect ahead of the webhook: tier={synced_tier}")
+
+        return jsonify({'tier': synced_tier}), 200
+
+    except InvalidRequestError as e:
+        logger.warning(f"Stripe could not find the checkout session to sync: {str(e)}")
+        return jsonify({'error': 'Checkout session not found'}), 404
+    except StripeError as e:
+        # Keep Stripe's diagnostic text in the log rather than handing it to the browser
+        logger.error(f"Stripe error syncing checkout session: {str(e)}")
+        return jsonify({'error': 'Stripe error'}), 400
+    except Exception as e:
+        logger.error(f"Error syncing checkout session: {str(e)}")
+        return jsonify({'error': 'Failed to sync checkout session'}), 500
+
+
 def create_portal_session(db: Session):
     """Create a Stripe Customer Portal Session for subscription management"""
     try:
@@ -387,8 +456,15 @@ def handle_checkout_completed(db: Session, session):
         logger.warning(f"No subscription found for user {user_id}")
 
 
-def handle_subscription_created(db: Session, stripe_subscription):
-    """Handle subscription creation"""
+def handle_subscription_created(db: Session, stripe_subscription, *, emit_analytics: bool = True):
+    """Handle subscription creation
+
+    `emit_analytics` is False when sync_checkout_session() calls this from the
+    checkout redirect, so the webhook stays the single source of the
+    `subscription_created` event no matter which path wins the race.
+    (`double_subscription_prevented` still fires either way — whichever path spots
+    the incident should record it, and the other then sees no discrepancy.)
+    """
     logger.info(f"Subscription created: {stripe_subscription['id']}")
 
     # Extract metadata to find user
@@ -470,6 +546,9 @@ def handle_subscription_created(db: Session, stripe_subscription):
 
     db.commit()
     logger.info(f"Updated subscription for user {user_id}: tier={tier}, status={subscription.status}")
+
+    if not emit_analytics:
+        return
 
     # Track subscription created event
     from app.utils.posthog_client import track_event

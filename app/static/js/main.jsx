@@ -23,6 +23,8 @@ import MobileTabBar, { TAB_BAR_HEIGHT } from '@components/MobileTabBar';
 import { useLightweightItems } from '@hooks/useLightweightItems';
 import { useIsMobile } from '@hooks/useIsMobile';
 import { setUserContext } from './utils/analytics';
+import { isCheckoutReturn, getCheckoutSessionId, clearCheckoutParams } from '@utils/checkoutReturn';
+import { Loader2 } from 'lucide-react';
 
 // Initialize rate limit handling (intercepts fetch for 429 errors)
 import './utils/rateLimitHandler';
@@ -59,6 +61,9 @@ const PageContent = ({ userStatus }) => {
 
 const IMPERSONATION_BANNER_HEIGHT = 36; // px - matches py-2 + text-sm single line
 
+// Read at import time, before the checkout params get cleared from the URL
+const CHECKOUT_RETURN = { came: isCheckoutReturn(), sessionId: getCheckoutSessionId() };
+
 const App = () => {
   const headerRef = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(160);
@@ -69,6 +74,9 @@ const App = () => {
   const [showUnpluggedModal, setShowUnpluggedModal] = useState(false);
   const [unpluggedTarget, setUnpluggedTarget] = useState('');
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  // Hold the app back while a checkout return is reconciled, so no child mounts and
+  // reads /api/auth/status before the tier the user just paid for is in the database.
+  const [syncingUpgrade, setSyncingUpgrade] = useState(CHECKOUT_RETURN.sessionId !== null);
 
   const isImpersonating = userStatus?.impersonating === true;
   const bannerOffset = isImpersonating ? IMPERSONATION_BANNER_HEIGHT : 0;
@@ -96,12 +104,15 @@ const App = () => {
     return () => window.removeEventListener('resize', updateHeaderHeight);
     // Re-measure when the header un-hides: on mobileFullBleed pages it's
     // hidden at mount (offsetHeight 0, skipped by the guard), so it must be
-    // measured again when the user navigates to a page where it's shown.
-  }, [activePage, isMobile, bannerOffset]);
+    // measured again when the user navigates to a page where it's shown. Same
+    // applies after a checkout return, where the first render is the spinner and
+    // the header isn't in the DOM yet.
+  }, [activePage, isMobile, bannerOffset, syncingUpgrade]);
 
-  // Check auth status on mount
+  // Check auth status on mount, after reconciling any checkout return so that every
+  // consumer of /api/auth/status sees the tier the user just paid for
   useEffect(() => {
-    fetch('/api/auth/status')
+    const loadAuthStatus = () => fetch('/api/auth/status')
       .then(res => res.json())
       .then(data => {
         setUserStatus(data);
@@ -141,12 +152,50 @@ const App = () => {
         }
       })
       .catch(err => console.error('Error checking auth status:', err));
+
+    const reconcileCheckout = async () => {
+      if (!CHECKOUT_RETURN.came) return;
+
+      if (CHECKOUT_RETURN.sessionId) {
+        try {
+          // Bounded wait: if Stripe is slow, fall through and let the webhook land
+          // rather than leaving the user staring at a spinner.
+          const res = await fetch('/api/billing/sync-checkout-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: CHECKOUT_RETURN.sessionId }),
+            signal: AbortSignal.timeout(5000),
+          });
+          if (!res.ok) {
+            console.error('Checkout session sync failed:', res.status);
+          }
+        } catch (err) {
+          console.error('Error reconciling checkout session:', err);
+        }
+      }
+
+      clearCheckoutParams();
+      setSyncingUpgrade(false);
+    };
+
+    reconcileCheckout().finally(loadAuthStatus);
   }, []);
+
+  if (syncingUpgrade) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 text-gray-100">
+        <div className="flex items-center gap-3" role="status" aria-live="polite">
+          <Loader2 className="h-5 w-5 animate-spin text-orange-500" aria-hidden="true" />
+          <span>Confirming your upgrade...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
-      {/* Guided Tour Component */}
-      <GuidedTour />
+      {/* Guided Tour Component - suppressed on the return from Stripe Checkout */}
+      <GuidedTour suppressed={CHECKOUT_RETURN.came} />
 
       {/* Cookie Consent Banner */}
       <CookieConsent />

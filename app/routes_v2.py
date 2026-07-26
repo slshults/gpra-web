@@ -7062,6 +7062,18 @@ def create_checkout_session():
         db.close()
 
 
+@app.route('/api/billing/sync-checkout-session', methods=['POST'])
+@limiter.limit("10 per minute")  # Two outbound Stripe calls per request; once per real checkout return
+def sync_checkout_session_route():
+    """Reconcile subscription state from Stripe after the checkout redirect"""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return billing.sync_checkout_session(db)
+    finally:
+        db.close()
+
+
 @app.route('/api/billing/create-portal-session', methods=['POST'])
 def create_portal_session():
     """Create Stripe Customer Portal Session for subscription management"""
