@@ -29,10 +29,17 @@ const settleLayout = (element) =>
     setTimeout(resolve, 100);
   });
 
-const GuidedTour = () => {
+// `suppressed` is set for the page load that comes back from Stripe Checkout. The
+// tour must not hijack the moment right after someone pays.
+const GuidedTour = ({ suppressed = false }) => {
   const { setActivePage } = useNavigation();
 
   useEffect(() => {
+    if (suppressed) {
+      debugLog('TOUR', 'Suppressed for this page load (returning from Stripe checkout)');
+      return;
+    }
+
     // Check if tour should be shown
     const checkTourStatus = async () => {
       try {
@@ -79,7 +86,7 @@ const GuidedTour = () => {
     };
 
     checkTourStatus();
-  }, []);
+  }, [suppressed]);
 
   const markTourComplete = async () => {
     try {
@@ -93,6 +100,12 @@ const GuidedTour = () => {
   };
 
   const startTour = () => {
+    // Record the tour as seen up front. `onDestroyed` only fires when the tour runs
+    // all the way to its last step, so an abandoned tour used to leave show_tour
+    // true and relaunch on every later full page load. Account settings still has
+    // a "Restart tour" button for anyone who wants another pass.
+    markTourComplete();
+
     const driverObj = driver({
       showProgress: true,
       showButtons: ['next', 'previous'],
@@ -339,8 +352,6 @@ const GuidedTour = () => {
         setTimeout(() => {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }, 200);
-        // Mark tour as complete when naturally finished
-        markTourComplete();
       }
     });
 
