@@ -201,6 +201,7 @@ if app.debug:
         """Debug-only route for testing custom error pages."""
         abort(code)
 
+
 @app.route('/favicon.ico')
 def favicon():
     """Serve favicon.ico from the site root for Google Search results"""
