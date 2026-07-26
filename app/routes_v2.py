@@ -3310,7 +3310,7 @@ def logout_route():
     if data_layer.mode == 'postgres':
         # For PostgreSQL mode with Flask-AppBuilder auth
         from flask_login import logout_user
-        from flask import session
+        from flask import session, make_response
 
         logging.info(f"[LOGOUT] Logging out user, mode={data_layer.mode}")
 
@@ -3321,7 +3321,17 @@ def logout_route():
         session.clear()
 
         logging.info("[LOGOUT] User logged out, redirecting to /login")
-        return redirect('/login')
+        # logout_user() only requests remember-cookie deletion by setting
+        # session['_remember'] = 'clear', which Flask-Login's after_request hook
+        # acts on. session.clear() above wipes that marker first, so the
+        # remember_token cookie would outlive the logout and silently
+        # re-authenticate the next visitor on this device — OAuth logins use
+        # remember=True (app/security.py). Expire both cookies explicitly, the
+        # same way CustomAuthDBView.logout (/logout/) already does.
+        response = make_response(redirect('/login'))
+        response.set_cookie('remember_token', '', expires=0, max_age=0)
+        response.set_cookie('session', '', expires=0, max_age=0)
+        return response
     else:
         # For Sheets mode, remove token file
         try:

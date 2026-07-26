@@ -39,6 +39,9 @@ export const useAuth = () => {
     window.location.href = '/authorize';
   };
 
+  // KEEP IN SYNC with the logout-cleanup handler in
+  // app/templates/_standalone_header.html.jinja — standalone pages have no React,
+  // so the same cleanup is duplicated there for their plain <a href="/logout">.
   const handleLogout = () => {
     // Clear the lapsed modal dismissed flag so it shows on next login
     sessionStorage.removeItem('lapsedModalDismissed');

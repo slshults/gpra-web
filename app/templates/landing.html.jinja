@@ -584,5 +584,8 @@
 
     {# After _posthog_init so iab_escape_attempted can capture #}
     {% include '_iab_escape.html.jinja' %}
+
+    {# After _posthog_init: waits for posthog.conversations before showing #}
+    {% include '_build_request_prompt.html.jinja' %}
 </body>
 </html>

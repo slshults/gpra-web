@@ -192,4 +192,44 @@
         e.stopPropagation();
     });
 })();
+
+// Logout cleanup for logged-in users.
+// A bare <a href="/logout"> navigates away before PostHog can clear its browser
+// state, so the support widget keeps a widgetSessionId bound to this user's
+// ticket. Whoever browses this device next inherits it, and every widget poll
+// (plus any attempt to send a message) 403s from then on.
+// KEEP IN SYNC with handleLogout in app/static/js/hooks/useAuth.js — the React
+// app does the same cleanup, and standalone pages have no React to share it with.
+(function() {
+    document.addEventListener('click', function(e) {
+        var link = e.target.closest('a[href="/logout"]');
+        if (!link) return;
+        // Leave modified and non-primary clicks to the browser: ctrl/cmd/shift
+        // click means "open in a new tab/window", and hijacking that would log
+        // the user out of the page they meant to keep reading. Those paths skip
+        // the cleanup, which is no worse than before this handler existed.
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        // Storage writes throw in restricted in-app WebViews (Meta's, Safari
+        // private mode). Swallow it — failing to clear must never trap the user
+        // on the page, unable to log out.
+        try {
+            sessionStorage.removeItem('lapsedModalDismissed');
+        } catch (err) { /* storage blocked */ }
+        try {
+            if (window.posthog) {
+                if (typeof window.posthog.reset === 'function') {
+                    window.posthog.reset(true);
+                }
+                if (typeof window.posthog.clearIdentity === 'function') {
+                    window.posthog.clearIdentity();
+                }
+            }
+        } catch (err) { /* fall through to the redirect */ }
+        // Let PostHog's persistence layer flush before navigating away.
+        setTimeout(function() {
+            window.location.href = link.getAttribute('href');
+        }, 100);
+    });
+})();
 </script>

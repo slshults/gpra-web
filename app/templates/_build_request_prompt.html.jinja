@@ -1,0 +1,346 @@
+<!-- Landing "tell me what to build" prompt.
+     Small chat-style card that slides in mid-right at 50% scroll depth and posts
+     into the PostHog Support inbox via posthog.conversations.sendMessage().
+
+     Deliberately NOT the real PostHog widget: the Conversations API has no method
+     to expand the panel or prefill the composer, and the greeting text, placeholder
+     and position are project-level settings shared with every other page. The real
+     widget stays hidden here because landing's <body> has no 'show-ph-widget' class.
+
+     Colours come from the landing page's themed CSS variables, so light mode is
+     handled without a second set of rules. Each var() carries a dark-mode fallback
+     so the card still renders as a card if this partial is ever included on a page
+     that doesn't define them. -->
+<style>
+    #gpra-build-prompt {
+        position: fixed;
+        right: 16px;
+        top: 50%;
+        z-index: 9998; /* one below the consent banner */
+        width: 300px;
+        max-width: calc(100vw - 32px);
+        display: none;
+        padding: 16px 16px 14px;
+        border: 1px solid var(--border, #374151);
+        border-left: 3px solid var(--accent, #f97316);
+        border-radius: 10px;
+        background: var(--card, #1f2937);
+        box-shadow: 0 14px 34px -12px rgba(0, 0, 0, .55);
+        opacity: 0;
+        transform: translateY(-50%) translateX(12px);
+        transition: opacity .2s ease, transform .2s ease;
+    }
+    #gpra-build-prompt.is-visible {
+        opacity: 1;
+        transform: translateY(-50%) translateX(0);
+    }
+    @media (max-width: 639px) {
+        #gpra-build-prompt {
+            right: 8px;
+            width: 270px;
+            max-width: calc(100vw - 16px);
+        }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        #gpra-build-prompt { transition: none; }
+    }
+    #gpra-build-prompt .gpra-bp-close {
+        position: absolute;
+        top: 4px;
+        right: 8px;
+        padding: 4px;
+        border: none;
+        background: transparent;
+        color: var(--muted, #9ca3af);
+        font-size: 1.25rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+    #gpra-build-prompt .gpra-bp-close:hover { color: var(--heading, #f9fafb); }
+    #gpra-build-prompt .gpra-bp-headline {
+        margin: 0 16px 10px 0;
+        color: var(--heading, #f9fafb);
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.45;
+    }
+    #gpra-build-prompt .gpra-bp-sub {
+        margin: 0 0 8px;
+        color: var(--muted, #9ca3af);
+        font-size: 13px;
+        line-height: 1.45;
+    }
+    #gpra-build-prompt textarea,
+    #gpra-build-prompt input[type="email"] {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px 10px;
+        border: 1px solid var(--border, #374151);
+        border-radius: 6px;
+        background: var(--surface-2, #374151);
+        color: var(--text, #d1d5db);
+        font-family: inherit;
+        font-size: 14px;
+        line-height: 1.45;
+        resize: vertical;
+    }
+    #gpra-build-prompt textarea:focus,
+    #gpra-build-prompt input[type="email"]:focus {
+        outline: none;
+        border-color: var(--accent, #f97316);
+        box-shadow: 0 0 0 1px var(--accent, #f97316);
+    }
+    #gpra-build-prompt .gpra-bp-btn {
+        margin-top: 8px;
+        padding: 7px 18px;
+        border: none;
+        border-radius: 6px;
+        background: var(--btn, #ea580c);
+        color: #fff;
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background .15s;
+    }
+    #gpra-build-prompt .gpra-bp-btn:hover:not(:disabled) { background: var(--btn-hover, #c2410c); }
+    #gpra-build-prompt .gpra-bp-btn:disabled { opacity: .6; cursor: default; }
+    #gpra-build-prompt .gpra-bp-error {
+        margin: 8px 0 0;
+        color: var(--accent, #f97316);
+        font-size: 13px;
+        line-height: 1.45;
+    }
+</style>
+
+<div id="gpra-build-prompt" role="region" aria-label="Suggest a feature" aria-live="polite">
+    <button type="button" class="gpra-bp-close" aria-label="Close">&times;</button>
+
+    <div class="gpra-bp-ask">
+        <p class="gpra-bp-headline">Don't see what you're looking for? Tell me what to build.</p>
+        <textarea class="gpra-bp-input" rows="2" placeholder="Type your idea…" aria-label="Tell me what to build"></textarea>
+        <button type="button" class="gpra-bp-btn gpra-bp-send">Send</button>
+    </div>
+
+    <div class="gpra-bp-thanks" hidden>
+        <p class="gpra-bp-headline">Thanks — got it. 🙌</p>
+        <div class="gpra-bp-email-row">
+            <p class="gpra-bp-sub">Add your email if you'd like a reply.</p>
+            <input type="email" class="gpra-bp-email" placeholder="you@example.com" aria-label="Your email">
+            <button type="button" class="gpra-bp-btn gpra-bp-email-send">Add email</button>
+        </div>
+        <p class="gpra-bp-sub gpra-bp-done" hidden>Got it — I'll be in touch. 🙂</p>
+    </div>
+
+    <p class="gpra-bp-error" hidden></p>
+</div>
+
+<script>
+(function () {
+    var SESSION_KEY = 'gpra_build_prompt_seen';
+    var SDK_WAIT_MS = 30000;
+
+    var el = document.getElementById('gpra-build-prompt');
+    if (!el) return;
+
+    // Storage throws in restricted in-app WebViews (Meta's Instagram/Facebook
+    // browsers, Safari private mode), so every access is guarded. A throwing read
+    // must not suppress the card, and a throwing write must not block it.
+    function readStorage(store, key) {
+        try { return store.getItem(key); } catch (e) { return null; }
+    }
+
+    // Only prompt visitors whose consent state actually permits PostHog storage.
+    // Mirrors the loadPostHog test in _posthog_init.html.jinja: sending a message
+    // persists a ph_conv_* entry in localStorage and can attach an email address,
+    // neither of which someone who declined has agreed to. (_posthog_init still
+    // initialises PostHog cookielessly for those visitors, so isAvailable() alone
+    // would happily return true here.)
+    var consent = readStorage(localStorage, 'cookieConsent');
+    var consented = (consent === 'all') ||
+        (window.__consentMode === 'opt-out' && consent !== 'essential');
+    if (!consented) return;
+
+    if (readStorage(sessionStorage, SESSION_KEY) === '1') return;
+
+    var banner = document.getElementById('gpra-consent-banner');
+    var askEl = el.querySelector('.gpra-bp-ask');
+    var thanksEl = el.querySelector('.gpra-bp-thanks');
+    var inputEl = el.querySelector('.gpra-bp-input');
+    var sendEl = el.querySelector('.gpra-bp-send');
+    var emailRowEl = el.querySelector('.gpra-bp-email-row');
+    var emailEl = el.querySelector('.gpra-bp-email');
+    var emailSendEl = el.querySelector('.gpra-bp-email-send');
+    var doneEl = el.querySelector('.gpra-bp-done');
+    var errorEl = el.querySelector('.gpra-bp-error');
+
+    var inFlight = false;
+    var dismissed = false;
+
+    function track(event, props) {
+        if (window.posthog && window.posthog.capture) {
+            window.posthog.capture(event, props);
+        }
+    }
+
+    function showError(message) {
+        errorEl.textContent = message;
+        errorEl.hidden = false;
+    }
+
+    // --- Trigger: 50% scroll depth, then wait for the remaining gates ---------
+
+    function onScroll() {
+        var max = document.documentElement.scrollHeight - window.innerHeight;
+        if (max <= 0 || window.scrollY / max < 0.5) return;
+        window.removeEventListener('scroll', onScroll);
+        waitForGates();
+    }
+
+    function waitForGates() {
+        var waited = 0;
+        var poll = setInterval(function () {
+            // Defer while the cookie banner is up — two popups at once is noise,
+            // and the banner can be tall on mobile. This doesn't count against
+            // SDK_WAIT_MS: the banner clears on a user action, on their schedule,
+            // not on load timing. (offsetParent is useless here — it's null for
+            // any position:fixed element, visible or not.)
+            if (banner && getComputedStyle(banner).display !== 'none') return;
+
+            // The array.js stub doesn't proxy `conversations`, so it stays
+            // undefined until the real SDK finishes initialising.
+            var conversations = window.posthog && window.posthog.conversations;
+            if (!conversations || !conversations.isAvailable || !conversations.isAvailable()) {
+                waited += 250;
+                if (waited > SDK_WAIT_MS) clearInterval(poll);
+                return;
+            }
+
+            clearInterval(poll);
+            show();
+        }, 250);
+
+        window.addEventListener('pagehide', function () { clearInterval(poll); });
+    }
+
+    function show() {
+        try { sessionStorage.setItem(SESSION_KEY, '1'); } catch (e) {}
+        el.style.display = 'block';
+        // Two frames: the first commits display:block so the transition has a
+        // starting point to animate from.
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () { el.classList.add('is-visible'); });
+        });
+        track('landing_build_prompt_shown');
+    }
+
+    function dismiss() {
+        dismissed = true;
+        el.classList.remove('is-visible');
+        setTimeout(function () { el.style.display = 'none'; }, 200);
+        track('landing_build_prompt_dismissed');
+    }
+
+    // --- Sending --------------------------------------------------------------
+    // Both senders guard on `inFlight` because Enter also submits: without it a
+    // visitor on a slow connection who hits Enter twice files duplicate messages
+    // and double-counts the conversion event. They also check `dismissed` before
+    // touching the UI, since the card may be gone by the time the promise settles
+    // (the message still landed, so the event is still recorded).
+
+    function send() {
+        if (inFlight) return;
+        var text = (inputEl.value || '').trim();
+        if (!text) {
+            showError('Type an idea first, then hit send.');
+            return;
+        }
+
+        inFlight = true;
+        sendEl.disabled = true;
+        sendEl.textContent = 'Sending…';
+        errorEl.hidden = true;
+
+        window.posthog.conversations
+            .sendMessage('[Landing page — build request]\n\n' + text)
+            .then(function (response) {
+                if (!response) throw new Error('sendMessage returned null');
+                inFlight = false;
+                track('landing_build_request_submitted', { message_length: text.length });
+                if (dismissed) return;
+                askEl.hidden = true;
+                thanksEl.hidden = false;
+            })
+            .catch(function (err) {
+                inFlight = false;
+                sendEl.disabled = false;
+                sendEl.textContent = 'Send';
+                if (!dismissed) showError("That didn't send — try again?");
+                track('landing_build_request_failed', {
+                    error: String((err && err.message) || err)
+                });
+            });
+    }
+
+    function sendEmail() {
+        if (inFlight) return;
+        var email = (emailEl.value || '').trim();
+        if (email.indexOf('@') < 1 || email.indexOf('.') < 0) {
+            showError("That doesn't look like an email address.");
+            return;
+        }
+
+        inFlight = true;
+        emailSendEl.disabled = true;
+        emailSendEl.textContent = 'Saving…';
+        errorEl.hidden = true;
+
+        // Second message on the same ticket — userTraits back-fills the contact
+        // so the reply has somewhere to go.
+        window.posthog.conversations
+            .sendMessage('Email for reply: ' + email, { email: email })
+            .then(function (response) {
+                if (!response) throw new Error('sendMessage returned null');
+                inFlight = false;
+                track('landing_build_request_email_added');
+                if (dismissed) return;
+                emailRowEl.hidden = true;
+                doneEl.hidden = false;
+            })
+            .catch(function (err) {
+                inFlight = false;
+                emailSendEl.disabled = false;
+                emailSendEl.textContent = 'Add email';
+                if (!dismissed) showError("That didn't save — try again?");
+                track('landing_build_request_failed', {
+                    error: String((err && err.message) || err)
+                });
+            });
+    }
+
+    // --- Wiring ---------------------------------------------------------------
+    // Nothing here focuses the textarea: the visitor keeps scrolling and clicks
+    // in only if they want to reply.
+
+    el.querySelector('.gpra-bp-close').addEventListener('click', dismiss);
+    sendEl.addEventListener('click', send);
+    emailSendEl.addEventListener('click', sendEmail);
+
+    inputEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            send();
+        }
+    });
+    emailEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            sendEmail();
+        }
+    });
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll(); // in case the browser restored a scroll position past halfway
+})();
+</script>
