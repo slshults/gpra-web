@@ -225,7 +225,8 @@ const MobilePracticePage = ({
                         <span className="truncate" style={{ fontSize: '11px', color: '#6b7280', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{tuning}</span>
                       )}
                     </div>
-                    <div className="flex shrink-0" style={{ border: '1px solid #374151', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#111827' }}>
+                    {/* Nothing to lay out until there are charts */}
+                    <div className="flex shrink-0" style={{ border: '1px solid #374151', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#111827', display: hasCharts ? undefined : 'none' }}>
                       {[3, 4].map(n => (
                         <button
                           key={n}

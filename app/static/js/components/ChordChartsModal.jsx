@@ -2789,6 +2789,11 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
                 {/* Autocreate from files - collapsible section */}
                 {(() => {
+                  // Mobile has the full-screen creator instead — this three-column
+                  // zone and its "Replace with autocreated charts" button would just
+                  // be a second, cramped route to the same flow.
+                  if (isMobile) return null;
+
                   const existingCharts = chordCharts[itemReferenceId] || [];
                   const progress = autocreateProgress[itemReferenceId];
                   const zoneExpanded = showAutocreateZone[itemReferenceId];
