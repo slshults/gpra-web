@@ -7,6 +7,8 @@ import DailyPracticeChart from '@components/stats/DailyPracticeChart';
 import TopItemsChart from '@components/stats/TopItemsChart';
 import StatsConsentModal from '@components/StatsConsentModal';
 import StatsConsentFollowUpModal from '@components/StatsConsentFollowUpModal';
+import MobileStatsPage from '@components/MobileStatsPage';
+import { useIsMobile } from '@hooks/useIsMobile';
 import { Loader2 } from 'lucide-react';
 import { debugLog } from '@utils/logging';
 import { trackStatsEvent } from '@utils/analytics';
@@ -29,6 +31,7 @@ const analyticsConsentGiven = () => {
 };
 
 const StatsPage = ({ userStatus }) => {
+  const isMobile = useIsMobile();
   const [period, setPeriod] = useState('week');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -175,6 +178,40 @@ const StatsPage = ({ userStatus }) => {
     );
   }
 
+  // Rendered in both layouts, so the consent nudge behaves the same either way
+  const consentModals = (
+    <>
+      <StatsConsentModal
+        isOpen={showConsentModal}
+        onClose={handleConsentModalClose}
+      />
+
+      <StatsConsentFollowUpModal
+        variant={consentFollowUp}
+        onClose={() => setConsentFollowUp(null)}
+      />
+    </>
+  );
+
+  // Mobile keeps this component as the state owner and swaps only the layout
+  // (design 5b) — same data, same periods, same events.
+  if (isMobile) {
+    return (
+      <>
+        <MobileStatsPage
+          period={period}
+          onPeriodChange={handlePeriodChange}
+          data={data}
+          loading={loading}
+          error={error}
+          onRetry={handleRetry}
+          showEmptyHint={statsEmpty && analyticsConsentGiven()}
+        />
+        {consentModals}
+      </>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -251,15 +288,7 @@ const StatsPage = ({ userStatus }) => {
         </>
       )}
 
-      <StatsConsentModal
-        isOpen={showConsentModal}
-        onClose={handleConsentModalClose}
-      />
-
-      <StatsConsentFollowUpModal
-        variant={consentFollowUp}
-        onClose={() => setConsentFollowUp(null)}
-      />
+      {consentModals}
     </div>
   );
 };
