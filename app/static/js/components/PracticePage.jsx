@@ -25,6 +25,7 @@ import { ChordChartEditor } from './ChordChartEditor';
 import { RoutineEditor } from '@components/RoutineEditor';
 import { useIsMobile } from '@hooks/useIsMobile';
 import MobilePracticePage from '@components/MobilePracticePage';
+import MobileAutocreatePage from '@components/MobileAutocreatePage';
 import DesktopAutoScroll from '@components/DesktopAutoScroll';
 import ApiErrorModal, { resetRateLimitBackoff } from './ApiErrorModal';
 import AutocreateSuccessModal from './AutocreateSuccessModal';
@@ -455,6 +456,8 @@ export const PracticePage = () => {
   // Autocreate chord charts from files
   const [showDeleteChordsModal, setShowDeleteChordsModal] = useState(false);
   const [deleteModalItemId, setDeleteModalItemId] = useState(null);
+  // Item whose full-screen mobile autocreate creator is open (design 5a)
+  const [mobileAutocreateItemId, setMobileAutocreateItemId] = useState(null);
   const [autocreateProgress, setAutocreateProgress] = useState({});
   const [copyProgress, setCopyProgress] = useState(null);
 
@@ -1135,6 +1138,14 @@ export const PracticePage = () => {
     
     return () => clearInterval(interval);
   }, [autocreateProgress, processingMessages.length]);
+
+  // A finished run drops the mobile creator and lands the user back on the chord
+  // charts, where the refreshed charts and the success modal are waiting.
+  useEffect(() => {
+    if (mobileAutocreateItemId != null && autocreateProgress[mobileAutocreateItemId] === 'complete') {
+      setMobileAutocreateItemId(null);
+    }
+  }, [autocreateProgress, mobileAutocreateItemId]);
 
   // Mount/unmount tracking + restore state from autocreateStore
   useEffect(() => {
@@ -3055,37 +3066,66 @@ export const PracticePage = () => {
     }
   };
 
+  // Wipe an item's charts ahead of an autocreate run. Autocreate is
+  // replace-only, so both the desktop confirm dialog and the mobile creator's
+  // inline replace warning funnel through here.
+  const deleteAllChartsForItem = async (itemId) => {
+    const existingCharts = chordCharts[itemId] || [];
+    for (const chart of existingCharts) {
+      const response = await fetch(`/api/items/${itemId}/chord-charts/${chart.id}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to delete chord chart ${chart.id}`);
+      }
+    }
+
+    // Force refresh chord charts (clear state first since all charts are deleted)
+    setChordCharts(prev => ({
+      ...prev,
+      [itemId]: []
+    }));
+    setChordSections(prev => ({
+      ...prev,
+      [itemId]: []
+    }));
+  };
+
   const handleDeleteExistingCharts = async () => {
     if (!deleteModalItemId) return;
-    
+
     try {
-      // Delete all chord charts for this item
-      const existingCharts = chordCharts[deleteModalItemId] || [];
-      for (const chart of existingCharts) {
-        const response = await fetch(`/api/items/${deleteModalItemId}/chord-charts/${chart.id}`, {
-          method: 'DELETE'
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to delete chord chart ${chart.id}`);
-        }
-      }
-      
-      // Force refresh chord charts (clear state first since all charts are deleted)
-      setChordCharts(prev => ({
-        ...prev,
-        [deleteModalItemId]: []
-      }));
-      setChordSections(prev => ({
-        ...prev,
-        [deleteModalItemId]: []
-      }));
-      
+      await deleteAllChartsForItem(deleteModalItemId);
+
       // Close modal
       setShowDeleteChordsModal(false);
       setDeleteModalItemId(null);
     } catch (error) {
       console.error('Error deleting existing chord charts:', error);
     }
+  };
+
+  // The submit handler routes on whichever input is populated, so the mobile
+  // creator's method tabs clear the others when you switch between them.
+  const clearAutocreateInputs = (itemId) => {
+    setUploadedFiles(prev => ({ ...prev, [itemId]: [] }));
+    setYoutubeUrls(prev => ({ ...prev, [itemId]: '' }));
+    setManualChordInput(prev => ({ ...prev, [itemId]: '' }));
+    setManualInputErrors(prev => ({ ...prev, [itemId]: null }));
+  };
+
+  // Mobile replaces the desktop confirm dialog with an inline warning, so the
+  // one button both clears the old charts and kicks off the run.
+  const handleMobileAutocreateSubmit = async (itemId) => {
+    if ((chordCharts[itemId] || []).length > 0) {
+      try {
+        await deleteAllChartsForItem(itemId);
+      } catch (error) {
+        console.error('Error clearing chord charts before autocreate:', error);
+        return;
+      }
+    }
+    await handleProcessFiles(itemId);
   };
 
   const handleCancelAutocreate = (itemId) => {
@@ -4173,6 +4213,359 @@ export const PracticePage = () => {
   };
 
 
+  // These all render on the z-50 Radix layer, below the mobile creator's sheet,
+  // so the sheet hides itself while any of them is up.
+  const autocreateModalOpen = showEffortSelector || showMixedContentModal ||
+    showUnsupportedFormatModal || showApiErrorModal || showAutocreateSuccessModal ||
+    showQueueGateModal || showQueueActiveItemModal || showCancelConfirmation ||
+    showNotifyInfoModal || upsellModal.open;
+
+  // Autocreate modals. These are shared by both layouts: they used to sit only
+  // in the desktop return, which the mobile branch returns before ever reaching,
+  // so on a phone the effort selector, mixed-content prompt, error, upsell and
+  // success modals had nowhere to render.
+  const autocreateModals = (
+    <>
+      {/* Delete Existing Chord Charts Modal */}
+      <AlertDialog open={showDeleteChordsModal} onOpenChange={setShowDeleteChordsModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center space-x-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              <span>Replace existing chord charts</span>
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This song already has chord charts. To use autocreate, all existing chord charts must be deleted first. 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowDeleteChordsModal(false);
+              setDeleteModalItemId(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteExistingCharts}
+              className="bg-orange-500 hover:bg-orange-600 text-white border-orange-500 shadow-lg font-medium"
+            >
+              Delete all & autocreate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Mixed Content Choice Modal */}
+      <AlertDialog open={showMixedContentModal} onOpenChange={setShowMixedContentModal}>
+        <AlertDialogContent className="w-80 min-h-[600px]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center space-x-2">
+              <AlertTriangle className="h-5 w-5 text-blue-500" />
+              <span>Mixed Content Detected</span>
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Your file contains both chord names and chord charts. How would you like to process it?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 my-8">
+            <AlertDialogAction
+              onClick={() => handleMixedContentChoice('chord_names')}
+              className="w-full h-auto p-6 flex flex-col items-center bg-slate-700 hover:bg-slate-600 text-white"
+            >
+              <div className="font-medium">Process Chord Names</div>
+              <div className="text-sm text-slate-300 mt-1">(standard tuning)</div>
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => handleMixedContentChoice('chord_charts')}
+              className="w-full p-4 bg-slate-700 hover:bg-slate-600 text-white"
+            >
+              Import chord charts
+            </AlertDialogAction>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowMixedContentModal(false);
+              setMixedContentData(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unsupported Format Modal */}
+      <AlertDialog open={showUnsupportedFormatModal} onOpenChange={setShowUnsupportedFormatModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center space-x-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <span>{unsupportedFormatData?.title || 'Format Not Supported'}</span>
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {unsupportedFormatData?.message || 'Sorry, we can only build chord charts. This file format is not supported.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => {
+              setShowUnsupportedFormatModal(false);
+              setUnsupportedFormatData(null);
+            }}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog open={showCancelConfirmation} onOpenChange={setShowCancelConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you wanna do that?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You'll have to wait just as long next time if you start over
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelDialog}>
+              *sigh* Ok, I'll wait...
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmCancel}>
+              Yes, damnit, cancel!
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Notification info modal */}
+      <Dialog open={showNotifyInfoModal} onOpenChange={setShowNotifyInfoModal}>
+        <DialogContent modalName="autocreate-notify-info" className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Notifications enabled</DialogTitle>
+            <DialogDescription>
+              You can go to other pages and check back in 10 or 15 minutes.
+              <br /><br />
+              We'll try to notify you on this device when the chord charts are ready.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end">
+            <Button onClick={() => setShowNotifyInfoModal(false)}>
+              Ok
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Queue gate modal - shown when user tries to start a second visual analysis */}
+      <Dialog open={showQueueGateModal} onOpenChange={setShowQueueGateModal}>
+        <DialogContent modalName="autocreate-queue-gate" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>One at a time</DialogTitle>
+            <DialogDescription asChild>
+              <div>
+                <p>
+                  Sorry, we can only handle one pdf or image at a time, and you still have{' '}
+                  <button
+                    className="text-blue-400 hover:text-blue-300 underline cursor-pointer bg-transparent border-none p-0 font-inherit"
+                    onClick={() => {
+                      setShowQueueGateModal(false);
+                      setShowQueueActiveItemModal(true);
+                    }}
+                  >
+                    one running
+                  </button>
+                  . You can still build chord charts with YouTube lesson URLs, or build charts manually on other items while you wait.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end">
+            <Button onClick={() => setShowQueueGateModal(false)}>
+              Ok
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Queue active item modal - shows which item is currently processing */}
+      <Dialog open={showQueueActiveItemModal} onOpenChange={setShowQueueActiveItemModal}>
+        <DialogContent modalName="autocreate-queue-active-item" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>In progress</DialogTitle>
+            <DialogDescription asChild>
+              <div>
+                {(() => {
+                  const activeVisual = autocreateStore.getActiveVisualAnalysis();
+                  return activeVisual ? (
+                    <p>
+                      Currently creating chord charts for: <strong>{activeVisual.itemName}</strong>
+                    </p>
+                  ) : (
+                    <p>No visual analysis currently running.</p>
+                  );
+                })()}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowQueueActiveItemModal(false)}>
+              Keep waiting
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const activeVisual = autocreateStore.getActiveVisualAnalysis();
+                if (activeVisual) {
+                  setShowQueueActiveItemModal(false);
+                  handleShowCancelConfirmation(activeVisual.itemId);
+                }
+              }}
+            >
+              Cancel autocreate
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Effort selector modal - shown before starting visual analysis */}
+      <Dialog open={showEffortSelector} onOpenChange={(open) => {
+        if (!open) {
+          setShowEffortSelector(false);
+          setPendingEffortItemId(null);
+        }
+      }}>
+        <DialogContent modalName="autocreate-effort-selector" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pick your speed</DialogTitle>
+            <DialogDescription className="text-gray-400 text-sm">
+              You can leave the page to work on other stuff while you wait. Claude will do his best at any setting, but you'll likely need to fix a chart or two when it's done. (tap any chart's pencil icon to fix it.)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+              onClick={() => setSelectedEffort('low')}>
+              <input type="radio" name="effort" value="low"
+                checked={selectedEffort === 'low'}
+                onChange={() => setSelectedEffort('low')}
+                className="mt-1 text-indigo-500 focus:ring-indigo-500" />
+              <div className="flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-white font-medium">Quick</span>
+                  <span className="text-gray-400 text-sm">~1–2 min</span>
+                </div>
+                <div className="text-gray-400 text-xs mt-0.5">Fast and loose. Some finger markers may be in the wrong place, but you can fix them yourself.</div>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 p-3 rounded-lg border border-indigo-500/60 bg-indigo-500/5 hover:border-indigo-400 cursor-pointer transition-colors"
+              onClick={() => setSelectedEffort('medium')}>
+              <input type="radio" name="effort" value="medium"
+                checked={selectedEffort === 'medium'}
+                onChange={() => setSelectedEffort('medium')}
+                className="mt-1 text-indigo-500 focus:ring-indigo-500" />
+              <div className="flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-white font-medium">Balanced</span>
+                  <span className="text-gray-400 text-sm">~2–5 min</span>
+                  <span className="text-indigo-300 text-xs ml-auto px-2 py-0.5 bg-indigo-500/20 rounded">Recommended</span>
+                </div>
+                <div className="text-gray-400 text-xs mt-0.5">Better accuracy, just takes a bit longer.</div>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
+              onClick={() => setSelectedEffort('high')}>
+              <input type="radio" name="effort" value="high"
+                checked={selectedEffort === 'high'}
+                onChange={() => setSelectedEffort('high')}
+                className="mt-1 text-indigo-500 focus:ring-indigo-500" />
+              <div className="flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-white font-medium">Thorough</span>
+                  <span className="text-gray-400 text-sm">~5–15 min</span>
+                </div>
+                <div className="text-gray-400 text-xs mt-0.5">Thinking goes to 11. Can help with dense or unusual layout, or with crappy image files. Sometimes overthinks it though.</div>
+              </div>
+            </label>
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={handleEffortConfirm}>
+              <Wand className="h-4 w-4 mr-2" />
+              Create charts
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Timer Sound Info Modal - shown first time user starts timer each session */}
+      <AlertDialog open={showSoundPromptModal} onOpenChange={(open) => {
+        if (!open) {
+          handleSoundModalRemind(); // Closing without button = remind next time
+        }
+      }}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center space-x-2">
+              <span>🔔</span>
+              <span>Timer sound</span>
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Since this is your first time with the timer, you're going to want to set a level for it.
+                  It should be loud enough for you to hear it over your playing, but not loud enough to give
+                  you a jump scare or make your ears ring. <a href="/#Account" className="text-blue-400 hover:text-blue-300 underline">Go to settings</a> to set your levels now.
+                </p>
+                <p>A bell will ring when your timer is up. If you don't hear it, click the settings icon in your browser's address bar and enable sound:</p>
+                <img
+                  src="/static/images/chromiumsoundsettings.png"
+                  alt="Browser sound settings - click the settings icon in the address bar and toggle Sound on"
+                  className="rounded border border-gray-600 mx-auto"
+                />
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel onClick={handleSoundModalRemind}>
+              Remind me next time
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleSoundModalGotIt}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Got it
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* API Error Modal */}
+      <ApiErrorModal
+        isOpen={showApiErrorModal}
+        onClose={() => {
+          setShowApiErrorModal(false);
+          setApiError(null);
+        }}
+        error={apiError}
+      />
+
+      {/* Autocreate Success Modal */}
+      <AutocreateSuccessModal
+        isOpen={showAutocreateSuccessModal}
+        onClose={() => {
+          setShowAutocreateSuccessModal(false);
+          setAutocreateSuccessData(null);
+        }}
+        autocreateData={autocreateSuccessData}
+      />
+
+      {/* Autocreate Upsell Modal (free tier without API key) */}
+      <UpsellAutocreateModal
+        isOpen={upsellModal.open}
+        onClose={() => setUpsellModal({ open: false, trigger: null })}
+        trigger={upsellModal.trigger}
+      />
+    </>
+  );
+
   // Mobile Practice list (design 2a). PracticePage stays the state owner; the
   // mobile view is a focused render of the same state + handlers. Desktop
   // (>=640px) falls through to the existing layout below, untouched.
@@ -4218,7 +4611,36 @@ export const PracticePage = () => {
             }, 100);
           }}
           onAddSection={addNewSection}
+          onAutocreate={(itemId) => setMobileAutocreateItemId(itemId)}
         />
+        {mobileAutocreateItemId != null && (
+          <MobileAutocreatePage
+            itemName={getItemDetails(mobileAutocreateItemId)?.['C']}
+            existingChartCount={(chordCharts[mobileAutocreateItemId] || []).length}
+            files={uploadedFiles[mobileAutocreateItemId] || []}
+            onFilesSelected={(files) => handleSingleFileDrop(mobileAutocreateItemId, files)}
+            youtubeUrl={youtubeUrls[mobileAutocreateItemId] || ''}
+            onYoutubeUrlChange={(value) => setYoutubeUrls(prev => ({ ...prev, [mobileAutocreateItemId]: value }))}
+            manualInput={manualChordInput[mobileAutocreateItemId] || ''}
+            onManualInputChange={(value) => {
+              setManualChordInput(prev => ({ ...prev, [mobileAutocreateItemId]: value }));
+              validateManualChordInput(value, mobileAutocreateItemId);
+            }}
+            manualError={manualInputErrors[mobileAutocreateItemId]}
+            onMethodChange={() => clearAutocreateInputs(mobileAutocreateItemId)}
+            onSubmit={() => handleMobileAutocreateSubmit(mobileAutocreateItemId)}
+            onClose={() => {
+              clearAutocreateInputs(mobileAutocreateItemId);
+              setMobileAutocreateItemId(null);
+            }}
+            progress={autocreateProgress[mobileAutocreateItemId]}
+            processingMessage={processingMessages[processingMessageIndex]}
+            onCancel={() => handleShowCancelConfirmation(mobileAutocreateItemId)}
+            claudeless={showDisabledAutocreate}
+            hidden={autocreateModalOpen}
+          />
+        )}
+        {autocreateModals}
         {mobileEditorItemId != null && (
           <div data-editor-for-item={mobileEditorItemId}>
             <ChordChartEditor
@@ -5699,343 +6121,7 @@ export const PracticePage = () => {
         </div>
       )}
 
-      {/* Delete Existing Chord Charts Modal */}
-      <AlertDialog open={showDeleteChordsModal} onOpenChange={setShowDeleteChordsModal}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-orange-500" />
-              <span>Replace existing chord charts</span>
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This song already has chord charts. To use autocreate, all existing chord charts must be deleted first. 
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setShowDeleteChordsModal(false);
-              setDeleteModalItemId(null);
-            }}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteExistingCharts}
-              className="bg-orange-500 hover:bg-orange-600 text-white border-orange-500 shadow-lg font-medium"
-            >
-              Delete all & autocreate
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Mixed Content Choice Modal */}
-      <AlertDialog open={showMixedContentModal} onOpenChange={setShowMixedContentModal}>
-        <AlertDialogContent className="w-80 min-h-[600px]">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-blue-500" />
-              <span>Mixed Content Detected</span>
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Your file contains both chord names and chord charts. How would you like to process it?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-4 my-8">
-            <AlertDialogAction
-              onClick={() => handleMixedContentChoice('chord_names')}
-              className="w-full h-auto p-6 flex flex-col items-center bg-slate-700 hover:bg-slate-600 text-white"
-            >
-              <div className="font-medium">Process Chord Names</div>
-              <div className="text-sm text-slate-300 mt-1">(standard tuning)</div>
-            </AlertDialogAction>
-            <AlertDialogAction
-              onClick={() => handleMixedContentChoice('chord_charts')}
-              className="w-full p-4 bg-slate-700 hover:bg-slate-600 text-white"
-            >
-              Import chord charts
-            </AlertDialogAction>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setShowMixedContentModal(false);
-              setMixedContentData(null);
-            }}>
-              Cancel
-            </AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Unsupported Format Modal */}
-      <AlertDialog open={showUnsupportedFormatModal} onOpenChange={setShowUnsupportedFormatModal}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
-              <span>{unsupportedFormatData?.title || 'Format Not Supported'}</span>
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {unsupportedFormatData?.message || 'Sorry, we can only build chord charts. This file format is not supported.'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => {
-              setShowUnsupportedFormatModal(false);
-              setUnsupportedFormatData(null);
-            }}>
-              OK
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Cancel Confirmation Dialog */}
-      <AlertDialog open={showCancelConfirmation} onOpenChange={setShowCancelConfirmation}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you wanna do that?</AlertDialogTitle>
-            <AlertDialogDescription>
-              You'll have to wait just as long next time if you start over
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCancelDialog}>
-              *sigh* Ok, I'll wait...
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmCancel}>
-              Yes, damnit, cancel!
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Notification info modal */}
-      <Dialog open={showNotifyInfoModal} onOpenChange={setShowNotifyInfoModal}>
-        <DialogContent modalName="autocreate-notify-info" className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Notifications enabled</DialogTitle>
-            <DialogDescription>
-              You can go to other pages and check back in 10 or 15 minutes.
-              <br /><br />
-              We'll try to notify you on this device when the chord charts are ready.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end">
-            <Button onClick={() => setShowNotifyInfoModal(false)}>
-              Ok
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Queue gate modal - shown when user tries to start a second visual analysis */}
-      <Dialog open={showQueueGateModal} onOpenChange={setShowQueueGateModal}>
-        <DialogContent modalName="autocreate-queue-gate" className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>One at a time</DialogTitle>
-            <DialogDescription asChild>
-              <div>
-                <p>
-                  Sorry, we can only handle one pdf or image at a time, and you still have{' '}
-                  <button
-                    className="text-blue-400 hover:text-blue-300 underline cursor-pointer bg-transparent border-none p-0 font-inherit"
-                    onClick={() => {
-                      setShowQueueGateModal(false);
-                      setShowQueueActiveItemModal(true);
-                    }}
-                  >
-                    one running
-                  </button>
-                  . You can still build chord charts with YouTube lesson URLs, or build charts manually on other items while you wait.
-                </p>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end">
-            <Button onClick={() => setShowQueueGateModal(false)}>
-              Ok
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Queue active item modal - shows which item is currently processing */}
-      <Dialog open={showQueueActiveItemModal} onOpenChange={setShowQueueActiveItemModal}>
-        <DialogContent modalName="autocreate-queue-active-item" className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>In progress</DialogTitle>
-            <DialogDescription asChild>
-              <div>
-                {(() => {
-                  const activeVisual = autocreateStore.getActiveVisualAnalysis();
-                  return activeVisual ? (
-                    <p>
-                      Currently creating chord charts for: <strong>{activeVisual.itemName}</strong>
-                    </p>
-                  ) : (
-                    <p>No visual analysis currently running.</p>
-                  );
-                })()}
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowQueueActiveItemModal(false)}>
-              Keep waiting
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                const activeVisual = autocreateStore.getActiveVisualAnalysis();
-                if (activeVisual) {
-                  setShowQueueActiveItemModal(false);
-                  handleShowCancelConfirmation(activeVisual.itemId);
-                }
-              }}
-            >
-              Cancel autocreate
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Effort selector modal - shown before starting visual analysis */}
-      <Dialog open={showEffortSelector} onOpenChange={(open) => {
-        if (!open) {
-          setShowEffortSelector(false);
-          setPendingEffortItemId(null);
-        }
-      }}>
-        <DialogContent modalName="autocreate-effort-selector" className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Pick your speed</DialogTitle>
-            <DialogDescription className="text-gray-400 text-sm">
-              You can leave the page to work on other stuff while you wait. Claude will do his best at any setting, but you'll likely need to fix a chart or two when it's done. (tap any chart's pencil icon to fix it.)
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
-              onClick={() => setSelectedEffort('low')}>
-              <input type="radio" name="effort" value="low"
-                checked={selectedEffort === 'low'}
-                onChange={() => setSelectedEffort('low')}
-                className="mt-1 text-indigo-500 focus:ring-indigo-500" />
-              <div className="flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-white font-medium">Quick</span>
-                  <span className="text-gray-400 text-sm">~1–2 min</span>
-                </div>
-                <div className="text-gray-400 text-xs mt-0.5">Fast and loose. Some finger markers may be in the wrong place, but you can fix them yourself.</div>
-              </div>
-            </label>
-            <label className="flex items-start gap-3 p-3 rounded-lg border border-indigo-500/60 bg-indigo-500/5 hover:border-indigo-400 cursor-pointer transition-colors"
-              onClick={() => setSelectedEffort('medium')}>
-              <input type="radio" name="effort" value="medium"
-                checked={selectedEffort === 'medium'}
-                onChange={() => setSelectedEffort('medium')}
-                className="mt-1 text-indigo-500 focus:ring-indigo-500" />
-              <div className="flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-white font-medium">Balanced</span>
-                  <span className="text-gray-400 text-sm">~2–5 min</span>
-                  <span className="text-indigo-300 text-xs ml-auto px-2 py-0.5 bg-indigo-500/20 rounded">Recommended</span>
-                </div>
-                <div className="text-gray-400 text-xs mt-0.5">Better accuracy, just takes a bit longer.</div>
-              </div>
-            </label>
-            <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-600 hover:border-gray-500 cursor-pointer transition-colors"
-              onClick={() => setSelectedEffort('high')}>
-              <input type="radio" name="effort" value="high"
-                checked={selectedEffort === 'high'}
-                onChange={() => setSelectedEffort('high')}
-                className="mt-1 text-indigo-500 focus:ring-indigo-500" />
-              <div className="flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-white font-medium">Thorough</span>
-                  <span className="text-gray-400 text-sm">~5–15 min</span>
-                </div>
-                <div className="text-gray-400 text-xs mt-0.5">Thinking goes to 11. Can help with dense or unusual layout, or with crappy image files. Sometimes overthinks it though.</div>
-              </div>
-            </label>
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={handleEffortConfirm}>
-              <Wand className="h-4 w-4 mr-2" />
-              Create charts
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Timer Sound Info Modal - shown first time user starts timer each session */}
-      <AlertDialog open={showSoundPromptModal} onOpenChange={(open) => {
-        if (!open) {
-          handleSoundModalRemind(); // Closing without button = remind next time
-        }
-      }}>
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center space-x-2">
-              <span>🔔</span>
-              <span>Timer sound</span>
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3">
-                <p>
-                  Since this is your first time with the timer, you're going to want to set a level for it.
-                  It should be loud enough for you to hear it over your playing, but not loud enough to give
-                  you a jump scare or make your ears ring. <a href="/#Account" className="text-blue-400 hover:text-blue-300 underline">Go to settings</a> to set your levels now.
-                </p>
-                <p>A bell will ring when your timer is up. If you don't hear it, click the settings icon in your browser's address bar and enable sound:</p>
-                <img
-                  src="/static/images/chromiumsoundsettings.png"
-                  alt="Browser sound settings - click the settings icon in the address bar and toggle Sound on"
-                  className="rounded border border-gray-600 mx-auto"
-                />
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel onClick={handleSoundModalRemind}>
-              Remind me next time
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleSoundModalGotIt}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              Got it
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* API Error Modal */}
-      <ApiErrorModal
-        isOpen={showApiErrorModal}
-        onClose={() => {
-          setShowApiErrorModal(false);
-          setApiError(null);
-        }}
-        error={apiError}
-      />
-
-      {/* Autocreate Success Modal */}
-      <AutocreateSuccessModal
-        isOpen={showAutocreateSuccessModal}
-        onClose={() => {
-          setShowAutocreateSuccessModal(false);
-          setAutocreateSuccessData(null);
-        }}
-        autocreateData={autocreateSuccessData}
-      />
-
-      {/* Autocreate Upsell Modal (free tier without API key) */}
-      <UpsellAutocreateModal
-        isOpen={upsellModal.open}
-        onClose={() => setUpsellModal({ open: false, trigger: null })}
-        trigger={upsellModal.trigger}
-      />
+      {autocreateModals}
 
       <RowActionTipModal
         open={showPracticePageTip}

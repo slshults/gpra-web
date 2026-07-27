@@ -66,6 +66,7 @@ import { useAutocreateAccess } from '@hooks/useAutocreateAccess';
 import { useIsMobile } from '@hooks/useIsMobile';
 import { useChordDensity } from '@hooks/useChordDensity';
 import MobileChartTiles from '@components/MobileChartTiles';
+import MobileAutocreatePage from '@components/MobileAutocreatePage';
 import { serverDebug, debugLog } from '../utils/logging';
 import {
   AlertDialog,
@@ -534,6 +535,8 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   // Delete confirmation modal state (copied from PracticePage)
   const [showDeleteChordsModal, setShowDeleteChordsModal] = useState(false);
   const [deleteModalItemId, setDeleteModalItemId] = useState(null);
+  // Full-screen mobile autocreate creator over this modal (design 5a)
+  const [showMobileAutocreate, setShowMobileAutocreate] = useState(false);
 
   // Mock getItemDetails function since we don't have useItemDetails hook in modal
   const getItemDetails = useCallback((itemIdToGet) => {
@@ -607,6 +610,14 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
     return () => clearInterval(interval);
   }, [autocreateProgress, processingMessages.length]);
+
+  // A finished run drops the mobile creator and lands the user back on the chord
+  // charts, where the refreshed charts and the success modal are waiting.
+  useEffect(() => {
+    if (showMobileAutocreate && autocreateProgress[itemId] === 'complete') {
+      setShowMobileAutocreate(false);
+    }
+  }, [autocreateProgress, showMobileAutocreate, itemId]);
 
   // Mount/unmount tracking + restore state from autocreateStore
   useEffect(() => {
@@ -2182,30 +2193,36 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
     }
   };
 
+  // Wipe an item's charts ahead of an autocreate run. Autocreate is
+  // replace-only, so both the desktop confirm dialog and the mobile creator's
+  // inline replace warning funnel through here.
+  const deleteAllChartsForItem = async (targetItemId) => {
+    const existingCharts = chordCharts[targetItemId] || [];
+    for (const chart of existingCharts) {
+      const response = await fetch(`/api/items/${targetItemId}/chord-charts/${chart.id}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to delete chord chart ${chart.id}`);
+      }
+    }
+
+    // Force refresh chord charts (clear state first since all charts are deleted)
+    setChordCharts(prev => ({
+      ...prev,
+      [targetItemId]: []
+    }));
+    setChordSections(prev => ({
+      ...prev,
+      [targetItemId]: []
+    }));
+  };
+
   const handleDeleteExistingCharts = async () => {
     if (!deleteModalItemId) return;
 
     try {
-      // Delete all chord charts for this item
-      const existingCharts = chordCharts[deleteModalItemId] || [];
-      for (const chart of existingCharts) {
-        const response = await fetch(`/api/items/${deleteModalItemId}/chord-charts/${chart.id}`, {
-          method: 'DELETE'
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to delete chord chart ${chart.id}`);
-        }
-      }
-
-      // Force refresh chord charts (clear state first since all charts are deleted)
-      setChordCharts(prev => ({
-        ...prev,
-        [deleteModalItemId]: []
-      }));
-      setChordSections(prev => ({
-        ...prev,
-        [deleteModalItemId]: []
-      }));
+      await deleteAllChartsForItem(deleteModalItemId);
 
       // Show autocreate zone after deletion
       setShowAutocreateZone(prev => ({ ...prev, [deleteModalItemId]: true }));
@@ -2216,6 +2233,29 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
     } catch (error) {
       console.error('Error deleting existing chord charts:', error);
     }
+  };
+
+  // The submit handler routes on whichever input is populated, so the mobile
+  // creator's method tabs clear the others when you switch between them.
+  const clearAutocreateInputs = (targetItemId) => {
+    setUploadedFiles(prev => ({ ...prev, [targetItemId]: [] }));
+    setYoutubeUrls(prev => ({ ...prev, [targetItemId]: '' }));
+    setManualChordInput(prev => ({ ...prev, [targetItemId]: '' }));
+    setManualInputErrors(prev => ({ ...prev, [targetItemId]: null }));
+  };
+
+  // Mobile replaces the desktop confirm dialog with an inline warning, so the
+  // one button both clears the old charts and kicks off the run.
+  const handleMobileAutocreateSubmit = async (targetItemId) => {
+    if ((chordCharts[targetItemId] || []).length > 0) {
+      try {
+        await deleteAllChartsForItem(targetItemId);
+      } catch (error) {
+        console.error('Error clearing chord charts before autocreate:', error);
+        return;
+      }
+    }
+    await handleProcessFiles(targetItemId);
   };
 
   const handleShowCancelConfirmation = (itemId) => {
@@ -2523,6 +2563,13 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
   const itemReferenceId = itemId;
 
+  // These all render on the z-50 Radix layer, below the mobile creator's sheet,
+  // so the sheet hides itself while any of them is up.
+  const autocreateModalOpen = showEffortSelector || showMixedContentModal ||
+    showUnsupportedFormatModal || showApiErrorModal || showAutocreateSuccessModal ||
+    showQueueGateModal || showQueueActiveItemModal || showCancelDialog ||
+    showNotifyInfoModal || upsellModal.open;
+
   return (
     <>
     <Dialog open={isOpen && !showCopyModal && !showCopyFromModal} onOpenChange={onClose}>
@@ -2538,6 +2585,21 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Mobile autocreate entry point — the desktop 3-column zone below is
+              unusable on a phone, so mobile gets the full-screen creator instead. */}
+          {isMobile && (
+            <button
+              type="button"
+              onClick={() => setShowMobileAutocreate(true)}
+              className="flex items-center justify-center w-full font-bold"
+              style={{ height: '48px', borderRadius: '10px', backgroundColor: '#f97316', color: '#111827', fontSize: '15px', gap: '8px' }}
+              data-ph-capture-attribute-button="mobile-autocreate-open-modal"
+            >
+              <Sparkles size={17} />
+              Create chord charts
+            </button>
+          )}
+
           {/* This is the exact copy of the chord charts section from PracticePage.jsx lines 3357-3928 */}
           {(() => {
             const sectionsFromState = chordSections[itemReferenceId];
@@ -3558,6 +3620,38 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         </AlertDialog>
       </DialogContent>
     </Dialog>
+
+    {/* Full-screen mobile autocreate creator (design 5a). Rendered outside
+        DialogContent on purpose: that element is transformed for centering, and a
+        transform makes it the containing block for fixed-position descendants —
+        inside it the sheet would be trapped in the modal instead of the viewport. */}
+    {isMobile && showMobileAutocreate && (
+      <MobileAutocreatePage
+        itemName={itemTitle}
+        existingChartCount={(chordCharts[itemReferenceId] || []).length}
+        files={uploadedFiles[itemReferenceId] || []}
+        onFilesSelected={(files) => handleSingleFileDrop(itemReferenceId, files)}
+        youtubeUrl={youtubeUrls[itemReferenceId] || ''}
+        onYoutubeUrlChange={(value) => setYoutubeUrls(prev => ({ ...prev, [itemReferenceId]: value }))}
+        manualInput={manualChordInput[itemReferenceId] || ''}
+        onManualInputChange={(value) => {
+          setManualChordInput(prev => ({ ...prev, [itemReferenceId]: value }));
+          validateManualChordInput(value, itemReferenceId);
+        }}
+        manualError={manualInputErrors[itemReferenceId]}
+        onMethodChange={() => clearAutocreateInputs(itemReferenceId)}
+        onSubmit={() => handleMobileAutocreateSubmit(itemReferenceId)}
+        onClose={() => {
+          clearAutocreateInputs(itemReferenceId);
+          setShowMobileAutocreate(false);
+        }}
+        progress={autocreateProgress[itemReferenceId]}
+        processingMessage={processingMessages[processingMessageIndex]}
+        onCancel={() => handleShowCancelConfirmation(itemReferenceId)}
+        claudeless={showDisabledAutocreate}
+        hidden={autocreateModalOpen}
+      />
+    )}
 
     {/* Copy Chord Charts Modal (copied from PracticePage) */}
     {showCopyModal && (
