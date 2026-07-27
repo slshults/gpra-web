@@ -418,6 +418,7 @@ const findSimilarSongs = (sourceTitle, allItems, sourceItemId) => {
 
 // Shared module-level store for autocreate state (imported from shared utility)
 import { autocreateStore, fireAutocreateNotification } from '@utils/autocreateStore';
+import { isValidYouTubeUrl, sanitizeYouTubeUrl, INVALID_YOUTUBE_URL_MESSAGE } from '@utils/youtube';
 
 export const PracticePage = () => {
   const { routine, refreshRoutine } = useActiveRoutine();
@@ -1140,12 +1141,14 @@ export const PracticePage = () => {
   }, [autocreateProgress, processingMessages.length]);
 
   // A finished run drops the mobile creator and lands the user back on the chord
-  // charts, where the refreshed charts and the success modal are waiting.
+  // charts. Keyed on the success modal rather than a 'complete' progress value:
+  // only the visual-analysis and mixed-content paths set that string, while the
+  // YouTube and manual paths delete the progress key instead.
   useEffect(() => {
-    if (mobileAutocreateItemId != null && autocreateProgress[mobileAutocreateItemId] === 'complete') {
+    if (mobileAutocreateItemId != null && showAutocreateSuccessModal) {
       setMobileAutocreateItemId(null);
     }
-  }, [autocreateProgress, mobileAutocreateItemId]);
+  }, [showAutocreateSuccessModal, mobileAutocreateItemId]);
 
   // Mount/unmount tracking + restore state from autocreateStore
   useEffect(() => {
@@ -3117,6 +3120,36 @@ export const PracticePage = () => {
   // Mobile replaces the desktop confirm dialog with an inline warning, so the
   // one button both clears the old charts and kicks off the run.
   const handleMobileAutocreateSubmit = async (itemId) => {
+    const files = uploadedFiles[itemId] || [];
+    const youtubeUrl = youtubeUrls[itemId]?.trim();
+    const manualChords = manualChordInput[itemId]?.trim();
+
+    // Desktop gates these two behind the upsell on the inputs themselves; the
+    // mobile tabs are always live, so the gate has to happen here or a free-tier
+    // user rides all the way to a server rejection.
+    if (showDisabledAutocreate && (files.length > 0 || youtubeUrl)) {
+      setUpsellModal({ open: true, trigger: youtubeUrl ? 'youtube' : 'upload' });
+      return;
+    }
+
+    // Everything cheap that could abort the run happens BEFORE the delete —
+    // otherwise a typo'd chord name or a malformed link wipes the existing
+    // charts and creates nothing in their place.
+    if (manualChords && !validateManualChordInput(manualChords, itemId)) return;
+    if (youtubeUrl && !isValidYouTubeUrl(youtubeUrl)) {
+      setApiError({ message: INVALID_YOUTUBE_URL_MESSAGE });
+      setShowApiErrorModal(true);
+      return;
+    }
+    if (files.length > 0) {
+      const activeVisual = autocreateStore.getActiveVisualAnalysis();
+      if (activeVisual && activeVisual.itemId !== itemId) {
+        trackChordChartEvent('autocreate_queue_gate_hit', getItemDetails(itemId)?.['C'] || `Item ${itemId}`);
+        setShowQueueGateModal(true);
+        return;
+      }
+    }
+
     if ((chordCharts[itemId] || []).length > 0) {
       try {
         await deleteAllChartsForItem(itemId);
@@ -3550,11 +3583,10 @@ export const PracticePage = () => {
     debugLog('YOUTUBE', `Processing YouTube URL for item ${itemId}:`, youtubeUrl);
 
     // Sanitize and validate YouTube URL format
-    const sanitizedUrl = youtubeUrl.trim().replace(/[<>"']/g, '');
-    const youtubeRegex = /^https?:\/\/(www\.)?(youtube\.com\/watch\?v=[\w-]+|youtu\.be\/[\w-]+)(\?.*|&.*)?$/;
+    const sanitizedUrl = sanitizeYouTubeUrl(youtubeUrl);
 
-    if (!youtubeRegex.test(sanitizedUrl)) {
-      setApiError({ message: 'Please enter a valid YouTube URL (e.g., https://youtube.com/watch?v=...)' });
+    if (!isValidYouTubeUrl(youtubeUrl)) {
+      setApiError({ message: INVALID_YOUTUBE_URL_MESSAGE });
       setShowApiErrorModal(true);
       return;
     }
@@ -4563,6 +4595,91 @@ export const PracticePage = () => {
         onClose={() => setUpsellModal({ open: false, trigger: null })}
         trigger={upsellModal.trigger}
       />
+      {/* No Transcript Modal */}
+      {showNoTranscriptModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-700 rounded-lg p-6 w-full max-w-md max-h-[80vh] flex flex-col">
+            <h2 className="text-xl font-bold text-white mb-4">
+              No Transcripts Available
+            </h2>
+
+            <p className="text-gray-300 mb-4">
+              Oh, drag. This YouTube video doesn't have transcripts on it. So, go find a free tool to generate transcripts from YouTube videos, then copy/paste the transcript below:
+            </p>
+
+            <textarea
+              value={manualTranscript}
+              onChange={(e) => setManualTranscript(e.target.value)}
+              placeholder="Paste the transcript here..."
+              className="w-full h-32 p-3 bg-gray-800 text-white rounded border border-gray-600 focus:border-red-500 resize-none mb-4"
+              maxLength={25000}
+            />
+
+            <p className="text-xs text-gray-400 mb-4">
+              {manualTranscript.length}/25,000 characters
+            </p>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowNoTranscriptModal(false);
+                  setNoTranscriptData(null);
+                  setManualTranscript('');
+                }}
+                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-600"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (!manualTranscript.trim()) {
+                    alert('Please paste a transcript before proceeding.');
+                    return;
+                  }
+
+                  const { itemId } = noTranscriptData;
+                  setShowNoTranscriptModal(false);
+                  setNoTranscriptData(null);
+
+                  await processYouTubeTranscript(itemId, manualTranscript);
+                  setManualTranscript('');
+                }}
+                disabled={!manualTranscript.trim()}
+                className={`flex-1 ${
+                  !manualTranscript.trim()
+                    ? 'border-gray-600 text-gray-500 cursor-not-allowed'
+                    : 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                <Wand className="h-4 w-4 mr-2" />
+                🪄 Create chord charts
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* No Chord Names Found Modal */}
+      <Dialog open={showNoChordNamesModal} onOpenChange={(open) => !open && setShowNoChordNamesModal(false)}>
+        <DialogContent className="sm:max-w-md" modalName="No chord names">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-6 w-6 text-orange-500" />
+              No Chord Names Found
+            </DialogTitle>
+            <DialogDescription className="text-left space-y-1">
+              <p>So, um, we can't find any chord names mentioned in this video. Sorry, we can't create tablature yet, just chord charts.</p>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 -mt-2">
+            <Button onClick={() => setShowNoChordNamesModal(false)} className="min-w-20">
+              Ok
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 
@@ -6174,91 +6291,6 @@ export const PracticePage = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* No Transcript Modal */}
-      {showNoTranscriptModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-700 rounded-lg p-6 w-full max-w-md max-h-[80vh] flex flex-col">
-            <h2 className="text-xl font-bold text-white mb-4">
-              No Transcripts Available
-            </h2>
-
-            <p className="text-gray-300 mb-4">
-              Oh, drag. This YouTube video doesn't have transcripts on it. So, go find a free tool to generate transcripts from YouTube videos, then copy/paste the transcript below:
-            </p>
-
-            <textarea
-              value={manualTranscript}
-              onChange={(e) => setManualTranscript(e.target.value)}
-              placeholder="Paste the transcript here..."
-              className="w-full h-32 p-3 bg-gray-800 text-white rounded border border-gray-600 focus:border-red-500 resize-none mb-4"
-              maxLength={25000}
-            />
-
-            <p className="text-xs text-gray-400 mb-4">
-              {manualTranscript.length}/25,000 characters
-            </p>
-
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowNoTranscriptModal(false);
-                  setNoTranscriptData(null);
-                  setManualTranscript('');
-                }}
-                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-600"
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  if (!manualTranscript.trim()) {
-                    alert('Please paste a transcript before proceeding.');
-                    return;
-                  }
-
-                  const { itemId } = noTranscriptData;
-                  setShowNoTranscriptModal(false);
-                  setNoTranscriptData(null);
-
-                  await processYouTubeTranscript(itemId, manualTranscript);
-                  setManualTranscript('');
-                }}
-                disabled={!manualTranscript.trim()}
-                className={`flex-1 ${
-                  !manualTranscript.trim()
-                    ? 'border-gray-600 text-gray-500 cursor-not-allowed'
-                    : 'border-gray-600 text-gray-300 hover:bg-gray-700'
-                }`}
-              >
-                <Wand className="h-4 w-4 mr-2" />
-                🪄 Create chord charts
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* No Chord Names Found Modal */}
-      <Dialog open={showNoChordNamesModal} onOpenChange={(open) => !open && setShowNoChordNamesModal(false)}>
-        <DialogContent className="sm:max-w-md" modalName="No chord names">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-6 w-6 text-orange-500" />
-              No Chord Names Found
-            </DialogTitle>
-            <DialogDescription className="text-left space-y-1">
-              <p>So, um, we can't find any chord names mentioned in this video. Sorry, we can't create tablature yet, just chord charts.</p>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2 -mt-2">
-            <Button onClick={() => setShowNoChordNamesModal(false)} className="min-w-20">
-              Ok
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <RoutineEditor
         open={isEditOpen}

@@ -95,11 +95,18 @@ const MobileAutocreatePage = ({
     }
   };
 
-  const canSubmit =
-    !busy &&
-    ((method === 'upload' || method === 'camera') ? files.length > 0
-      : method === 'youtube' ? !!youtubeUrl.trim()
-      : !!manualInput.trim());
+  const hasInputForMethod = () => {
+    switch (method) {
+      case 'youtube':
+        return !!youtubeUrl.trim();
+      case 'manual':
+        return !!manualInput.trim();
+      default:
+        return files.length > 0;
+    }
+  };
+
+  const canSubmit = !busy && hasInputForMethod();
 
   const selectedFileName = files.length ? files[0].name : null;
 

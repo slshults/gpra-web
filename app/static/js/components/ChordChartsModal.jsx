@@ -56,6 +56,7 @@ const findSimilarSongs = (sourceTitle, allItems, sourceItemId) => {
 };
 
 import { autocreateStore, fireAutocreateNotification } from '@utils/autocreateStore';
+import { isValidYouTubeUrl, sanitizeYouTubeUrl, INVALID_YOUTUBE_URL_MESSAGE } from '@utils/youtube';
 import { Button } from '@ui/button';
 import { Check, Music, Upload, AlertTriangle, X, Wand, Sparkles, Loader2, Printer, Bell } from 'lucide-react';
 import { ChordChartEditor } from './ChordChartEditor';
@@ -612,12 +613,13 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   }, [autocreateProgress, processingMessages.length]);
 
   // A finished run drops the mobile creator and lands the user back on the chord
-  // charts, where the refreshed charts and the success modal are waiting.
+  // charts. Keyed on the success modal rather than a 'complete' progress value,
+  // since the YouTube and mixed-content paths delete the progress key instead.
   useEffect(() => {
-    if (showMobileAutocreate && autocreateProgress[itemId] === 'complete') {
+    if (showMobileAutocreate && showAutocreateSuccessModal) {
       setShowMobileAutocreate(false);
     }
-  }, [autocreateProgress, showMobileAutocreate, itemId]);
+  }, [showAutocreateSuccessModal, showMobileAutocreate]);
 
   // Mount/unmount tracking + restore state from autocreateStore
   useEffect(() => {
@@ -1776,12 +1778,11 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
     debugLog('YOUTUBE', `Processing YouTube URL for item ${itemId}:`, youtubeUrl);
 
     // Sanitize and validate YouTube URL format
-    const sanitizedUrl = youtubeUrl.trim().replace(/[<>"']/g, '');
-    const youtubeRegex = /^https?:\/\/(www\.)?(youtube\.com\/watch\?v=[\w-]+|youtu\.be\/[\w-]+)(\?.*|&.*)?$/;
+    const sanitizedUrl = sanitizeYouTubeUrl(youtubeUrl);
 
-    if (!youtubeRegex.test(sanitizedUrl)) {
+    if (!isValidYouTubeUrl(youtubeUrl)) {
       debugLog('YOUTUBE', `URL validation failed for: ${sanitizedUrl}`);
-      setApiError({ message: 'Please enter a valid YouTube URL (e.g., https://youtube.com/watch?v=...)' });
+      setApiError({ message: INVALID_YOUTUBE_URL_MESSAGE });
       setShowApiErrorModal(true);
       return;
     }
@@ -2247,6 +2248,35 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   // Mobile replaces the desktop confirm dialog with an inline warning, so the
   // one button both clears the old charts and kicks off the run.
   const handleMobileAutocreateSubmit = async (targetItemId) => {
+    const files = uploadedFiles[targetItemId] || [];
+    const youtubeUrl = youtubeUrls[targetItemId]?.trim();
+    const manualChords = manualChordInput[targetItemId]?.trim();
+
+    // Desktop gates these two behind the upsell on the inputs themselves; the
+    // mobile tabs are always live, so the gate has to happen here or a free-tier
+    // user rides all the way to a server rejection.
+    if (showDisabledAutocreate && (files.length > 0 || youtubeUrl)) {
+      setUpsellModal({ open: true, trigger: youtubeUrl ? 'youtube' : 'upload' });
+      return;
+    }
+
+    // Everything cheap that could abort the run happens BEFORE the delete —
+    // otherwise a typo'd chord name or a malformed link wipes the existing
+    // charts and creates nothing in their place.
+    if (manualChords && !validateManualChordInput(manualChords, targetItemId)) return;
+    if (youtubeUrl && !isValidYouTubeUrl(youtubeUrl)) {
+      setApiError({ message: INVALID_YOUTUBE_URL_MESSAGE });
+      setShowApiErrorModal(true);
+      return;
+    }
+    if (files.length > 0) {
+      const activeVisual = autocreateStore.getActiveVisualAnalysis();
+      if (activeVisual && activeVisual.itemId !== targetItemId) {
+        setShowQueueGateModal(true);
+        return;
+      }
+    }
+
     if ((chordCharts[targetItemId] || []).length > 0) {
       try {
         await deleteAllChartsForItem(targetItemId);
@@ -2572,7 +2602,11 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
   return (
     <>
-    <Dialog open={isOpen && !showCopyModal && !showCopyFromModal} onOpenChange={onClose}>
+    {/* The creator sheet closes this dialog while it's up, the same way the copy
+        modals do. A modal Radix dialog sets body pointer-events: none and marks
+        #root aria-hidden, so a sibling overlay left on top of an open dialog
+        paints fine but swallows every tap. */}
+    <Dialog open={isOpen && !showCopyModal && !showCopyFromModal && !showMobileAutocreate} onOpenChange={onClose}>
       <DialogContent className="max-w-[95vw] sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh] overflow-y-auto" modalName="Chord charts">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

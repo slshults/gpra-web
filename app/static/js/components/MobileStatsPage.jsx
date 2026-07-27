@@ -14,7 +14,7 @@
 // calls for 9.5px value labels above each bar and 2px stubs for empty buckets,
 // which is a handful of divs here and a fight with ResponsiveContainer there.
 import { CalendarDays, CheckCircle2, Clock, Loader2, Timer } from 'lucide-react';
-import { formatDuration } from '@components/stats/formatters';
+import { formatCount, formatDuration } from '@components/stats/formatters';
 import { buildBars, formatBarValue } from '@components/stats/mobileBars';
 
 const PERIOD_CHIPS = [
@@ -35,8 +35,6 @@ const PERIOD_CAPTIONS = {
 };
 
 const BAR_MAX_HEIGHT = 80;
-
-const formatCount = (v) => v || '—';
 
 const STAT_CARDS = [
   { key: 'days_practiced', label: 'Days practiced', icon: CalendarDays, format: formatCount },
@@ -137,9 +135,10 @@ const TopItems = ({ items }) => {
         Top items
       </div>
       <div className="flex flex-col ph-no-capture" style={{ padding: '2px 16px 0' }}>
-        {items.map((item) => (
+        {items.map((item, i) => (
           <div
-            key={item.item_name}
+            // Two practice items can share a title, so the name alone isn't a key
+            key={`${item.item_name}-${i}`}
             className="flex flex-col"
             style={{ padding: '10px 0', borderBottom: '1px solid #1f2937', gap: '6px' }}
           >
@@ -171,7 +170,17 @@ const TopItems = ({ items }) => {
   );
 };
 
-const MobileStatsPage = ({ period, onPeriodChange, data, loading, error, onRetry, showEmptyHint }) => (
+const MobileStatsPage = ({
+  period,
+  onPeriodChange,
+  data,
+  loading,
+  error,
+  onRetry,
+  showEmptyHint,
+  isFreeTier = false,
+  onUpsellClick,
+}) => (
   <div style={{ padding: '0 0 64px', boxSizing: 'border-box' }}>
     {/* Sticky top bar — replaces the app title + gear + logout block on mobile */}
     <div
@@ -190,6 +199,34 @@ const MobileStatsPage = ({ period, onPeriodChange, data, loading, error, onRetry
       <div className="font-bold" style={{ fontSize: '17px', color: '#f3f4f6' }}>Stats</div>
     </div>
 
+    {isFreeTier ? (
+      <div
+        className="text-center"
+        style={{
+          margin: '16px 12px 0',
+          backgroundColor: '#111827',
+          border: '1px solid #1f2937',
+          borderRadius: '14px',
+          padding: '24px 16px',
+        }}
+      >
+        <div className="font-bold" style={{ fontSize: '16px', color: '#f3f4f6' }}>Practice stats</div>
+        <p style={{ fontSize: '13px', color: '#9ca3af', margin: '10px 0 18px' }}>
+          Upgrade to a paid plan to see your practice statistics, including daily practice time, most
+          practiced items, and session trends.
+        </p>
+        <button
+          type="button"
+          onClick={onUpsellClick}
+          className="font-bold"
+          style={{ height: '44px', padding: '0 20px', borderRadius: '10px', backgroundColor: '#f97316', color: '#111827', fontSize: '14px' }}
+          data-ph-capture-attribute-button="mobile-stats-view-plans"
+        >
+          View plans
+        </button>
+      </div>
+    ) : (
+      <>
     {/* Period chips — the mobile stand-in for the desktop Select */}
     <div className="flex" style={{ padding: '12px 12px 4px', gap: '8px', overflowX: 'auto' }}>
       {PERIOD_CHIPS.map((chip) => {
@@ -211,7 +248,7 @@ const MobileStatsPage = ({ period, onPeriodChange, data, loading, error, onRetry
               boxSizing: 'border-box',
             }}
             aria-pressed={active}
-            data-ph-capture-attribute-button="mobile-stats-period"
+            data-ph-capture-attribute-button={`mobile-stats-period-${chip.value}`}
           >
             {chip.label}
           </button>
@@ -275,6 +312,8 @@ const MobileStatsPage = ({ period, onPeriodChange, data, loading, error, onRetry
           ))}
         </div>
         <TopItems items={data.top_items} />
+      </>
+    )}
       </>
     )}
   </div>

@@ -10,6 +10,10 @@ export const formatDuration = (totalSeconds) => {
   return `${minutes}m`;
 };
 
+// Plain counts (days practiced, items completed) — an em dash reads better than
+// a zero when there is nothing to report yet.
+export const formatCount = (value) => value || '—';
+
 // Chart axis tick formatter. Input is already in minutes.
 export const formatAxisMinutes = (mins) => {
   if (mins >= 60) {

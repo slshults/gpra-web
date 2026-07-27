@@ -120,6 +120,10 @@ const MobilePracticePage = ({
           const timerActive = activeTimers.has(entryId);
           const sections = chordSections[itemId] || [];
           const tuning = sections[0]?.chords?.[0]?.tuning || '';
+          // Undefined until loadChordChartsForItem resolves — distinct from "loaded
+          // and empty", so the autocreate invitation doesn't flash on every expand
+          const chartsLoaded = chordSections[itemId] !== undefined;
+          const hasCharts = sections.some(s => (s.chords || []).length > 0);
 
           return (
             <div key={entryId} style={expanded ? { border: '1px solid #374151', borderRadius: '12px' } : undefined}>
@@ -251,7 +255,7 @@ const MobilePracticePage = ({
 
                   {/* An item with no charts yet gets the full-width invitation —
                       autocreate is the fastest way to fill it. */}
-                  {!sections.some(s => (s.chords || []).length > 0) && (
+                  {chartsLoaded && !hasCharts && (
                     <button
                       onClick={() => onAutocreate(itemId)}
                       className="flex items-center justify-center w-full font-bold"
@@ -281,15 +285,19 @@ const MobilePracticePage = ({
                     >
                       + Section
                     </button>
-                    <button
-                      onClick={() => onAutocreate(itemId)}
-                      className="flex items-center justify-center flex-1 font-semibold"
-                      style={{ height: '44px', borderRadius: '10px', border: '1px solid #374151', color: '#f3f4f6', fontSize: '13px', gap: '5px' }}
-                      data-ph-capture-attribute-button="mobile-autocreate-open"
-                    >
-                      <Sparkles size={14} />
-                      Create
-                    </button>
+                    {/* Only when charts exist — otherwise the full-width invitation
+                        above is already offering the same thing */}
+                    {hasCharts && (
+                      <button
+                        onClick={() => onAutocreate(itemId)}
+                        className="flex items-center justify-center flex-1 font-semibold"
+                        style={{ height: '44px', borderRadius: '10px', border: '1px solid #374151', color: '#f3f4f6', fontSize: '13px', gap: '5px' }}
+                        data-ph-capture-attribute-button="mobile-autocreate-open"
+                      >
+                        <Sparkles size={14} />
+                        Create
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
