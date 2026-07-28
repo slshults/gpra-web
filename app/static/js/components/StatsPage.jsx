@@ -153,7 +153,18 @@ const StatsPage = ({ userStatus }) => {
     setRetryCount((c) => c + 1);
   };
 
-  // Free tier upsell
+  const handleUpsellClick = () => {
+    trackStatsEvent('practice_stats_upsell_clicked', { action: 'view_plans' });
+    window.location.hash = 'Account';
+  };
+
+  // Free tier upsell. Mobile takes its own branch first: Stats is full-bleed
+  // there (the app header is hidden in favour of the page's own 52px bar), so
+  // returning the desktop card here would leave it floating with no header.
+  if (isFreeTier && isMobile) {
+    return <MobileStatsPage isFreeTier onUpsellClick={handleUpsellClick} />;
+  }
+
   if (isFreeTier) {
     return (
       <div className="max-w-2xl mx-auto mt-8 text-center">
@@ -164,10 +175,7 @@ const StatsPage = ({ userStatus }) => {
               Upgrade to a paid plan to see your practice statistics, including daily practice time, most practiced items, and session trends.
             </p>
             <Button
-              onClick={() => {
-                trackStatsEvent('practice_stats_upsell_clicked', { action: 'view_plans' });
-                window.location.hash = 'Account';
-              }}
+              onClick={handleUpsellClick}
               className="bg-orange-500 hover:bg-orange-600 text-white"
             >
               View plans

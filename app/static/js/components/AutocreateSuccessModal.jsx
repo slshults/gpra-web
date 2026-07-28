@@ -8,8 +8,11 @@ import {
 } from './ui/dialog';
 import { Button } from './ui/button';
 import { CheckCircle2, FileText, Music, Zap } from 'lucide-react';
+import { useIsMobile } from '@hooks/useIsMobile';
 
 const AutocreateSuccessModal = ({ isOpen, onClose, autocreateData }) => {
+  const isMobile = useIsMobile();
+
   if (!isOpen || !autocreateData) return null;
 
   const {
@@ -43,8 +46,14 @@ const AutocreateSuccessModal = ({ isOpen, onClose, autocreateData }) => {
       <div className="space-y-1">
         <p className="font-medium">Success! Or close to it!</p>
         <p>We did the best we could. You'll likely need to make a few corrections.</p>
-        <p>Click the pencil icon on a chord chart to fix it.</p>
-        <p>Be sure to click the <code className="px-1 py-0.5 bg-gray-700 text-gray-300 rounded text-sm">"Update chord chart"</code> button after edits</p>
+        {/* Mobile has no pencil icon on the tile — you tap a chart to enlarge it
+            and pick Edit from there */}
+        {isMobile ? (
+          <p>Tap a chord chart, then "Edit", to fix it.</p>
+        ) : (
+          <p>Click the pencil icon on a chord chart to fix it.</p>
+        )}
+        <p>Be sure to {isMobile ? 'tap' : 'click'} the <code className="px-1 py-0.5 bg-gray-700 text-gray-300 rounded text-sm">"Update chord chart"</code> button after edits</p>
       </div>
     );
   };

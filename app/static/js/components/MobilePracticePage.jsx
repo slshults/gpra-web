@@ -3,7 +3,7 @@
 // the 640px breakpoint; PracticePage stays the owner of all practice state and
 // passes the subset this view needs (plus handlers) as props.
 import { useState, useEffect, useCallback } from 'react';
-import { Check, ChevronDown, ChevronRight, Music, RotateCcw, Play } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Music, RotateCcw, Play, Sparkles } from 'lucide-react';
 import MobileChordGrid from '@components/MobileChordGrid';
 import MobilePlayMode from '@components/MobilePlayMode';
 import { useChordDensity } from '@hooks/useChordDensity';
@@ -34,6 +34,7 @@ const MobilePracticePage = ({
   onInsertChordAfter,
   onAddChord,
   onAddSection,
+  onAutocreate,
 }) => {
   const { density, changeDensity } = useChordDensity();
   const [playModeEntryId, setPlayModeEntryId] = useState(null);
@@ -119,6 +120,10 @@ const MobilePracticePage = ({
           const timerActive = activeTimers.has(entryId);
           const sections = chordSections[itemId] || [];
           const tuning = sections[0]?.chords?.[0]?.tuning || '';
+          // Undefined until loadChordChartsForItem resolves — distinct from "loaded
+          // and empty", so the autocreate invitation doesn't flash on every expand
+          const chartsLoaded = chordSections[itemId] !== undefined;
+          const hasCharts = sections.some(s => (s.chords || []).length > 0);
 
           return (
             <div key={entryId} style={expanded ? { border: '1px solid #374151', borderRadius: '12px' } : undefined}>
@@ -220,7 +225,8 @@ const MobilePracticePage = ({
                         <span className="truncate" style={{ fontSize: '11px', color: '#6b7280', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{tuning}</span>
                       )}
                     </div>
-                    <div className="flex shrink-0" style={{ border: '1px solid #374151', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#111827' }}>
+                    {/* Nothing to lay out until there are charts */}
+                    <div className="flex shrink-0" style={{ border: '1px solid #374151', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#111827', display: hasCharts ? undefined : 'none' }}>
                       {[3, 4].map(n => (
                         <button
                           key={n}
@@ -248,24 +254,51 @@ const MobilePracticePage = ({
                     onInsertAfter={(chart) => onInsertChordAfter(itemId, chart)}
                   />
 
+                  {/* An item with no charts yet gets the full-width invitation —
+                      autocreate is the fastest way to fill it. */}
+                  {chartsLoaded && !hasCharts && (
+                    <button
+                      onClick={() => onAutocreate(itemId)}
+                      className="flex items-center justify-center w-full font-bold"
+                      style={{ height: '48px', borderRadius: '10px', backgroundColor: '#f97316', color: '#111827', fontSize: '15px', gap: '8px', marginTop: '10px' }}
+                      data-ph-capture-attribute-button="mobile-autocreate-empty"
+                    >
+                      <Sparkles size={17} />
+                      Create chord charts
+                    </button>
+                  )}
+
                   {/* Action row — add appends to the last section (same as desktop) */}
                   <div className="flex" style={{ gap: '8px', marginTop: '10px' }}>
                     <button
                       onClick={() => onAddChord(itemId)}
                       className="flex-1 font-semibold"
-                      style={{ height: '44px', borderRadius: '10px', backgroundColor: '#2563eb', color: '#ffffff', fontSize: '14px' }}
+                      style={{ height: '44px', borderRadius: '10px', backgroundColor: '#f97316', color: '#111827', fontSize: '13px' }}
                       data-ph-capture-attribute-button="mobile-add-chord"
                     >
-                      + Add chord
+                      + Chord
                     </button>
                     <button
                       onClick={() => onAddSection(itemId)}
                       className="flex-1 font-semibold"
-                      style={{ height: '44px', borderRadius: '10px', border: '1px solid #374151', color: '#f3f4f6', fontSize: '14px' }}
+                      style={{ height: '44px', borderRadius: '10px', border: '1px solid #374151', color: '#f3f4f6', fontSize: '13px' }}
                       data-ph-capture-attribute-button="mobile-add-section"
                     >
-                      + Add section
+                      + Section
                     </button>
+                    {/* Only when charts exist — otherwise the full-width invitation
+                        above is already offering the same thing */}
+                    {hasCharts && (
+                      <button
+                        onClick={() => onAutocreate(itemId)}
+                        className="flex items-center justify-center flex-1 font-semibold"
+                        style={{ height: '44px', borderRadius: '10px', border: '1px solid #374151', color: '#f3f4f6', fontSize: '13px', gap: '5px' }}
+                        data-ph-capture-attribute-button="mobile-autocreate-open"
+                      >
+                        <Sparkles size={14} />
+                        Create
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

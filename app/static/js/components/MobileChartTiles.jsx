@@ -72,7 +72,7 @@ const MobileChartTiles = ({ chords, density, onEdit, onDelete, onInsertAfter }) 
                 <button
                   onClick={() => act(onEdit)}
                   className="font-semibold"
-                  style={{ height: '44px', padding: '0 16px', borderRadius: '10px', backgroundColor: '#2563eb', color: '#ffffff' }}
+                  style={{ height: '44px', padding: '0 16px', borderRadius: '10px', backgroundColor: '#f97316', color: '#111827' }}
                   data-ph-capture-attribute-button="mobile-chord-overlay-edit"
                 >
                   ✏️ Edit

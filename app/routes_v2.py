@@ -4017,12 +4017,12 @@ def get_common_chord_by_id(chord_id):
 # Autocreate helper functions
 
 def detect_file_types_with_sonnet(client, uploaded_files, user_id=None):
-    """Detect file types using Sonnet 4.6 model (ported from sheets version)"""
+    """Detect file types using Sonnet 5 model (ported from sheets version)"""
     import time
     import json
 
     try:
-        app.logger.info("Using Sonnet 4.6 to detect file types and content")
+        app.logger.info("Using Sonnet 5 to detect file types and content")
 
         # Build message content with files for analysis
         prompt_text = """🎸 **FILE TYPE DETECTION FOR GUITAR CONTENT**
@@ -4112,24 +4112,30 @@ Analyze the files below:"""
                     }
                 })
 
-        # Use Sonnet 4.6 for file type detection (simple 3-way classification)
+        # Use Sonnet 5 for file type detection (simple 3-way classification).
+        # Thinking is disabled: Sonnet 5 enables it by default, and max_tokens covers
+        # thinking + output together, so it would otherwise spend this small budget
+        # reasoning about a classification that needs none.
         llm_start_time = time.time()
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-5",
             max_tokens=3000,
+            thinking={"type": "disabled"},
+            output_config={"effort": "low"},
             messages=[{
                 "role": "user",
                 "content": message_content
             }]
         )
         llm_end_time = time.time()
+        response_text = _extract_response_text(response)
 
         # Track LLM Analytics for file type detection
         from app.utils.llm_analytics import llm_analytics
         llm_analytics.track_generation(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-5",
             input_messages=[{"role": "user", "content": "File type detection for guitar content"}],
-            output_choices=[{"message": {"content": response.content[0].text}}],
+            output_choices=[{"message": {"content": response_text}}],
             usage={
                 "input_tokens": response.usage.input_tokens if hasattr(response, 'usage') else None,
                 "output_tokens": response.usage.output_tokens if hasattr(response, 'usage') else None
@@ -4142,8 +4148,6 @@ Analyze the files below:"""
             },
             user_id=user_id
         )
-
-        response_text = response.content[0].text
 
         # Parse JSON response
         import re
@@ -4208,8 +4212,8 @@ def analyze_files_with_claude(client, uploaded_files, item_id, user_id=None, eff
                 app.logger.warning(f"[AUTOCREATE] Unknown forced type: {forced_type}, falling back to chord names")
                 return process_chord_names_with_lyrics(client, uploaded_files, item_id, user_id=user_id)
 
-        # Step 1: File type detection using Sonnet 4.6
-        app.logger.info(f"[AUTOCREATE] Step 1: Analyzing {len(uploaded_files)} files to detect content type using Sonnet 4.6")
+        # Step 1: File type detection using Sonnet 5
+        app.logger.info(f"[AUTOCREATE] Step 1: Analyzing {len(uploaded_files)} files to detect content type using Sonnet 5")
         file_type_result = detect_file_types_with_sonnet(client, uploaded_files, user_id=user_id)
 
         # Step 2: Process based on detected content type
@@ -4325,12 +4329,14 @@ If you can't determine sections, use "Main" as the section name.""",
                     }
                 })
 
-        # Call Claude API with prompt caching enabled (Sonnet 4.6 for simple text extraction)
+        # Call Claude API with prompt caching enabled (Sonnet 5 for simple text extraction)
         llm_start_time = time.time()
         try:
             response = client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=8000,
+                model="claude-sonnet-5",
+                # Sonnet 5 runs adaptive thinking by default and max_tokens caps
+                # thinking + output together, so this sits well above the JSON size.
+                max_tokens=16000,
                 messages=[{
                     "role": "user",
                     "content": message_content
@@ -4339,6 +4345,8 @@ If you can't determine sections, use "Main" as the section name.""",
             )
             llm_end_time = time.time()
             llm_latency = (llm_end_time - llm_start_time) * 1000  # Convert to milliseconds
+
+            response_text = _extract_response_text(response)
 
             app.logger.info(f"[AUTOCREATE] Received response from Claude")
 
@@ -4364,14 +4372,14 @@ If you can't determine sections, use "Main" as the section name.""",
             # CRITICAL: Pass user_id from autocreate route
             # Note: user_id comes from simple_analyze_files caller, need to add to function signature
             generation_id = track_llm_generation(
-                model="claude-sonnet-4-6",
+                model="claude-sonnet-5",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from uploaded guitar files"  # Simplified for privacy
                 }],
                 output_choices=[{
                     "role": "assistant",
-                    "content": response.content[0].text[:200] + "..." if len(response.content[0].text) > 200 else response.content[0].text
+                    "content": response_text[:200] + "..." if len(response_text) > 200 else response_text
                 }],
                 usage=usage_dict,
                 latency_seconds=llm_latency / 1000,  # Will be converted back to ms in track_llm_generation
@@ -4394,7 +4402,7 @@ If you can't determine sections, use "Main" as the section name.""",
 
             # Track failed generation
             generation_id = track_llm_generation(
-                model="claude-sonnet-4-6",
+                model="claude-sonnet-5",
                 input_messages=[{"role": "user", "content": "Extract chord names from uploaded guitar files"}],
                 output_choices=[],
                 latency_seconds=llm_latency / 1000,  # Will be converted back to ms in track_llm_generation
@@ -4410,8 +4418,7 @@ If you can't determine sections, use "Main" as the section name.""",
             )
             raise api_error
 
-        # Parse response
-        response_text = response.content[0].text
+        # Parse response (response_text was extracted above, thinking-safe)
 
         # Extract JSON from response
         import json, re
@@ -4649,7 +4656,7 @@ def handle_crop(image, x1, y1, x2, y2, upscale=1):
 
     upscale: integer multiplier applied to the cropped region BEFORE encoding (LANCZOS).
         Use 2-3x to help the model count fret lines on small per-chord crops.
-        The result is clamped to a max long edge of 2576px (Opus 4.8 max).
+        The result is clamped to a max long edge of 2576px (Opus 5 max).
     """
     import io as _io
     from PIL import Image as _PILImage
@@ -5103,11 +5110,42 @@ def _detect_diagram_rows_and_bboxes(pil_image, overrides=None, **kwargs):
     return detected_rows
 
 
+def _warn_if_truncated(response):
+    """Log when a response was cut off at max_tokens.
+
+    Worth calling out explicitly now that thinking is on by default: it shares the
+    max_tokens budget with the output, so exhausting it truncates the JSON and
+    surfaces downstream as a confusing parse failure rather than as "the budget
+    was too small".
+    """
+    if getattr(response, 'stop_reason', None) == 'max_tokens':
+        output_tokens = getattr(getattr(response, 'usage', None), 'output_tokens', 'unknown')
+        app.logger.warning(
+            f"[AUTOCREATE] Response truncated at max_tokens ({output_tokens} output tokens) — "
+            f"thinking likely consumed the budget. Raise max_tokens for this call."
+        )
+
+
+def _extract_response_text(response):
+    """Return the text of the first text block in a response, or '' if there is none.
+
+    Never index response.content[0] directly: on models with thinking enabled (the
+    default on Opus 5 and Sonnet 5) the first block is a thinking block, which has a
+    .thinking attribute rather than .text.
+    """
+    _warn_if_truncated(response)
+    for block in response.content:
+        if getattr(block, 'type', None) == 'text':
+            return block.text or ''
+    return ''
+
+
 def _extract_json_text(response):
     """Extract the first text block from a structured-output response and parse as JSON.
 
     Returns the parsed object, or None if no text block was found / JSON failed to parse.
     """
+    _warn_if_truncated(response)
     for block in response.content:
         if getattr(block, 'type', None) == 'text':
             try:
@@ -5174,7 +5212,7 @@ def _read_one_chord(per_chord_client, source_image, survey_chord, read_prompt, r
     # Stateless call — sends just this one chord crop + the read prompt.
     # Effort/max_tokens come from effort_config (set per the user's tier above).
     api_kwargs = dict(
-        model="claude-opus-4-8",
+        model="claude-opus-5",
         max_tokens=effort_config['max_tokens'],
         thinking=effort_config['thinking'],
         output_config={
@@ -5416,9 +5454,12 @@ def process_chord_charts_directly(client, uploaded_files, item_id, user_id=None,
         total_input_tokens = 0
         total_output_tokens = 0
 
+        # Opus 5 runs adaptive thinking by default, and max_tokens caps thinking +
+        # output together — so the survey needs more headroom than the ~4K of JSON
+        # the schema actually produces.
         survey_response = client.messages.create(
-            model="claude-opus-4-8",
-            max_tokens=4000,
+            model="claude-opus-5",
+            max_tokens=12000,
             output_config={"format": {"type": "json_schema", "schema": survey_schema}},
             messages=[{
                 "role": "user",
@@ -5741,7 +5782,7 @@ Example output for a diagram with one dot on string 6 at fret 5, with X on strin
         # Track LLM generation with PostHog Analytics
         from app.utils.llm_analytics import llm_analytics
         llm_analytics.track_generation(
-            model="claude-opus-4-8",
+            model="claude-opus-5",
             input_messages=[{"role": "user", "content": "Chord chart processing with stateless crops"}],
             output_choices=[{"message": {"content": json.dumps(chord_data)[:500]}}],
             usage={
@@ -6093,26 +6134,30 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                     "text": file_content['data']
                 })
 
-        # Use Sonnet 4.6 for chord names analysis
-        app.logger.info(f"[AUTOCREATE] Using Sonnet 4.6 for YouTube transcript chord analysis")
+        # Use Opus 5 for chord names analysis
+        app.logger.info(f"[AUTOCREATE] Using Opus 5 for YouTube transcript chord analysis")
         app.logger.info(f"[AUTOCREATE] Making API call with {len(message_content)} content items")
         app.logger.info(f"[AUTOCREATE] Message content types: {[item.get('type', 'unknown') for item in message_content]}")
 
         try:
             import time
             llm_start_time = time.time()
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-8")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-5")
             response = client.messages.create(
-                model="claude-opus-4-8",
-                max_tokens=8000,  # Increased for complex songs with multiple sections
+                model="claude-opus-5",
+                # Opus 5 runs adaptive thinking by default and max_tokens caps
+                # thinking + output together, so this sits well above the JSON size.
+                max_tokens=16000,
                 messages=[{"role": "user", "content": message_content}]
             )
             llm_end_time = time.time()
             llm_latency = llm_end_time - llm_start_time
 
+            response_text = _extract_response_text(response)
+
             app.logger.info(f"[AUTOCREATE] API call successful, response received with {len(response.content)} content items")
             if response.content:
-                app.logger.info(f"[AUTOCREATE] Response content length: {len(response.content[0].text) if response.content[0].text else 0} characters")
+                app.logger.info(f"[AUTOCREATE] Response content length: {len(response_text)} characters")
 
             # Track LLM generation with PostHog LLM Analytics
             from app.utils.llm_analytics import track_llm_generation
@@ -6127,14 +6172,14 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                 }
 
             track_llm_generation(
-                model="claude-opus-4-8",
+                model="claude-opus-5",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from YouTube transcript"
                 }],
                 output_choices=[{
                     "role": "assistant",
-                    "content": response.content[0].text[:200] + "..." if len(response.content[0].text) > 200 else response.content[0].text
+                    "content": response_text[:200] + "..." if len(response_text) > 200 else response_text
                 }],
                 usage=usage_dict,
                 latency_seconds=llm_latency,
@@ -6162,7 +6207,7 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
                 llm_latency = 0
 
             track_llm_generation(
-                model="claude-opus-4-8",
+                model="claude-opus-5",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from YouTube transcript"
@@ -6184,7 +6229,7 @@ Thanks for helping me extract chord progressions from this voice-to-text transcr
             return {'error': f'Claude API call failed: {str(api_error)}'}
 
         # Parse Claude's response
-        response_text = response.content[0].text.strip()
+        response_text = response_text.strip()
         app.logger.info(f"[AUTOCREATE] Parsing Claude response for YouTube transcript chord names")
         app.logger.info(f"[AUTOCREATE] Claude response preview: {response_text[:500]}...")
 
@@ -6405,26 +6450,30 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                     "text": file_content['data']
                 })
 
-        # Use Opus 4.8 for chord names analysis (complex reasoning for non-standard tunings)
-        app.logger.info(f"[AUTOCREATE] Using Opus 4.8 for chord names analysis")
+        # Use Opus 5 for chord names analysis (complex reasoning for non-standard tunings)
+        app.logger.info(f"[AUTOCREATE] Using Opus 5 for chord names analysis")
         app.logger.info(f"[AUTOCREATE] Making API call with {len(message_content)} content items")
         app.logger.info(f"[AUTOCREATE] Message content types: {[item.get('type', 'unknown') for item in message_content]}")
 
         try:
             import time
             llm_start_time = time.time()
-            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-4-8")
+            app.logger.info(f"[AUTOCREATE] Starting Anthropic API call to claude-opus-5")
             response = client.messages.create(
-                model="claude-opus-4-8",
-                max_tokens=8000,  # Increased for complex songs with multiple sections
+                model="claude-opus-5",
+                # Opus 5 runs adaptive thinking by default and max_tokens caps
+                # thinking + output together, so this sits well above the JSON size.
+                max_tokens=16000,
                 messages=[{"role": "user", "content": message_content}]
             )
             llm_end_time = time.time()
             llm_latency = llm_end_time - llm_start_time
 
+            response_text = _extract_response_text(response)
+
             app.logger.info(f"[AUTOCREATE] API call successful, response received with {len(response.content)} content items")
             if response.content:
-                app.logger.info(f"[AUTOCREATE] Response content length: {len(response.content[0].text) if response.content[0].text else 0} characters")
+                app.logger.info(f"[AUTOCREATE] Response content length: {len(response_text)} characters")
 
             # Track LLM generation with PostHog LLM Analytics
             from app.utils.llm_analytics import track_llm_generation
@@ -6439,14 +6488,14 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                 }
 
             track_llm_generation(
-                model="claude-opus-4-8",
+                model="claude-opus-5",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from lyrics sheet"
                 }],
                 output_choices=[{
                     "role": "assistant",
-                    "content": response.content[0].text[:200] + "..." if len(response.content[0].text) > 200 else response.content[0].text
+                    "content": response_text[:200] + "..." if len(response_text) > 200 else response_text
                 }],
                 usage=usage_dict,
                 latency_seconds=llm_latency,
@@ -6473,7 +6522,7 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
                 llm_latency = 0
 
             track_llm_generation(
-                model="claude-opus-4-8",
+                model="claude-opus-5",
                 input_messages=[{
                     "role": "user",
                     "content": "Extract chord names from lyrics sheet"
@@ -6495,7 +6544,7 @@ Thanks for helping me extract these chord progressions! This saves me tons of ti
             return {'error': f'Claude API call failed: {str(api_error)}'}
 
         # Parse Claude's response
-        response_text = response.content[0].text.strip()
+        response_text = response_text.strip()
         app.logger.info(f"[AUTOCREATE] Parsing Claude response for chord names")
         app.logger.info(f"[AUTOCREATE] Claude response preview: {response_text[:500]}...")
 
@@ -6967,15 +7016,19 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
         import time
         llm_start_time = time.time()
         response = client.messages.create(
-            model="claude-sonnet-4-6",  # simple binary classification
+            model="claude-sonnet-5",  # simple binary classification
             max_tokens=100,  # Short response needed
-            temperature=0.1,
+            # Sonnet 5 rejects a non-default temperature/top_p/top_k with a 400, so the
+            # previous temperature=0.1 is gone. Thinking is disabled because it would
+            # share this 100-token budget with the one-word answer.
+            thinking={"type": "disabled"},
+            output_config={"effort": "low"},
             messages=[{"role": "user", "content": assessment_prompt}]
         )
         llm_end_time = time.time()
         llm_latency = llm_end_time - llm_start_time
 
-        assessment_result = response.content[0].text.strip().upper()
+        assessment_result = _extract_response_text(response).strip().upper()
         trustworthy = "TRUSTWORTHY" in assessment_result
 
         # Track LLM generation with PostHog LLM Analytics
@@ -6991,7 +7044,7 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
             }
 
         track_llm_generation(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-5",
             input_messages=[{
                 "role": "user",
                 "content": "Assess OCR text trustworthiness"
@@ -7036,7 +7089,7 @@ CORRUPTED - if there are significant gibberish patterns that indicate unreliable
             llm_latency = 0
 
         track_llm_generation(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-5",
             input_messages=[{
                 "role": "user",
                 "content": "Assess OCR text trustworthiness"

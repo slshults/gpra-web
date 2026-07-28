@@ -52,9 +52,11 @@ const buildDayBars = (rows, count) => {
   return bars;
 };
 
-// Buckets of 7 days across the 30-day window, anchored at the oldest day so the
-// newest bucket is the partial one ("this week so far") rather than the oldest.
-const buildWeekBars = (rows, windowDays = 30, bucketDays = 7) => {
+// Five equal buckets across the 30-day window, oldest first. Six days rather
+// than seven so every bucket is the same width — with 7-day buckets the 30-day
+// window leaves a 2-day remainder that would always render as a slump, and the
+// bars would no longer add up to the total shown above them.
+const buildWeekBars = (rows, windowDays = 30, bucketDays = 6) => {
   const byDay = new Map();
   rows.forEach((r) => {
     byDay.set(r.practice_date, (byDay.get(r.practice_date) || 0) + (r.total_seconds || 0));
@@ -70,7 +72,13 @@ const buildWeekBars = (rows, windowDays = 30, bucketDays = 7) => {
       if (offset >= windowDays) break;
       seconds += byDay.get(dateKey(addDays(start, offset))) || 0;
     }
-    bars.push({ label: `W${b + 1}`, minutes: minutesOf(seconds) });
+    // Labelled by the date each bucket starts rather than "W1".."W5" — these are
+    // six-day buckets, so calling them weeks would be a small lie.
+    const bucketStart = addDays(start, b * bucketDays);
+    bars.push({
+      label: `${bucketStart.getMonth() + 1}/${bucketStart.getDate()}`,
+      minutes: minutesOf(seconds),
+    });
   }
   return bars;
 };

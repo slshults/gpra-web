@@ -14,7 +14,7 @@
 // calls for 9.5px value labels above each bar and 2px stubs for empty buckets,
 // which is a handful of divs here and a fight with ResponsiveContainer there.
 import { CalendarDays, CheckCircle2, Clock, Loader2, Timer } from 'lucide-react';
-import { formatDuration } from '@components/stats/formatters';
+import { formatCount, formatDuration } from '@components/stats/formatters';
 import { buildBars, formatBarValue } from '@components/stats/mobileBars';
 
 const PERIOD_CHIPS = [
@@ -35,8 +35,6 @@ const PERIOD_CAPTIONS = {
 };
 
 const BAR_MAX_HEIGHT = 80;
-
-const formatCount = (v) => v || '—';
 
 const STAT_CARDS = [
   { key: 'days_practiced', label: 'Days practiced', icon: CalendarDays, format: formatCount },
@@ -137,9 +135,10 @@ const TopItems = ({ items }) => {
         Top items
       </div>
       <div className="flex flex-col ph-no-capture" style={{ padding: '2px 16px 0' }}>
-        {items.map((item) => (
+        {items.map((item, i) => (
           <div
-            key={item.item_name}
+            // Two practice items can share a title, so the name alone isn't a key
+            key={`${item.item_name}-${i}`}
             className="flex flex-col"
             style={{ padding: '10px 0', borderBottom: '1px solid #1f2937', gap: '6px' }}
           >
@@ -171,7 +170,17 @@ const TopItems = ({ items }) => {
   );
 };
 
-const MobileStatsPage = ({ period, onPeriodChange, data, loading, error, onRetry, showEmptyHint }) => (
+const MobileStatsPage = ({
+  period,
+  onPeriodChange,
+  data,
+  loading,
+  error,
+  onRetry,
+  showEmptyHint,
+  isFreeTier = false,
+  onUpsellClick,
+}) => (
   <div style={{ padding: '0 0 64px', boxSizing: 'border-box' }}>
     {/* Sticky top bar — replaces the app title + gear + logout block on mobile */}
     <div
@@ -190,91 +199,121 @@ const MobileStatsPage = ({ period, onPeriodChange, data, loading, error, onRetry
       <div className="font-bold" style={{ fontSize: '17px', color: '#f3f4f6' }}>Stats</div>
     </div>
 
-    {/* Period chips — the mobile stand-in for the desktop Select */}
-    <div className="flex" style={{ padding: '12px 12px 4px', gap: '8px', overflowX: 'auto' }}>
-      {PERIOD_CHIPS.map((chip) => {
-        const active = chip.value === period;
-        return (
-          <button
-            key={chip.value}
-            type="button"
-            onClick={() => onPeriodChange(chip.value)}
-            className="flex items-center font-semibold shrink-0"
-            style={{
-              height: '32px',
-              padding: '0 14px',
-              borderRadius: '99px',
-              fontSize: '13px',
-              backgroundColor: active ? '#f97316' : 'transparent',
-              color: active ? '#111827' : '#9ca3af',
-              border: `1px solid ${active ? '#f97316' : '#374151'}`,
-              boxSizing: 'border-box',
-            }}
-            aria-pressed={active}
-            data-ph-capture-attribute-button="mobile-stats-period"
-          >
-            {chip.label}
-          </button>
-        );
-      })}
-    </div>
-
-    {loading && (
-      <div className="flex items-center justify-center" style={{ padding: '64px 0', color: '#9ca3af' }}>
-        <Loader2 className="animate-spin" size={22} color="#fb923c" />
-        <span style={{ marginLeft: '8px', fontSize: '13px' }}>Loading stats...</span>
-      </div>
-    )}
-
-    {error && !loading && (
+    {isFreeTier ? (
       <div
         className="text-center"
         style={{
-          margin: '10px 12px 0',
+          margin: '16px 12px 0',
           backgroundColor: '#111827',
-          border: '1px solid #7f1d1d',
-          borderRadius: '12px',
-          padding: '16px',
+          border: '1px solid #1f2937',
+          borderRadius: '14px',
+          padding: '24px 16px',
         }}
       >
-        <p style={{ fontSize: '13px', color: '#f87171' }}>Failed to load practice stats: {error}</p>
+        <div className="font-bold" style={{ fontSize: '16px', color: '#f3f4f6' }}>Practice stats</div>
+        <p style={{ fontSize: '13px', color: '#9ca3af', margin: '10px 0 18px' }}>
+          Upgrade to a paid plan to see your practice statistics, including daily practice time, most
+          practiced items, and session trends.
+        </p>
         <button
           type="button"
-          onClick={onRetry}
-          className="font-semibold"
-          style={{ marginTop: '10px', fontSize: '13px', color: '#fb923c', minHeight: '44px', padding: '0 12px' }}
+          onClick={onUpsellClick}
+          className="font-bold"
+          style={{ height: '44px', padding: '0 20px', borderRadius: '10px', backgroundColor: '#f97316', color: '#111827', fontSize: '14px' }}
+          data-ph-capture-attribute-button="mobile-stats-view-plans"
         >
-          Try again
+          View plans
         </button>
       </div>
-    )}
-
-    {!loading && !error && data && (
+    ) : (
       <>
-        {showEmptyHint && (
-          <div
-            style={{
-              margin: '10px 12px 0',
-              backgroundColor: 'rgba(124,45,18,0.2)',
-              border: '1px solid rgba(194,65,12,0.6)',
-              borderRadius: '12px',
-              padding: '12px',
-              fontSize: '13px',
-              color: '#e5e7eb',
-            }}
-          >
-            No stats yet. Use the timers and 'Mark done' buttons on the{' '}
-            <a href="/#Practice" style={{ color: '#fb923c' }}>Practice</a> page, then come back later to see your
-            stats. (Keep cookies enabled to track stats.)
-          </div>
-        )}
-        <HeroChart period={period} data={data} />
-        <div style={{ margin: '8px 12px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          {STAT_CARDS.map(({ key, label, icon, format }) => (
-            <StatCard key={key} icon={icon} value={format(data.summary?.[key])} label={label} />
-          ))}
+      {/* Period chips — the mobile stand-in for the desktop Select */}
+      <div className="flex" style={{ padding: '12px 12px 4px', gap: '8px', overflowX: 'auto' }}>
+        {PERIOD_CHIPS.map((chip) => {
+          const active = chip.value === period;
+          return (
+            <button
+              key={chip.value}
+              type="button"
+              onClick={() => onPeriodChange(chip.value)}
+              className="flex items-center font-semibold shrink-0"
+              style={{
+                height: '32px',
+                padding: '0 14px',
+                borderRadius: '99px',
+                fontSize: '13px',
+                backgroundColor: active ? '#f97316' : 'transparent',
+                color: active ? '#111827' : '#9ca3af',
+                border: `1px solid ${active ? '#f97316' : '#374151'}`,
+                boxSizing: 'border-box',
+              }}
+              aria-pressed={active}
+              data-ph-capture-attribute-button={`mobile-stats-period-${chip.value}`}
+            >
+              {chip.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {loading && (
+        <div className="flex items-center justify-center" style={{ padding: '64px 0', color: '#9ca3af' }}>
+          <Loader2 className="animate-spin" size={22} color="#fb923c" />
+          <span style={{ marginLeft: '8px', fontSize: '13px' }}>Loading stats...</span>
         </div>
-        <TopItems items={data.top_items} />
+      )}
+
+      {error && !loading && (
+        <div
+          className="text-center"
+          style={{
+            margin: '10px 12px 0',
+            backgroundColor: '#111827',
+            border: '1px solid #7f1d1d',
+            borderRadius: '12px',
+            padding: '16px',
+          }}
+        >
+          <p style={{ fontSize: '13px', color: '#f87171' }}>Failed to load practice stats: {error}</p>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="font-semibold"
+            style={{ marginTop: '10px', fontSize: '13px', color: '#fb923c', minHeight: '44px', padding: '0 12px' }}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && data && (
+        <>
+          {showEmptyHint && (
+            <div
+              style={{
+                margin: '10px 12px 0',
+                backgroundColor: 'rgba(124,45,18,0.2)',
+                border: '1px solid rgba(194,65,12,0.6)',
+                borderRadius: '12px',
+                padding: '12px',
+                fontSize: '13px',
+                color: '#e5e7eb',
+              }}
+            >
+              No stats yet. Use the timers and 'Mark done' buttons on the{' '}
+              <a href="/#Practice" style={{ color: '#fb923c' }}>Practice</a> page, then come back later to see your
+              stats. (Keep cookies enabled to track stats.)
+            </div>
+          )}
+          <HeroChart period={period} data={data} />
+          <div style={{ margin: '8px 12px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            {STAT_CARDS.map(({ key, label, icon, format }) => (
+              <StatCard key={key} icon={icon} value={format(data.summary?.[key])} label={label} />
+            ))}
+          </div>
+          <TopItems items={data.top_items} />
+      </>
+    )}
       </>
     )}
   </div>

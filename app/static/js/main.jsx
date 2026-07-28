@@ -257,7 +257,13 @@ const App = () => {
           is full-bleed with its own top bar. */}
       <div
         className={`pb-4 container mx-auto ${mobileFullBleed ? 'px-0' : 'px-4'}`}
-        style={{paddingTop: mobileFullBleed ? `${bannerOffset}px` : `${headerHeight + bannerOffset}px`}}
+        style={{
+          paddingTop: mobileFullBleed ? `${bannerOffset}px` : `${headerHeight + bannerOffset}px`,
+          // Clearance for the fixed tab bar. It used to hang off the footer, but
+          // the footer is hidden on mobile now — and pages that aren't full-bleed
+          // (Account, Imports) have no other bottom padding of their own.
+          paddingBottom: bottomNavPadding ? `${bottomNavPadding}px` : undefined,
+        }}
       >
         {/* Deletion Banner - shows when account deletion is scheduled */}
         {userStatus?.deletion_scheduled_for && (
@@ -283,10 +289,12 @@ const App = () => {
         />
       )}
 
-      {/* Footer */}
+      {/* Footer. Hidden on mobile, where these links live in the More sheet —
+          a row of small text links sitting above the tab bar read as leftover
+          desktop chrome. */}
       <footer
         className="bg-gray-800 border-t border-gray-700 mt-8 py-6"
-        style={{ marginBottom: bottomNavPadding ? `${bottomNavPadding}px` : undefined }}
+        style={{ marginBottom: bottomNavPadding ? `${bottomNavPadding}px` : undefined, display: isMobile ? 'none' : undefined }}
       >
         <div className="container mx-auto px-4 text-center text-sm text-gray-400">
           <div className="space-x-4">
