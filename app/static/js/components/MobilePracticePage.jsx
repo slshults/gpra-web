@@ -273,7 +273,7 @@ const MobilePracticePage = ({
                     <button
                       onClick={() => onAddChord(itemId)}
                       className="flex-1 font-semibold"
-                      style={{ height: '44px', borderRadius: '10px', backgroundColor: '#2563eb', color: '#ffffff', fontSize: '13px' }}
+                      style={{ height: '44px', borderRadius: '10px', backgroundColor: '#f97316', color: '#111827', fontSize: '13px' }}
                       data-ph-capture-attribute-button="mobile-add-chord"
                     >
                       + Chord

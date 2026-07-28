@@ -1461,7 +1461,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
       const itemName = itemTitle || `Item ${mixedItemId}`;
       trackChordChartEvent('autocreated', itemName, {
-          surface: autocreateSurfaceRef.current,
+        surface: autocreateSurfaceRef.current,
         file_count: result.file_count || 0,
         content_type: result.content_type || contentType,
         uploaded_file_names: result.uploaded_file_names || ''
@@ -1786,7 +1786,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
     // Sanitize and validate YouTube URL format
     const sanitizedUrl = sanitizeYouTubeUrl(youtubeUrl);
 
-    if (!isValidYouTubeUrl(youtubeUrl)) {
+    if (!isValidYouTubeUrl(sanitizedUrl)) {
       debugLog('YOUTUBE', `URL validation failed for: ${sanitizedUrl}`);
       setApiError({ message: INVALID_YOUTUBE_URL_MESSAGE });
       setShowApiErrorModal(true);
@@ -2280,6 +2280,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
     if (files.length > 0) {
       const activeVisual = autocreateStore.getActiveVisualAnalysis();
       if (activeVisual && activeVisual.itemId !== targetItemId) {
+        trackChordChartEvent('autocreate_queue_gate_hit', itemTitle || `Item ${targetItemId}`);
         setShowQueueGateModal(true);
         return;
       }
@@ -2797,14 +2798,17 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
                 {/* Autocreate from files - collapsible section */}
                 {(() => {
-                  // Mobile has the full-screen creator instead — this three-column
-                  // zone and its "Replace with autocreated charts" button would just
-                  // be a second, cramped route to the same flow.
-                  if (isMobile) return null;
-
                   const existingCharts = chordCharts[itemReferenceId] || [];
                   const progress = autocreateProgress[itemReferenceId];
                   const zoneExpanded = showAutocreateZone[itemReferenceId];
+
+                  // Mobile has the full-screen creator instead — this three-column
+                  // zone and its "Replace with autocreated charts" button would just
+                  // be a second, cramped route to the same flow. It stays available
+                  // while a run is going, though: it carries the progress readout,
+                  // Cancel and Notify me, which is all a user has to come back to if
+                  // they close the sheet mid-run.
+                  if (isMobile && !progress) return null;
 
                   if (existingCharts.length === 0) {
                     // No existing charts - show expandable autocreate

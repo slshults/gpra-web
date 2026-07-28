@@ -5110,6 +5110,22 @@ def _detect_diagram_rows_and_bboxes(pil_image, overrides=None, **kwargs):
     return detected_rows
 
 
+def _warn_if_truncated(response):
+    """Log when a response was cut off at max_tokens.
+
+    Worth calling out explicitly now that thinking is on by default: it shares the
+    max_tokens budget with the output, so exhausting it truncates the JSON and
+    surfaces downstream as a confusing parse failure rather than as "the budget
+    was too small".
+    """
+    if getattr(response, 'stop_reason', None) == 'max_tokens':
+        output_tokens = getattr(getattr(response, 'usage', None), 'output_tokens', 'unknown')
+        app.logger.warning(
+            f"[AUTOCREATE] Response truncated at max_tokens ({output_tokens} output tokens) — "
+            f"thinking likely consumed the budget. Raise max_tokens for this call."
+        )
+
+
 def _extract_response_text(response):
     """Return the text of the first text block in a response, or '' if there is none.
 
@@ -5117,6 +5133,7 @@ def _extract_response_text(response):
     default on Opus 5 and Sonnet 5) the first block is a thinking block, which has a
     .thinking attribute rather than .text.
     """
+    _warn_if_truncated(response)
     for block in response.content:
         if getattr(block, 'type', None) == 'text':
             return block.text or ''
@@ -5128,6 +5145,7 @@ def _extract_json_text(response):
 
     Returns the parsed object, or None if no text block was found / JSON failed to parse.
     """
+    _warn_if_truncated(response)
     for block in response.content:
         if getattr(block, 'type', None) == 'text':
             try:

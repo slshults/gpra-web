@@ -38,6 +38,37 @@ const SUBMIT_HINTS = {
 // file has gone up. Phone photos routinely clear that, so check here first.
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
+// Notification offer during a long visual-analysis run, mirroring the desktop
+// zone: ask, then confirm, or explain when the browser said no.
+const NotifyStatus = ({ denied, requested, onNotifyMe }) => {
+  if (denied) {
+    return (
+      <div className="inline-block" style={{ borderRadius: '8px', backgroundColor: 'rgba(55,65,81,0.5)', border: '1px solid #4b5563', padding: '8px 16px', fontSize: '13px', color: '#9ca3af' }}>
+        Check back in 10-15 minutes
+      </div>
+    );
+  }
+  if (requested) {
+    return (
+      <div className="inline-block" style={{ borderRadius: '8px', backgroundColor: 'rgba(49,46,129,0.4)', border: '1px solid rgba(79,70,229,0.5)', padding: '8px 16px', fontSize: '13px', color: '#a5b4fc' }}>
+        We'll try to notify you<br />when the charts are ready
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onNotifyMe}
+      className="inline-flex items-center font-semibold"
+      style={{ minHeight: '44px', padding: '0 16px', borderRadius: '8px', backgroundColor: '#4f46e5', color: '#ffffff', fontSize: '13px', gap: '6px' }}
+      data-ph-capture-attribute-button="mobile-autocreate-notify"
+    >
+      <Bell size={14} />
+      Notify me
+    </button>
+  );
+};
+
 const FIELD_STYLE = {
   backgroundColor: '#0b1120',
   border: '1px solid #374151',
@@ -192,26 +223,11 @@ const MobileAutocreatePage = ({
                   Check back in 10 or 15 minutes, and/or hit the button:
                 </p>
                 <div style={{ marginTop: '12px' }}>
-                  {notifyPermissionDenied ? (
-                    <div className="inline-block" style={{ borderRadius: '8px', backgroundColor: 'rgba(55,65,81,0.5)', border: '1px solid #4b5563', padding: '8px 16px', fontSize: '13px', color: '#9ca3af' }}>
-                      Check back in 10-15 minutes
-                    </div>
-                  ) : notifyRequested ? (
-                    <div className="inline-block" style={{ borderRadius: '8px', backgroundColor: 'rgba(49,46,129,0.4)', border: '1px solid rgba(79,70,229,0.5)', padding: '8px 16px', fontSize: '13px', color: '#a5b4fc' }}>
-                      We'll try to notify you<br />when the charts are ready
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={onNotifyMe}
-                      className="inline-flex items-center font-semibold"
-                      style={{ minHeight: '44px', padding: '0 16px', borderRadius: '8px', backgroundColor: '#4f46e5', color: '#ffffff', fontSize: '13px', gap: '6px' }}
-                      data-ph-capture-attribute-button="mobile-autocreate-notify"
-                    >
-                      <Bell size={14} />
-                      Notify me
-                    </button>
-                  )}
+                  <NotifyStatus
+                    denied={notifyPermissionDenied}
+                    requested={notifyRequested}
+                    onNotifyMe={onNotifyMe}
+                  />
                 </div>
               </div>
             )}

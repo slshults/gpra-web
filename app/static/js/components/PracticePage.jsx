@@ -530,9 +530,6 @@ export const PracticePage = () => {
   const [youtubeUrls, setYoutubeUrls] = useState({});
   const [manualChordInput, setManualChordInput] = useState({});
   const [manualInputErrors, setManualInputErrors] = useState({});
-  const [showNoTranscriptModal, setShowNoTranscriptModal] = useState(false);
-  const [noTranscriptData, setNoTranscriptData] = useState(null);
-  const [manualTranscript, setManualTranscript] = useState('');
 
   // No chord names found modal state
   const [showNoChordNamesModal, setShowNoChordNamesModal] = useState(false);
@@ -1601,10 +1598,6 @@ export const PracticePage = () => {
           setShowCancelConfirmation(false);
         } else if (showApiErrorModal) {
           setShowApiErrorModal(false);
-        } else if (showNoTranscriptModal) {
-          setShowNoTranscriptModal(false);
-          setNoTranscriptData(null);
-          setManualTranscript('');
         } else if (showNoChordNamesModal) {
           setShowNoChordNamesModal(false);
         }
@@ -1613,7 +1606,7 @@ export const PracticePage = () => {
 
     document.addEventListener('keydown', handleEscKey);
     return () => document.removeEventListener('keydown', handleEscKey);
-  }, [showCopyModal, showCopyFromModal, showDeleteChordsModal, showMixedContentModal, showUnsupportedFormatModal, showCancelConfirmation, showApiErrorModal, showNoTranscriptModal, showNoChordNamesModal]);
+  }, [showCopyModal, showCopyFromModal, showDeleteChordsModal, showMixedContentModal, showUnsupportedFormatModal, showCancelConfirmation, showApiErrorModal, showNoChordNamesModal]);
 
   // Sync keyboard layout preference from localStorage (cross-tab and same-page updates)
   useEffect(() => {
@@ -1662,7 +1655,7 @@ export const PracticePage = () => {
     const isAnyModalOpen = () => (
       showCopyModal || showCopyFromModal || showDeleteChordsModal ||
       showMixedContentModal || showUnsupportedFormatModal || showCancelConfirmation ||
-      showApiErrorModal || showNoTranscriptModal || showNoChordNamesModal ||
+      showApiErrorModal || showNoChordNamesModal ||
       showSoundPromptModal || showFolderPathModal || showAutocreateSuccessModal ||
       isNoteEditorOpen || isEditOpen || showShortcutsHelp
     );
@@ -1731,7 +1724,7 @@ export const PracticePage = () => {
   }, [keyboardLayout, routine, focusedItemIndex, completedItems, activeTimers, timers,
       showCopyModal, showCopyFromModal, showDeleteChordsModal, showMixedContentModal,
       showUnsupportedFormatModal, showCancelConfirmation, showApiErrorModal,
-      showNoTranscriptModal, showNoChordNamesModal, showSoundPromptModal,
+      showNoChordNamesModal, showSoundPromptModal,
       showFolderPathModal, showAutocreateSuccessModal, isNoteEditorOpen, isEditOpen,
       showShortcutsHelp]);
 
@@ -3591,7 +3584,7 @@ export const PracticePage = () => {
     // Sanitize and validate YouTube URL format
     const sanitizedUrl = sanitizeYouTubeUrl(youtubeUrl);
 
-    if (!isValidYouTubeUrl(youtubeUrl)) {
+    if (!isValidYouTubeUrl(sanitizedUrl)) {
       setApiError({ message: INVALID_YOUTUBE_URL_MESSAGE });
       setShowApiErrorModal(true);
       return;
@@ -3911,7 +3904,7 @@ export const PracticePage = () => {
         const routineItem = routine.items.find(item => item['B'] === itemId);
         if (routineItem) {
           trackChordChartEvent('autocreated', itemName, {
-          surface: autocreateSurfaceRef.current,
+            surface: autocreateSurfaceRef.current,
             file_count: files?.length || 0,
             content_type: contentType || 'mixed',
             uploaded_file_names: files?.map(f => f.name).join(', ') || ''
@@ -4259,7 +4252,7 @@ export const PracticePage = () => {
   const autocreateModalOpen = showEffortSelector || showMixedContentModal ||
     showUnsupportedFormatModal || showApiErrorModal || showAutocreateSuccessModal ||
     showQueueGateModal || showQueueActiveItemModal || showCancelConfirmation ||
-    showNotifyInfoModal || upsellModal.open;
+    showNotifyInfoModal || showNoChordNamesModal || upsellModal.open;
 
   // Autocreate modals. These are shared by both layouts: they used to sit only
   // in the desktop return, which the mobile branch returns before ever reaching,
@@ -4604,71 +4597,6 @@ export const PracticePage = () => {
         onClose={() => setUpsellModal({ open: false, trigger: null })}
         trigger={upsellModal.trigger}
       />
-      {/* No Transcript Modal */}
-      {showNoTranscriptModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-700 rounded-lg p-6 w-full max-w-md max-h-[80vh] flex flex-col">
-            <h2 className="text-xl font-bold text-white mb-4">
-              No Transcripts Available
-            </h2>
-
-            <p className="text-gray-300 mb-4">
-              Oh, drag. This YouTube video doesn't have transcripts on it. So, go find a free tool to generate transcripts from YouTube videos, then copy/paste the transcript below:
-            </p>
-
-            <textarea
-              value={manualTranscript}
-              onChange={(e) => setManualTranscript(e.target.value)}
-              placeholder="Paste the transcript here..."
-              className="w-full h-32 p-3 bg-gray-800 text-white rounded border border-gray-600 focus:border-red-500 resize-none mb-4"
-              maxLength={25000}
-            />
-
-            <p className="text-xs text-gray-400 mb-4">
-              {manualTranscript.length}/25,000 characters
-            </p>
-
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowNoTranscriptModal(false);
-                  setNoTranscriptData(null);
-                  setManualTranscript('');
-                }}
-                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-600"
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  if (!manualTranscript.trim()) {
-                    alert('Please paste a transcript before proceeding.');
-                    return;
-                  }
-
-                  const { itemId } = noTranscriptData;
-                  setShowNoTranscriptModal(false);
-                  setNoTranscriptData(null);
-
-                  await processYouTubeTranscript(itemId, manualTranscript);
-                  setManualTranscript('');
-                }}
-                disabled={!manualTranscript.trim()}
-                className={`flex-1 ${
-                  !manualTranscript.trim()
-                    ? 'border-gray-600 text-gray-500 cursor-not-allowed'
-                    : 'border-gray-600 text-gray-300 hover:bg-gray-700'
-                }`}
-              >
-                <Wand className="h-4 w-4 mr-2" />
-                🪄 Create chord charts
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* No Chord Names Found Modal */}
       <Dialog open={showNoChordNamesModal} onOpenChange={(open) => !open && setShowNoChordNamesModal(false)}>

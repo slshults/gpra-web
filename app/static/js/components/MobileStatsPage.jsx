@@ -227,91 +227,91 @@ const MobileStatsPage = ({
       </div>
     ) : (
       <>
-    {/* Period chips — the mobile stand-in for the desktop Select */}
-    <div className="flex" style={{ padding: '12px 12px 4px', gap: '8px', overflowX: 'auto' }}>
-      {PERIOD_CHIPS.map((chip) => {
-        const active = chip.value === period;
-        return (
-          <button
-            key={chip.value}
-            type="button"
-            onClick={() => onPeriodChange(chip.value)}
-            className="flex items-center font-semibold shrink-0"
-            style={{
-              height: '32px',
-              padding: '0 14px',
-              borderRadius: '99px',
-              fontSize: '13px',
-              backgroundColor: active ? '#f97316' : 'transparent',
-              color: active ? '#111827' : '#9ca3af',
-              border: `1px solid ${active ? '#f97316' : '#374151'}`,
-              boxSizing: 'border-box',
-            }}
-            aria-pressed={active}
-            data-ph-capture-attribute-button={`mobile-stats-period-${chip.value}`}
-          >
-            {chip.label}
-          </button>
-        );
-      })}
-    </div>
-
-    {loading && (
-      <div className="flex items-center justify-center" style={{ padding: '64px 0', color: '#9ca3af' }}>
-        <Loader2 className="animate-spin" size={22} color="#fb923c" />
-        <span style={{ marginLeft: '8px', fontSize: '13px' }}>Loading stats...</span>
+      {/* Period chips — the mobile stand-in for the desktop Select */}
+      <div className="flex" style={{ padding: '12px 12px 4px', gap: '8px', overflowX: 'auto' }}>
+        {PERIOD_CHIPS.map((chip) => {
+          const active = chip.value === period;
+          return (
+            <button
+              key={chip.value}
+              type="button"
+              onClick={() => onPeriodChange(chip.value)}
+              className="flex items-center font-semibold shrink-0"
+              style={{
+                height: '32px',
+                padding: '0 14px',
+                borderRadius: '99px',
+                fontSize: '13px',
+                backgroundColor: active ? '#f97316' : 'transparent',
+                color: active ? '#111827' : '#9ca3af',
+                border: `1px solid ${active ? '#f97316' : '#374151'}`,
+                boxSizing: 'border-box',
+              }}
+              aria-pressed={active}
+              data-ph-capture-attribute-button={`mobile-stats-period-${chip.value}`}
+            >
+              {chip.label}
+            </button>
+          );
+        })}
       </div>
-    )}
 
-    {error && !loading && (
-      <div
-        className="text-center"
-        style={{
-          margin: '10px 12px 0',
-          backgroundColor: '#111827',
-          border: '1px solid #7f1d1d',
-          borderRadius: '12px',
-          padding: '16px',
-        }}
-      >
-        <p style={{ fontSize: '13px', color: '#f87171' }}>Failed to load practice stats: {error}</p>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="font-semibold"
-          style={{ marginTop: '10px', fontSize: '13px', color: '#fb923c', minHeight: '44px', padding: '0 12px' }}
-        >
-          Try again
-        </button>
-      </div>
-    )}
-
-    {!loading && !error && data && (
-      <>
-        {showEmptyHint && (
-          <div
-            style={{
-              margin: '10px 12px 0',
-              backgroundColor: 'rgba(124,45,18,0.2)',
-              border: '1px solid rgba(194,65,12,0.6)',
-              borderRadius: '12px',
-              padding: '12px',
-              fontSize: '13px',
-              color: '#e5e7eb',
-            }}
-          >
-            No stats yet. Use the timers and 'Mark done' buttons on the{' '}
-            <a href="/#Practice" style={{ color: '#fb923c' }}>Practice</a> page, then come back later to see your
-            stats. (Keep cookies enabled to track stats.)
-          </div>
-        )}
-        <HeroChart period={period} data={data} />
-        <div style={{ margin: '8px 12px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          {STAT_CARDS.map(({ key, label, icon, format }) => (
-            <StatCard key={key} icon={icon} value={format(data.summary?.[key])} label={label} />
-          ))}
+      {loading && (
+        <div className="flex items-center justify-center" style={{ padding: '64px 0', color: '#9ca3af' }}>
+          <Loader2 className="animate-spin" size={22} color="#fb923c" />
+          <span style={{ marginLeft: '8px', fontSize: '13px' }}>Loading stats...</span>
         </div>
-        <TopItems items={data.top_items} />
+      )}
+
+      {error && !loading && (
+        <div
+          className="text-center"
+          style={{
+            margin: '10px 12px 0',
+            backgroundColor: '#111827',
+            border: '1px solid #7f1d1d',
+            borderRadius: '12px',
+            padding: '16px',
+          }}
+        >
+          <p style={{ fontSize: '13px', color: '#f87171' }}>Failed to load practice stats: {error}</p>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="font-semibold"
+            style={{ marginTop: '10px', fontSize: '13px', color: '#fb923c', minHeight: '44px', padding: '0 12px' }}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && data && (
+        <>
+          {showEmptyHint && (
+            <div
+              style={{
+                margin: '10px 12px 0',
+                backgroundColor: 'rgba(124,45,18,0.2)',
+                border: '1px solid rgba(194,65,12,0.6)',
+                borderRadius: '12px',
+                padding: '12px',
+                fontSize: '13px',
+                color: '#e5e7eb',
+              }}
+            >
+              No stats yet. Use the timers and 'Mark done' buttons on the{' '}
+              <a href="/#Practice" style={{ color: '#fb923c' }}>Practice</a> page, then come back later to see your
+              stats. (Keep cookies enabled to track stats.)
+            </div>
+          )}
+          <HeroChart period={period} data={data} />
+          <div style={{ margin: '8px 12px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            {STAT_CARDS.map(({ key, label, icon, format }) => (
+              <StatCard key={key} icon={icon} value={format(data.summary?.[key])} label={label} />
+            ))}
+          </div>
+          <TopItems items={data.top_items} />
       </>
     )}
       </>

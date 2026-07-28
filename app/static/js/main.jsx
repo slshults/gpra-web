@@ -257,7 +257,13 @@ const App = () => {
           is full-bleed with its own top bar. */}
       <div
         className={`pb-4 container mx-auto ${mobileFullBleed ? 'px-0' : 'px-4'}`}
-        style={{paddingTop: mobileFullBleed ? `${bannerOffset}px` : `${headerHeight + bannerOffset}px`}}
+        style={{
+          paddingTop: mobileFullBleed ? `${bannerOffset}px` : `${headerHeight + bannerOffset}px`,
+          // Clearance for the fixed tab bar. It used to hang off the footer, but
+          // the footer is hidden on mobile now — and pages that aren't full-bleed
+          // (Account, Imports) have no other bottom padding of their own.
+          paddingBottom: bottomNavPadding ? `${bottomNavPadding}px` : undefined,
+        }}
       >
         {/* Deletion Banner - shows when account deletion is scheduled */}
         {userStatus?.deletion_scheduled_for && (
