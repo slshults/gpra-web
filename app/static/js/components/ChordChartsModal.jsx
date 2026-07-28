@@ -1159,7 +1159,14 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to save chord chart: ${response.statusText}`);
+        let errorMessage = `Failed to save chord chart (${response.status})`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) errorMessage = errorData.error;
+        } catch (e) {
+          // ignore parse failure
+        }
+        throw new Error(errorMessage);
       }
 
       if (isUpdate) {
@@ -1220,6 +1227,14 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
     } catch (error) {
       console.error('Error saving chord chart:', error);
+      trackChordChartEvent('chord_chart_save_failed', {
+        itemId,
+        is_update: !!editingChordId,
+        surface: 'chord_charts_modal',
+        error_message: error.message
+      });
+      // Re-throw so ChordChartEditor shows the error and stays open for a retry
+      throw error;
     }
   };
 
