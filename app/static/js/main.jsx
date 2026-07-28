@@ -283,10 +283,12 @@ const App = () => {
         />
       )}
 
-      {/* Footer */}
+      {/* Footer. Hidden on mobile, where these links live in the More sheet —
+          a row of small text links sitting above the tab bar read as leftover
+          desktop chrome. */}
       <footer
         className="bg-gray-800 border-t border-gray-700 mt-8 py-6"
-        style={{ marginBottom: bottomNavPadding ? `${bottomNavPadding}px` : undefined }}
+        style={{ marginBottom: bottomNavPadding ? `${bottomNavPadding}px` : undefined, display: isMobile ? 'none' : undefined }}
       >
         <div className="container mx-auto px-4 text-center text-sm text-gray-400">
           <div className="space-x-4">

@@ -459,6 +459,11 @@ export const PracticePage = () => {
   const [deleteModalItemId, setDeleteModalItemId] = useState(null);
   // Item whose full-screen mobile autocreate creator is open (design 5a)
   const [mobileAutocreateItemId, setMobileAutocreateItemId] = useState(null);
+  // Which UI started the current run, stamped onto chord_charts_autocreated so
+  // the mobile creator's usage is separable from the desktop zone's. A ref, not
+  // state: the run continues across renders and the sheet closes before the
+  // event fires.
+  const autocreateSurfaceRef = useRef('desktop_zone');
   const [autocreateProgress, setAutocreateProgress] = useState({});
   const [copyProgress, setCopyProgress] = useState(null);
 
@@ -3120,6 +3125,7 @@ export const PracticePage = () => {
   // Mobile replaces the desktop confirm dialog with an inline warning, so the
   // one button both clears the old charts and kicks off the run.
   const handleMobileAutocreateSubmit = async (itemId) => {
+    autocreateSurfaceRef.current = 'mobile_sheet';
     const files = uploadedFiles[itemId] || [];
     const youtubeUrl = youtubeUrls[itemId]?.trim();
     const manualChords = manualChordInput[itemId]?.trim();
@@ -3721,6 +3727,7 @@ export const PracticePage = () => {
         const itemName = itemDetails?.['C'] || `Item ${itemId}`; // Column C is Title
 
         trackChordChartEvent('autocreated', itemName, {
+          surface: autocreateSurfaceRef.current,
           content_type: 'youtube_transcript',
           source: 'youtube_url'
         });
@@ -3904,6 +3911,7 @@ export const PracticePage = () => {
         const routineItem = routine.items.find(item => item['B'] === itemId);
         if (routineItem) {
           trackChordChartEvent('autocreated', itemName, {
+          surface: autocreateSurfaceRef.current,
             file_count: files?.length || 0,
             content_type: contentType || 'mixed',
             uploaded_file_names: files?.map(f => f.name).join(', ') || ''
@@ -4084,6 +4092,7 @@ export const PracticePage = () => {
 
         // Track autocreate chord charts success
         trackChordChartEvent('autocreated', itemName, {
+          surface: autocreateSurfaceRef.current,
           file_count: result.file_count || 0,
           content_type: result.content_type || 'auto-detected',
           uploaded_file_names: result.uploaded_file_names || ''
@@ -4753,6 +4762,10 @@ export const PracticePage = () => {
             progress={autocreateProgress[mobileAutocreateItemId]}
             processingMessage={processingMessages[processingMessageIndex]}
             onCancel={() => handleShowCancelConfirmation(mobileAutocreateItemId)}
+            visualAnalysisActive={!!autocreateStore.getActive(mobileAutocreateItemId)}
+            notifyRequested={!!notifyRequested[mobileAutocreateItemId]}
+            notifyPermissionDenied={!!notifyPermissionDenied[mobileAutocreateItemId]}
+            onNotifyMe={() => handleNotifyMe(mobileAutocreateItemId)}
             claudeless={showDisabledAutocreate}
             hidden={autocreateModalOpen}
           />
@@ -5448,7 +5461,10 @@ export const PracticePage = () => {
                                           {/* Process Button */}
                                           <div className="flex justify-center">
                                             <Button
-                                              onClick={() => handleProcessFiles(itemReferenceId)}
+                                              onClick={() => {
+                                                autocreateSurfaceRef.current = 'desktop_zone';
+                                                handleProcessFiles(itemReferenceId);
+                                              }}
                                               disabled={progress || (
                                                 // Must have exactly one input method
                                                 (uploadedFiles[itemReferenceId] || []).length === 0 && !youtubeUrls[itemReferenceId]?.trim() && !manualChordInput[itemReferenceId]?.trim() ||

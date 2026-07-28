@@ -538,6 +538,11 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   const [deleteModalItemId, setDeleteModalItemId] = useState(null);
   // Full-screen mobile autocreate creator over this modal (design 5a)
   const [showMobileAutocreate, setShowMobileAutocreate] = useState(false);
+  // Which UI started the current run, stamped onto chord_charts_autocreated so
+  // the mobile creator's usage is separable from the desktop zone's. A ref, not
+  // state: the run continues across renders and the sheet closes before the
+  // event fires.
+  const autocreateSurfaceRef = useRef('desktop_zone');
 
   // Mock getItemDetails function since we don't have useItemDetails hook in modal
   const getItemDetails = useCallback((itemIdToGet) => {
@@ -1456,6 +1461,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
       const itemName = itemTitle || `Item ${mixedItemId}`;
       trackChordChartEvent('autocreated', itemName, {
+          surface: autocreateSurfaceRef.current,
         file_count: result.file_count || 0,
         content_type: result.content_type || contentType,
         uploaded_file_names: result.uploaded_file_names || ''
@@ -2023,6 +2029,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
 
         // Track autocreate chord charts success
         trackChordChartEvent('autocreated', itemName, {
+          surface: autocreateSurfaceRef.current,
           file_count: result.file_count || 0,
           content_type: result.content_type || 'auto-detected',
           uploaded_file_names: result.uploaded_file_names || ''
@@ -2248,6 +2255,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   // Mobile replaces the desktop confirm dialog with an inline warning, so the
   // one button both clears the old charts and kicks off the run.
   const handleMobileAutocreateSubmit = async (targetItemId) => {
+    autocreateSurfaceRef.current = 'mobile_sheet';
     const files = uploadedFiles[targetItemId] || [];
     const youtubeUrl = youtubeUrls[targetItemId]?.trim();
     const manualChords = manualChordInput[targetItemId]?.trim();
@@ -3043,7 +3051,10 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                             {/* Process Button */}
                             <div className="flex justify-center">
                               <Button
-                                onClick={() => handleProcessFiles(itemReferenceId)}
+                                onClick={() => {
+                                  autocreateSurfaceRef.current = 'desktop_zone';
+                                  handleProcessFiles(itemReferenceId);
+                                }}
                                 disabled={progress || (
                                   // Must have exactly one input method
                                   (uploadedFiles[itemReferenceId] || []).length === 0 && !youtubeUrls[itemReferenceId]?.trim() && !manualChordInput[itemReferenceId]?.trim() ||
@@ -3687,6 +3698,10 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         progress={autocreateProgress[itemReferenceId]}
         processingMessage={processingMessages[processingMessageIndex]}
         onCancel={() => handleShowCancelConfirmation(itemReferenceId)}
+        visualAnalysisActive={!!autocreateStore.getActive(itemReferenceId)}
+        notifyRequested={!!notifyRequested[itemReferenceId]}
+        notifyPermissionDenied={!!notifyPermissionDenied[itemReferenceId]}
+        onNotifyMe={() => handleNotifyMe(itemReferenceId)}
         claudeless={showDisabledAutocreate}
         hidden={autocreateModalOpen}
       />

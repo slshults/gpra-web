@@ -19,6 +19,14 @@ const TABS = [
 // Pages reached through the More sheet — the More tab lights up while on them
 const MORE_PAGES = ['Stats', 'Account', 'Imports'];
 
+// Standalone pages that live in the desktop footer, which is hidden on mobile
+const STATIC_LINKS = [
+  { href: '/about', label: 'About' },
+  { href: '/faq', label: 'Help' },
+  { href: '/terms', label: 'Terms' },
+  { href: '/privacy', label: 'Privacy' },
+];
+
 const MobileTabBar = ({ userStatus, onUnpluggedAttempt, onMoreToggle }) => {
   const { activePage, setActivePage } = useNavigation();
   const { handleLogout } = useAuth();
@@ -88,6 +96,25 @@ const MobileTabBar = ({ userStatus, onUnpluggedAttempt, onMoreToggle }) => {
               <LogOut size={20} aria-hidden="true" />
               Logout
             </button>
+
+            {/* The standalone pages, moved off the page footer. No Upgrade link —
+                it just points at Account settings, which is already above. */}
+            <div
+              className="flex flex-wrap justify-center text-xs text-gray-500 border-t border-gray-700"
+              style={{ gap: '10px', paddingTop: '12px', marginTop: '4px' }}
+            >
+              {STATIC_LINKS.map(({ href, label }) => (
+                <a
+                  key={href}
+                  href={href}
+                  className="hover:text-orange-400 transition-colors"
+                  style={{ padding: '6px 2px' }}
+                  data-ph-capture-attribute-nav={`mobile-more-${label.toLowerCase()}`}
+                >
+                  {label}
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       )}

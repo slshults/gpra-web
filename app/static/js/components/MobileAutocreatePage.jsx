@@ -16,7 +16,7 @@
 // the sheet stays mounted and keeps its state, it just steps out of the way.
 import { useRef, useState } from 'react';
 // AlertTriangle is TriangleAlert's name in the lucide version pinned here
-import { AlertTriangle, Camera, ChevronLeft, Image as ImageIcon, Loader2, Sparkles, Upload } from 'lucide-react';
+import { AlertTriangle, Bell, Camera, ChevronLeft, Image as ImageIcon, Sparkles, Upload, X } from 'lucide-react';
 
 const METHODS = [
   { value: 'upload', label: 'Upload' },
@@ -24,6 +24,15 @@ const METHODS = [
   { value: 'camera', label: 'Camera' },
   { value: 'manual', label: 'Manual' },
 ];
+
+// Shown under the submit button while it's disabled, so an inactive button reads
+// as "not yet" rather than as broken
+const SUBMIT_HINTS = {
+  upload: 'Choose a file first',
+  camera: 'Take or choose a photo first',
+  youtube: 'Paste a YouTube link first',
+  manual: 'Enter some chord names first',
+};
 
 // The server caps uploads at 5 MB and rejects anything larger after the whole
 // file has gone up. Phone photos routinely clear that, so check here first.
@@ -53,6 +62,10 @@ const MobileAutocreatePage = ({
   progress,
   processingMessage,
   onCancel,
+  visualAnalysisActive = false,
+  notifyRequested = false,
+  notifyPermissionDenied = false,
+  onNotifyMe,
   claudeless = false,
   hidden = false,
 }) => {
@@ -151,20 +164,67 @@ const MobileAutocreatePage = ({
         </div>
 
         {busy ? (
-          /* Processing — same rotating messages the desktop zone shows */
-          <div style={{ margin: '12px', padding: '28px 16px', backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '14px' }}>
-            <div className="flex flex-col items-center text-center" style={{ gap: '10px' }}>
-              <Loader2 className="animate-spin" size={26} color="#fb923c" />
-              <div style={{ fontSize: '14px', fontWeight: 600, color: '#d1d5db' }}>
-                {processingMessage || 'Analyzing chord diagrams…'}
+          /* Processing — same rotating messages, spinners and copy as the desktop
+             zone. No time estimate: visual analysis runs for minutes, not the
+             seconds a generic "this won't take long" line implies. */
+          <div
+            style={{ margin: '12px', padding: '24px 16px', backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '14px' }}
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-center justify-center" style={{ gap: '8px' }}>
+              <div
+                className="animate-spin rounded-full"
+                style={{ width: '16px', height: '16px', borderBottom: '2px solid #a855f7' }}
+                aria-hidden="true"
+              />
+              <span style={{ fontSize: '14px', color: '#f3f4f6' }}>{processingMessage}</span>
+              <span className="animate-spin" aria-hidden="true">⚙️</span>
+            </div>
+
+            {/* Visual analysis is the slow path, and the only one worth offering a
+                notification for */}
+            {visualAnalysisActive && (
+              <div className="text-center" style={{ marginTop: '16px' }}>
+                <p style={{ fontSize: '13px', color: '#9ca3af', padding: '0 8px' }}>
+                  You don't have to keep watching. You can go build other stuff while you wait.
+                  <br />
+                  Check back in 10 or 15 minutes, and/or hit the button:
+                </p>
+                <div style={{ marginTop: '12px' }}>
+                  {notifyPermissionDenied ? (
+                    <div className="inline-block" style={{ borderRadius: '8px', backgroundColor: 'rgba(55,65,81,0.5)', border: '1px solid #4b5563', padding: '8px 16px', fontSize: '13px', color: '#9ca3af' }}>
+                      Check back in 10-15 minutes
+                    </div>
+                  ) : notifyRequested ? (
+                    <div className="inline-block" style={{ borderRadius: '8px', backgroundColor: 'rgba(49,46,129,0.4)', border: '1px solid rgba(79,70,229,0.5)', padding: '8px 16px', fontSize: '13px', color: '#a5b4fc' }}>
+                      We'll try to notify you<br />when the charts are ready
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={onNotifyMe}
+                      className="inline-flex items-center font-semibold"
+                      style={{ minHeight: '44px', padding: '0 16px', borderRadius: '8px', backgroundColor: '#4f46e5', color: '#ffffff', fontSize: '13px', gap: '6px' }}
+                      data-ph-capture-attribute-button="mobile-autocreate-notify"
+                    >
+                      <Bell size={14} />
+                      Notify me
+                    </button>
+                  )}
+                </div>
               </div>
-              <div style={{ fontSize: '11.5px', color: '#6b7280' }}>Usually 5–30 seconds</div>
+            )}
+
+            <div className="flex justify-center" style={{ marginTop: '16px' }}>
               <button
                 type="button"
                 onClick={onCancel}
-                style={{ marginTop: '6px', minHeight: '44px', padding: '0 18px', borderRadius: '10px', border: '1px solid #374151', color: '#d1d5db', fontSize: '13px', fontWeight: 600 }}
+                className="inline-flex items-center font-semibold"
+                style={{ minHeight: '44px', padding: '0 18px', borderRadius: '10px', border: '1px solid #4b5563', color: '#9ca3af', fontSize: '13px', gap: '6px' }}
                 data-ph-capture-attribute-button="mobile-autocreate-cancel"
               >
+                <X size={13} />
                 Cancel
               </button>
             </div>
@@ -357,7 +417,9 @@ const MobileAutocreatePage = ({
               </div>
             )}
 
-            {/* Inline, as high in the flow as it can sit — not a pinned footer */}
+            {/* Inline, as high in the flow as it can sit — not a pinned footer.
+                Says "Replace" when there are charts to overwrite, matching the
+                desktop button, so the amber warning above has a matching verb. */}
             <button
               type="button"
               onClick={onSubmit}
@@ -368,16 +430,24 @@ const MobileAutocreatePage = ({
                 width: 'calc(100% - 24px)',
                 height: '48px',
                 borderRadius: '10px',
-                backgroundColor: canSubmit ? '#f97316' : '#374151',
-                color: canSubmit ? '#111827' : '#6b7280',
+                backgroundColor: canSubmit ? '#f97316' : '#4b5563',
+                color: canSubmit ? '#111827' : '#d1d5db',
                 fontSize: '15px',
                 gap: '8px',
               }}
               data-ph-capture-attribute-button="mobile-autocreate-create"
             >
               <Sparkles size={17} />
-              Create chord charts
+              {existingChartCount > 0 ? 'Replace chord charts' : 'Create chord charts'}
             </button>
+
+            {/* The button above is disabled until a method has something in it —
+                say why rather than leaving a dead grey slab */}
+            {!canSubmit && (
+              <div className="text-center" style={{ margin: '-4px 12px 0', fontSize: '11.5px', color: '#6b7280' }}>
+                {SUBMIT_HINTS[method]}
+              </div>
+            )}
           </>
         )}
       </div>
