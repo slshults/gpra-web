@@ -154,6 +154,7 @@ export const trackChordChartEvent = (action, itemNameOrProps, additionalProperti
       'chord_chart_created': 'chord_chart_created',
       'chord_chart_updated': 'chord_chart_updated',
       'chord_chart_deleted': 'chord_chart_deleted',
+      'chord_chart_save_failed': 'chord_chart_save_failed',
       'autocreate_completed': 'chord_charts_autocreated'
     };
 

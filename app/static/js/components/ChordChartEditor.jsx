@@ -31,8 +31,10 @@ const defaultChartConfig = {
 const fetchWithBackoff = async (url, options = {}, maxRetries = 3, onRetry = null) => {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const response = await fetch(url, options);
-      
+      // Per-attempt timeout so a hung request can't leave loading states stuck
+      // (callers' finally blocks can't run while a fetch is still pending)
+      const response = await fetch(url, { signal: AbortSignal.timeout(10000), ...options });
+
       // If rate limited, wait and retry
       if (response.status === 429) {
         const waitTime = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
@@ -82,6 +84,9 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
   const [openStrings, setOpenStrings] = useState(new Set()); // Track open strings (0)
   const [mutedStrings, setMutedStrings] = useState(new Set()); // Track muted strings (x)
   const [isLoadingChord, setIsLoadingChord] = useState(false); // Loading state for API requests
+  const [loadError, setLoadError] = useState(null); // Surfaced when chord data fails to load
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null); // Surfaced when onSave rejects
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false); // Toggle for advanced settings
   const [selectedFinger, setSelectedFinger] = useState(null); // Track selected finger for number input [string, fret]
   const [addLineBreak, setAddLineBreak] = useState(false); // Whether to add line break after this chord
@@ -125,13 +130,14 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
 
     try {
       setIsLoadingChord(true);
+      setLoadError(null);
 
       let chordToUse = null;
 
       // Try item-specific chords first (only if we have an itemId)
       if (itemId) {
         // Fetch existing chord charts for this item
-        const response = await fetchWithBackoff(`/api/items/${itemId}/chord-charts`, {}, 3, 1000);
+        const response = await fetchWithBackoff(`/api/items/${itemId}/chord-charts`, {}, 3);
         if (response.ok) {
           const existingChords = await response.json();
 
@@ -163,7 +169,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
           // Add a reasonable delay to avoid rapid API calls
           await new Promise(resolve => setTimeout(resolve, 1000));
 
-          const searchResponse = await fetchWithBackoff(`/api/chord-charts/common/search?name=${encodeURIComponent(chordName)}`, {}, 3, 1000);
+          const searchResponse = await fetchWithBackoff(`/api/chord-charts/common/search?name=${encodeURIComponent(chordName)}`, {}, 3);
 
           if (searchResponse.ok) {
             const commonMatches = await searchResponse.json();
@@ -226,6 +232,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
       
     } catch (error) {
       console.error('Error during autofill:', error);
+      setLoadError("Couldn't look up that chord — you can still build it manually.");
     } finally {
       setIsLoadingChord(false);
     }
@@ -279,7 +286,8 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
       const loadChordForEditing = async () => {
         try {
           setIsLoadingChord(true);
-          
+          setLoadError(null);
+
           const response = await fetchWithBackoff(`/api/items/${itemId}/chord-charts`);
           if (response.ok) {
             const chords = await response.json();
@@ -340,9 +348,11 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
             }
           } else {
             console.error('Failed to fetch chord charts:', response.status);
+            setLoadError("Couldn't load this chord — close the editor and try again.");
           }
         } catch (error) {
           console.error('Error loading chord for editing:', error);
+          setLoadError("Couldn't load this chord — close the editor and try again.");
         } finally {
           setIsLoadingChord(false);
         }
@@ -1001,7 +1011,27 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
   const hasChartContent = title.trim() || fingers.length > 0 || barres.length > 0 || openStrings.size > 0 || mutedStrings.size > 0;
   const canSave = saveButtonLabel ? hasChartContent : Boolean(title.trim());
 
-  const handleSave = () => {
+  const idleSaveLabel = saveButtonLabel || (editingChordId ? 'Update chord chart' : 'Add chord chart');
+  const saveButtonText = isSaving ? 'Saving...' : idleSaveLabel;
+
+  // Feedback under the save button in both layouts: why the button is
+  // disabled, or why the last save attempt failed
+  const saveFeedback = (
+    <>
+      {!canSave && (
+        <p className="text-xs text-gray-400">
+          {saveButtonLabel ? 'Name the chord or add some fingerings to get started' : 'Enter a chord name to save'}
+        </p>
+      )}
+      {saveError && (
+        <p className="text-sm text-red-400" role="alert">
+          {`${saveError} — your chord wasn't saved, please try again`}
+        </p>
+      )}
+    </>
+  );
+
+  const handleSave = async () => {
     const saveData = {
       title,
       startingFret,
@@ -1027,7 +1057,17 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
       editingChordId
     });
 
-    onSave(saveData);
+    setSaveError(null);
+    setIsSaving(true);
+    try {
+      // Parents close the editor on success and throw on failure, so the
+      // error lands here — next to the button the user clicked
+      await onSave(saveData);
+    } catch (error) {
+      setSaveError(error?.message || 'Failed to save chord chart');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Mobile WYSIWYG layout (design 2b): one live chart, segmented mode control,
@@ -1069,6 +1109,9 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
                 </div>
               )}
             </div>
+            {loadError && !isLoadingChord && (
+              <p className="text-xs text-yellow-400 mt-1" role="alert">{loadError}</p>
+            )}
           </div>
 
           {/* Mode segmented control */}
@@ -1203,11 +1246,12 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
             onClick={handleSave}
             className={`w-full ${canSave ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
             style={{ height: '48px', borderRadius: '10px' }}
-            disabled={!canSave}
+            disabled={!canSave || isSaving}
             data-ph-capture-attribute-button={editingChordId ? "chord-editor-update" : "chord-editor-save"}
           >
-            {saveButtonLabel || (editingChordId ? 'Update chord chart' : 'Add chord chart')}
+            {saveButtonText}
           </Button>
+          {saveFeedback}
 
           {onCancel && (
             <Button
@@ -1253,6 +1297,9 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
               </div>
             )}
           </div>
+          {loadError && !isLoadingChord && (
+            <p className="text-xs text-yellow-400 mt-1" role="alert">{loadError}</p>
+          )}
         </div>
 
         {/* Show more settings toggle */}
@@ -1439,10 +1486,10 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
           <Button
             onClick={handleSave}
             className={`flex-1 ${canSave ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
-            disabled={!canSave}
+            disabled={!canSave || isSaving}
             data-ph-capture-attribute-button={editingChordId ? "chord-editor-update" : "chord-editor-save"}
           >
-            {saveButtonLabel || (editingChordId ? 'Update chord chart' : 'Add chord chart')}
+            {saveButtonText}
           </Button>
 
           {onCancel && (
@@ -1456,7 +1503,8 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
             </Button>
           )}
         </div>
+        {saveFeedback}
       </div>
     </div>
   );
-}; 
+};
