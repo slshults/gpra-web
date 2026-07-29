@@ -457,10 +457,22 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
           // (add-items) field instead of the routine-name input Radix would
           // focus by default — so a stray keystroke can't overwrite the name,
           // and adding items (the common action) is one tap away.
-          if (routine) {
-            e.preventDefault();
-            requestAnimationFrame(() => searchInputRef.current?.focus());
-          }
+          //
+          // Only override Radix's FocusScope when we actually have a live
+          // element to hand focus to. If we preventDefault() without a valid
+          // target, Radix skips its own auto-focus and focus is left stranded
+          // outside the dialog, which has tripped an uncaught TypeError from
+          // inside Radix's focus handling. Falling through to the default
+          // keeps focus safely inside the dialog.
+          if (!routine) return;
+          const searchInput = searchInputRef.current;
+          if (!searchInput) return;
+          e.preventDefault();
+          requestAnimationFrame(() => {
+            // The dialog may have closed/unmounted before this frame ran,
+            // nulling the ref — bail rather than focus a detached node.
+            searchInputRef.current?.focus();
+          });
         }}
       >
         <DialogHeader>
