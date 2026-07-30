@@ -2651,6 +2651,10 @@ export const PracticePage = () => {
     // We'll need to pass this to the ChordChartEditor component
     setEditingChordId(chordId);
 
+    // Editing a chord isn't an insertion, so drop any insertion point left by
+    // "+ Insert after" (matches ChordChartsModal.handleEditChordChart)
+    setInsertionContext(null);
+
     // Auto-scroll to the chord editor after it opens (keep chord name field visible at top)
     setTimeout(() => {
       const editorElement = document.querySelector(`[data-editor-for-item="${itemId}"]`);
@@ -4664,6 +4668,10 @@ export const PracticePage = () => {
           onDeleteChordChart={(itemId, chart) => handleDeleteChordChart(itemId, chart.id)}
           onInsertChordAfter={(itemId, chart) => handleInsertChordAfter(itemId, chart.id, chart)}
           onAddChord={(itemId) => {
+            // Start a genuinely new chord: drop any insertion point or edit
+            // target left behind by "+ Insert after" or "Edit"
+            setEditingChordId(null);
+            setInsertionContext(null);
             setScrollBackContext({
               itemId,
               scrollPosition: window.scrollY
@@ -5636,6 +5644,11 @@ export const PracticePage = () => {
                                 <Button
                                   variant="default"
                                   onClick={() => {
+                                    // Start a genuinely new chord: drop any insertion
+                                    // point or edit target left behind by
+                                    // "+ Insert after" or "Edit"
+                                    setEditingChordId(null);
+                                    setInsertionContext(null);
                                     setScrollBackContext({
                                       itemId: itemReferenceId,
                                       scrollPosition: window.scrollY

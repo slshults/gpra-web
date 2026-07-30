@@ -567,9 +567,17 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
     }
   }, []);
 
-  // Load chord charts for this item when modal opens
+  // Load chord charts for this item when modal opens.
+  // The modal stays mounted between opens (parents render it unconditionally so
+  // autocreate runs survive the sheet closing), so editor state from a previous
+  // session would otherwise leak into this one — a stale insertionContext
+  // resurrects a discarded section, and a stale editingChordId turns the next
+  // save into a PUT over the chord that was last edited.
   useEffect(() => {
     if (isOpen && itemId) {
+      setEditingChordId(null);
+      setInsertionContext(null);
+      setShowChordEditor({});
       loadChordChartsForItem(itemId);
     }
   }, [isOpen, itemId]);
@@ -996,7 +1004,10 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       [itemId]: [...(prev[itemId] || []), newSection]
     }));
 
-    // Open chord editor for this section
+    // Open chord editor for this section. A new section always starts a new
+    // chord, so drop any edit target - otherwise isUpdate stays true and the
+    // save turns into a PUT over the chord that was last edited.
+    setEditingChordId(null);
     setScrollBackContext({
       itemId: itemId,
       scrollPosition: window.scrollY
@@ -2631,7 +2642,11 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         #root aria-hidden, so a sibling overlay left on top of an open dialog
         paints fine but swallows every tap. */}
     <Dialog open={isOpen && !showCopyModal && !showCopyFromModal && !showMobileAutocreate} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh] overflow-y-auto" modalName="Chord charts">
+      {/* grid-cols-1 pins the dialog's single column to minmax(0, 1fr). Without
+          it DialogContent's implicit column is auto-sized, so any child wider
+          than the dialog stretches the column and pushes every row (title,
+          buttons, section headers) off the right edge. */}
+      <DialogContent className="grid-cols-1 max-w-[95vw] sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh] overflow-y-auto" modalName="Chord charts">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Music className="h-5 w-5" />
@@ -3301,6 +3316,10 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                     variant="default"
                     disabled={!!autocreateProgress[itemReferenceId] && autocreateProgress[itemReferenceId] !== 'complete'}
                     onClick={() => {
+                      // Start a genuinely new chord: drop any insertion point or
+                      // edit target left behind by "+ Add new section" or "Edit"
+                      setEditingChordId(null);
+                      setInsertionContext(null);
                       setScrollBackContext({
                         itemId: itemReferenceId,
                         scrollPosition: window.scrollY
@@ -3314,6 +3333,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                       }, 100);
                     }}
                     className="min-w-48 disabled:opacity-50 disabled:cursor-not-allowed"
+                    data-ph-capture-attribute-button="modal-add-chord"
                   >
                     + Add new chord
                   </Button>
@@ -3325,6 +3345,7 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
                     disabled={!!autocreateProgress[itemReferenceId] && autocreateProgress[itemReferenceId] !== 'complete'}
                     onClick={() => addNewSection(itemReferenceId)}
                     className="min-w-48 disabled:opacity-50 disabled:cursor-not-allowed"
+                    data-ph-capture-attribute-button="modal-add-section"
                   >
                     + Add new section
                   </Button>

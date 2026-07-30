@@ -69,28 +69,19 @@ export const NavigationProvider = ({ children }) => {
     }
   };
 
-  // Show/hide PostHog conversations widget based on active page
-  // Hide on Practice, Routines, Items to avoid cluttering the practice UI
-  // Two-pronged approach: CSS hides widget by default (no flash), JS controls body class + API
+  // Show the PostHog conversations widget on every in-app page.
+  // It used to be hidden on Practice/Routines/Items/Stats to keep the practice
+  // UI uncluttered, but error messages (e.g. the chord editor's) now point
+  // users at it to report recurring problems, so it has to be reachable there.
+  // base.html.jinja already ships show-ph-widget on <body>; this keeps the
+  // class for pages rendered without it and nudges the SDK once it has loaded.
+  // Runs once - visibility no longer depends on the active page.
   useEffect(() => {
-    const hideOnPages = ['Practice', 'Routines', 'Items', 'Stats'];
-    const shouldShow = !hideOnPages.includes(activePage);
+    document.body.classList.add('show-ph-widget');
 
-    // Immediately update body class (CSS handles visibility, no flash)
-    if (shouldShow) {
-      document.body.classList.add('show-ph-widget');
-    } else {
-      document.body.classList.remove('show-ph-widget');
-    }
-
-    // Also call PostHog API as belt-and-suspenders
     const updateWidget = () => {
       if (window.posthog?.conversations) {
-        if (shouldShow) {
-          window.posthog.conversations.show();
-        } else {
-          window.posthog.conversations.hide();
-        }
+        window.posthog.conversations.show();
       }
     };
 
@@ -101,7 +92,7 @@ export const NavigationProvider = ({ children }) => {
     const timeoutId = setTimeout(updateWidget, 1000);
 
     return () => clearTimeout(timeoutId);
-  }, [activePage]);
+  }, []);
 
   // Listen for browser back/forward button
   useEffect(() => {
