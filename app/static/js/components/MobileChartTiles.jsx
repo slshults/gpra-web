@@ -32,7 +32,10 @@ const MobileChartTiles = ({ chords, density, onEdit, onDelete, onInsertAfter }) 
 
   return (
     <>
-      <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+      {/* minmax(0, 1fr) — not plain 1fr — or each track floors at its tile's
+          min-content width, which the nowrap (truncate) title sets. A few long
+          chord names then widen the whole grid past the container. */}
+      <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
         {chords.map(chart => (
           <button
             key={chart.id}

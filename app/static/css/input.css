@@ -346,6 +346,28 @@ body.show-ph-widget #ph-conversations-widget-container {
   background-color: #4b5563 !important;
 }
 
+/* Now that the widget shows on every in-app page, keep the collapsed bubble
+   clear of GPRA's own fixed controls: the Practice page autoscroll pill on
+   desktop, and MobileTabBar on mobile. Transform rather than bottom/right so
+   PostHog's inline positioning stays intact.
+
+   This must target the fixed wrapper, NOT the button inside it - the wrapper
+   owns the hit area, so transforming only the button moves the pixels and
+   leaves the click target behind. The :has() scopes it to the collapsed
+   state; when the panel is open the button becomes aria-label="Close", so
+   the rule stops applying and the open panel keeps its own position. */
+#ph-conversations-widget-container > div:has(button[aria-label="Open chat"]) {
+  transform: translateY(-48px) !important;
+}
+
+/* -76px clears MobileTabBar, which is 60px tall (TAB_BAR_HEIGHT in
+   MobileTabBar.jsx) plus breathing room. Keep the two in step if that changes. */
+@media (max-width: 639px) {
+  #ph-conversations-widget-container > div:has(button[aria-label="Open chat"]) {
+    transform: translateY(-76px) !important;
+  }
+}
+
 /* Close button */
 #ph-conversations-widget-container button[aria-label="Close"] {
   color: #f3f4f6 !important;

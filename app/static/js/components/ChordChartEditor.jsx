@@ -28,12 +28,14 @@ const defaultChartConfig = {
 };
 
 // Utility function for API requests with exponential backoff
-const fetchWithBackoff = async (url, options = {}, maxRetries = 3, onRetry = null) => {
+const fetchWithBackoff = async (url, options = {}, maxRetries = 2, onRetry = null) => {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       // Per-attempt timeout so a hung request can't leave loading states stuck
-      // (callers' finally blocks can't run while a fetch is still pending)
-      const response = await fetch(url, { signal: AbortSignal.timeout(10000), ...options });
+      // (callers' finally blocks can't run while a fetch is still pending).
+      // 5s x 2 attempts keeps worst-case recovery ~11s including backoff —
+      // long enough for a slow lookup, short enough not to read as frozen.
+      const response = await fetch(url, { signal: AbortSignal.timeout(5000), ...options });
 
       // If rate limited, wait and retry
       if (response.status === 429) {
@@ -137,7 +139,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
       // Try item-specific chords first (only if we have an itemId)
       if (itemId) {
         // Fetch existing chord charts for this item
-        const response = await fetchWithBackoff(`/api/items/${itemId}/chord-charts`, {}, 3);
+        const response = await fetchWithBackoff(`/api/items/${itemId}/chord-charts`, {});
         if (response.ok) {
           const existingChords = await response.json();
 
@@ -169,7 +171,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
           // Add a reasonable delay to avoid rapid API calls
           await new Promise(resolve => setTimeout(resolve, 1000));
 
-          const searchResponse = await fetchWithBackoff(`/api/chord-charts/common/search?name=${encodeURIComponent(chordName)}`, {}, 3);
+          const searchResponse = await fetchWithBackoff(`/api/chord-charts/common/search?name=${encodeURIComponent(chordName)}`, {});
 
           if (searchResponse.ok) {
             const commonMatches = await searchResponse.json();
@@ -232,7 +234,7 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
       
     } catch (error) {
       console.error('Error during autofill:', error);
-      setLoadError("Couldn't look up that chord — you can still build it manually.");
+      setLoadError("Couldn't look up that chord — please try again.");
     } finally {
       setIsLoadingChord(false);
     }
@@ -348,11 +350,11 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
             }
           } else {
             console.error('Failed to fetch chord charts:', response.status);
-            setLoadError("Couldn't load this chord — close the editor and try again.");
+            setLoadError("Couldn't load this chord — please try again.");
           }
         } catch (error) {
           console.error('Error loading chord for editing:', error);
-          setLoadError("Couldn't load this chord — close the editor and try again.");
+          setLoadError("Couldn't load this chord — please try again.");
         } finally {
           setIsLoadingChord(false);
         }
@@ -1005,6 +1007,15 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
     svg.style.touchAction = (useMobileUI && editMode === 'barres') ? 'none' : '';
   }, [editMode, useMobileUI]);
 
+  // The save button can sit at the bottom edge of a scrolled modal, so bring
+  // the error into view rather than trusting it to be on screen already
+  const saveErrorRef = useRef(null);
+  useEffect(() => {
+    if (saveError) {
+      saveErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [saveError]);
+
   // Determine if the save button should be enabled.
   // Public editor (saveButtonLabel set): enabled when any chart content exists.
   // In-app editor: enabled when the chord has a title.
@@ -1014,19 +1025,43 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
   const idleSaveLabel = saveButtonLabel || (editingChordId ? 'Update chord chart' : 'Add chord chart');
   const saveButtonText = isSaving ? 'Saving...' : idleSaveLabel;
 
+  // Where to report a problem that keeps happening. Wording matches the FAQ
+  // and about pages; the widget is now shown on every in-app page so it's
+  // actually reachable from here.
+  const reportProblemNote = (
+    <p className="text-xs text-gray-400 mt-1">
+      If it keeps happening, use the chat widget in the bottom-right corner, or{' '}
+      <a
+        href="https://github.com/slshults/gpra-web/issues"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-orange-400 hover:underline"
+        data-ph-capture-attribute-link="chord-editor-report-problem"
+      >
+        open an issue on GitHub
+      </a>.
+    </p>
+  );
+
   // Feedback under the save button in both layouts: why the button is
   // disabled, or why the last save attempt failed
   const saveFeedback = (
     <>
       {!canSave && (
         <p className="text-xs text-gray-400">
-          {saveButtonLabel ? 'Name the chord or add some fingerings to get started' : 'Enter a chord name to save'}
+          {saveButtonLabel ? 'Nothing to clear yet' : 'Enter a chord name to save'}
         </p>
       )}
+      {/* scrollMarginBottom keeps scrollIntoView from parking the error behind
+          MobileTabBar, which is fixed over the bottom of the viewport. Inline
+          style because the Tailwind build only ships classes already in use. */}
       {saveError && (
-        <p className="text-sm text-red-400" role="alert">
-          {`${saveError} — your chord wasn't saved, please try again`}
-        </p>
+        <div ref={saveErrorRef} style={{ scrollMarginBottom: '96px' }}>
+          <p className="text-sm text-red-400" role="alert">
+            {`${saveError} — your chord wasn't saved, please try again`}
+          </p>
+          {reportProblemNote}
+        </div>
       )}
     </>
   );
