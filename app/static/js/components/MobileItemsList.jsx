@@ -11,6 +11,7 @@
 import { useState } from 'react';
 import { GripVertical, Pencil, Search, Trash2 } from 'lucide-react';
 import { ChordIcon } from './icons/ChordIcon';
+import { formatDurationLabel, resolveDurationMinutes } from '@utils/duration';
 import {
   DndContext,
   closestCenter,
@@ -58,7 +59,7 @@ const ItemRow = ({ item, onEdit, onDelete, onOpenChordCharts, dragHandle, dragSt
       className="shrink-0"
       style={{ fontSize: '12px', color: '#9ca3af', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
     >
-      {parseInt(item['E'], 10) || 5} min
+      {formatDurationLabel(resolveDurationMinutes(item))}
     </span>
     <button
       type="button"

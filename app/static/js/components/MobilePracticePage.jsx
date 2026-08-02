@@ -4,6 +4,7 @@
 // passes the subset this view needs (plus handlers) as props.
 import { useState, useEffect, useCallback } from 'react';
 import { Check, ChevronDown, ChevronRight, Music, RotateCcw, Play, Sparkles } from 'lucide-react';
+import { resolveDurationMinutes } from '@utils/duration';
 import MobileChordGrid from '@components/MobileChordGrid';
 import MobilePlayMode from '@components/MobilePlayMode';
 import { useChordDensity } from '@hooks/useChordDensity';
@@ -65,7 +66,7 @@ const MobilePracticePage = ({
 
   const secondsFor = (entryId, durationMin) => {
     const t = timers[entryId];
-    return typeof t === 'number' ? t : durationMin * 60;
+    return typeof t === 'number' ? t : Math.round(durationMin * 60);
   };
 
   return (
@@ -111,10 +112,11 @@ const MobilePracticePage = ({
           const entryId = item['A'];
           const itemId = item['B'];
           const details = getItemDetails(itemId);
-          // minimalDetails carries the title without a full details fetch;
-          // full details (with duration) load lazily on expand.
+          // minimalDetails carries the title AND the duration without a full
+          // details fetch, which is why collapsed rows resolve correctly before
+          // full details load lazily on expand.
           const name = item.minimalDetails?.['C'] || details?.['C'] || 'Untitled item';
-          const durationMin = parseInt(details?.['E'] ?? item.minimalDetails?.['E'], 10) || 5;
+          const durationMin = resolveDurationMinutes(details, item.minimalDetails);
           const done = completedItems.has(entryId);
           const expanded = expandedItems.has(entryId);
           const timerActive = activeTimers.has(entryId);

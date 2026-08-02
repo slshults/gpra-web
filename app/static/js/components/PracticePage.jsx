@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useState, useRef, useMemo, memo } from 'react';
 import { trackPracticeEvent, trackPracticeSessionSummary, trackActiveRoutine, trackChordChartEvent, trackSongbookLinkClick } from '../utils/analytics';
 import { supportsFolderOpening, isMobileDevice, getFileManagerName, isWebUrl } from '../utils/platform';
+import { resolveDurationMinutes, resolveDurationSeconds } from '@utils/duration';
 
 // Simple debounce function
 const debounce = (func, wait) => {
@@ -1373,9 +1374,12 @@ export const PracticePage = () => {
         let changed = false;
         activeTimers.forEach(itemId => {
           if (next[itemId] > 0) {
-            next[itemId] = next[itemId] - 1;
+            // Clamp rather than just decrement: a non-integer seed would step
+            // past zero to a tiny negative, so the check below would never fire
+            // and formatTime would render "-1:-1"
+            next[itemId] = Math.max(0, next[itemId] - 1);
             changed = true;
-            
+
             // Play sound when timer hits zero
             if (next[itemId] === 0) {
               // Stop any currently playing sound
@@ -1728,14 +1732,29 @@ export const PracticePage = () => {
       showFolderPathModal, showAutocreateSuccessModal, isNoteEditorOpen, isEditOpen,
       showShortcutsHelp]);
 
+  // Duration for a routine item, resolved the same way on every surface.
+  // See @utils/duration for why the fallback and the rounding both matter.
+  const getItemDurationMinutes = useCallback((routineItem) => (
+    resolveDurationMinutes(getItemDetails(routineItem?.['B']), routineItem?.minimalDetails)
+  ), [getItemDetails]);
+
+  const getItemDurationSeconds = useCallback((routineItem) => (
+    resolveDurationSeconds(getItemDetails(routineItem?.['B']), routineItem?.minimalDetails)
+  ), [getItemDetails]);
+
   // Initialize timer for an item
   const initTimer = useCallback((itemId, duration) => {
     debugLog('Timer', `Initializing timer for item ${itemId} with duration ${duration} minutes`);
     setTimers(prev => {
-      if (!prev[itemId]) {
+      // === undefined, not falsy: a finished timer is legitimately 0, and
+      // re-seeding it on re-expand restarts an item that's still in
+      // activeTimers - firing the alarm twice and under-reporting elapsed time
+      if (prev[itemId] === undefined) {
         return {
           ...prev,
-          [itemId]: duration * 60 // Convert minutes to seconds
+          // Round: a fractional minute would seed a non-integer second count,
+          // which never hits the countdown's exact zero check
+          [itemId]: Math.round(duration * 60)
         };
       }
       return prev;
@@ -1778,7 +1797,7 @@ export const PracticePage = () => {
           fetchItemDetails(itemReferenceId).then(itemDetails => {
             if (itemDetails) {
               // Initialize timer using fetched details
-              initTimer(itemId, itemDetails['E'] || 5);  // Column E is Duration
+              initTimer(itemId, resolveDurationMinutes(itemDetails, routineItem.minimalDetails));
               // Fetch notes when expanding
               fetchNotes(itemReferenceId);
             }
@@ -1810,17 +1829,24 @@ export const PracticePage = () => {
     }
 
     const itemDetails = getItemDetails(routineItem['B']);
-    const durationMinutes = parseInt(itemDetails?.['E'], 10) || 5;
-    const itemName = itemDetails?.['C'] || `Item ${itemId}`;
+    const durationMinutes = getItemDurationMinutes(routineItem);
+    const itemName = itemDetails?.['C'] || routineItem.minimalDetails?.['C'] || `Item ${itemId}`;
 
-    if (!timers[itemId]) {
-      debugLog('Timer', `Timer ${itemId} not found, initializing...`);
-      initTimer(itemId, durationMinutes);
+    // Seed explicitly rather than leaning on initTimer to interpret a falsy
+    // value: a finished timer reads 0, and initTimer deliberately leaves 0
+    // alone (so re-expanding a row can't restart it). Pressing play on a
+    // finished item must start it over, not activate a timer stuck at zero.
+    if (timers[itemId] === undefined || timers[itemId] === 0) {
+      debugLog('Timer', `Timer ${itemId} absent or finished, seeding from full duration`);
+      setTimers(prev => ({ ...prev, [itemId]: getItemDurationSeconds(routineItem) }));
     }
 
     trackPracticeEvent('started_timer', itemName, {
       routine_name: routine?.name,
-      initial_duration_minutes: durationMinutes
+      initial_duration_minutes: Number(durationMinutes.toFixed(2)),
+      // Integer seconds is the value the timer actually uses; the minutes
+      // property can't represent 1:50 exactly, so the two wouldn't reconcile
+      initial_duration_seconds: getItemDurationSeconds(routineItem)
     });
 
     // Activate the timer
@@ -1880,15 +1906,18 @@ export const PracticePage = () => {
 
         // Track the event BEFORE the state updater (state updaters should be pure)
         const itemDetails = getItemDetails(routineItem['B']);
-        const itemName = itemDetails?.['C'] || `Item ${itemId}`;
-        const durationMinutes = parseInt(itemDetails?.['E'], 10) || 5;
-        const initialDuration = durationMinutes * 60;
-        const currentTimer = timers[itemId] || initialDuration;
+        const itemName = itemDetails?.['C'] || routineItem.minimalDetails?.['C'] || `Item ${itemId}`;
+        const durationMinutes = getItemDurationMinutes(routineItem);
+        const initialDuration = getItemDurationSeconds(routineItem);
+        // ?? not || - a completed timer is 0, which || would swallow, reporting
+        // zero elapsed time for a fully practiced item
+        const currentTimer = timers[itemId] ?? initialDuration;
         const elapsedSeconds = Math.max(0, initialDuration - currentTimer);
 
         trackPracticeEvent('timer_stopped', itemName, {
           time_elapsed_seconds: elapsedSeconds,
-          initial_duration_minutes: durationMinutes,
+          initial_duration_minutes: Number(durationMinutes.toFixed(2)),
+          initial_duration_seconds: initialDuration,
           routine_name: routine?.name
         });
         sessionTimerSeconds.current += elapsedSeconds;
@@ -1949,10 +1978,11 @@ export const PracticePage = () => {
           const routineItem = routine.items.find(item => item['A'] === routineEntryId);
           if (routineItem) {
             const itemDetails = getItemDetails(routineItem['B']);
-            const itemName = itemDetails?.['C'] || `Item ${routineEntryId}`;
-            const durationMinutes = parseInt(itemDetails?.['E'], 10) || 5;
-            const initialDuration = durationMinutes * 60;
-            const currentTimer = timers[routineEntryId] || initialDuration;
+            const itemName = itemDetails?.['C'] || routineItem.minimalDetails?.['C'] || `Item ${routineEntryId}`;
+            const durationMinutes = getItemDurationMinutes(routineItem);
+            const initialDuration = getItemDurationSeconds(routineItem);
+            // ?? not || - see the timer_stopped handler above
+            const currentTimer = timers[routineEntryId] ?? initialDuration;
             const elapsedSeconds = Math.max(0, initialDuration - currentTimer);
 
             const viewStart = itemViewStartTimes.current[routineEntryId];
@@ -1961,7 +1991,8 @@ export const PracticePage = () => {
             trackPracticeEvent('marked_done', itemName, {
               time_elapsed_seconds: elapsedSeconds,
               was_timer_active: activeTimers.has(routineEntryId),
-              initial_duration_minutes: durationMinutes,
+              initial_duration_minutes: Number(durationMinutes.toFixed(2)),
+              initial_duration_seconds: initialDuration,
               routine_name: routine?.name,
               time_on_item_seconds: timeOnItemSeconds
             });
@@ -2019,7 +2050,7 @@ export const PracticePage = () => {
               fetchItemDetails(nextItemReferenceId).then(itemDetails => {
                 if (itemDetails) {
                   // Initialize timer and fetch notes for next item
-                  initTimer(nextItem['A'], itemDetails['E'] || 5);
+                  initTimer(nextItem['A'], resolveDurationMinutes(itemDetails, nextItem.minimalDetails));
                   fetchNotes(nextItemReferenceId);
                 }
               });
@@ -2053,14 +2084,12 @@ export const PracticePage = () => {
 
     const routineItem = routine.items.find(item => item['A'] === itemId);  // Column A is ID
     if (routineItem) {
-      // Try to get cached item details, fallback to default
-      const itemDetails = getItemDetails(routineItem['B']);
-      const duration = parseInt(itemDetails?.['E'], 10) || 5;  // Column E is Duration (string from API)
-      const itemName = itemDetails?.['C'] || `Item ${itemId}`; // Column C is Title
+      const itemName = getItemDetails(routineItem['B'])?.['C'] || routineItem.minimalDetails?.['C'] || `Item ${itemId}`; // Column C is Title
+      const fullDuration = getItemDurationSeconds(routineItem);
 
       setTimers(prev => ({
         ...prev,
-        [itemId]: duration * 60
+        [itemId]: fullDuration
       }));
 
       // Stop the timer if it's currently running
@@ -2071,7 +2100,8 @@ export const PracticePage = () => {
       });
 
       trackPracticeEvent('timer_reset', itemName, {
-        routine_name: routine?.name
+        routine_name: routine?.name,
+        initial_duration_seconds: fullDuration
       });
     }
   };
@@ -2113,6 +2143,11 @@ export const PracticePage = () => {
       if (!response.ok) throw new Error('Failed to reset progress');
 
       setCompletedItems(new Set());
+      // Timers are progress too - a finished item sits at 0:00 and nothing
+      // else clears it, so without this the routine reads "reset" while every
+      // timer still shows zero. Clearing re-seeds each from its full duration.
+      setTimers({});
+      setActiveTimers(new Set());
     } catch (error) {
       console.error('Error resetting progress:', error);
     }
@@ -2122,24 +2157,21 @@ export const PracticePage = () => {
   const { totalMinutes, completedMinutes } = useMemo(() => {
     if (!routine?.items) return { totalMinutes: 0, completedMinutes: 0 };
     
-    const total = routine.items.reduce((sum, item) => {
-      // Cached details, then the lightweight payload's duration, then default
-      const itemDetails = getItemDetails(item['B']);
-      const duration = parseInt(itemDetails?.['E'] ?? item.minimalDetails?.['E']) || 5;
-      return sum + duration;
-    }, 0);
-    
-    const completed = routine.items
-      .filter(item => completedItems.has(item['A']))
-      .reduce((sum, item) => {
-        // Cached details, then the lightweight payload's duration, then default
-        const itemDetails = getItemDetails(item['B']);
-        const duration = parseInt(itemDetails?.['E'] ?? item.minimalDetails?.['E']) || 5;
-        return sum + duration;
-      }, 0);
-    
+    // Round the sum once, not each item - formatHoursAndMinutes can't render a
+    // fractional remainder, but rounding per item inflates a routine of
+    // half-minute items (13 x 5.5 would read 78 instead of 72)
+    const total = Math.round(
+      routine.items.reduce((sum, item) => sum + getItemDurationMinutes(item), 0)
+    );
+
+    const completed = Math.round(
+      routine.items
+        .filter(item => completedItems.has(item['A']))
+        .reduce((sum, item) => sum + getItemDurationMinutes(item), 0)
+    );
+
     return { totalMinutes: total, completedMinutes: completed };
-  }, [routine, completedItems, getItemDetails]);
+  }, [routine, completedItems, getItemDurationMinutes]);
 
   // Effect to load SVGuitar library for MemoizedChordChart components
   useEffect(() => {
@@ -4830,9 +4862,10 @@ export const PracticePage = () => {
 
           // Get full item details from cache if available, otherwise use defaults
           const itemDetails = getItemDetails(routineItem['B']);
+          const fullDurationSeconds = getItemDurationSeconds(routineItem);
           const timerValue = timers[routineItem['A']] !== undefined
             ? timers[routineItem['A']]
-            : (itemDetails?.['E'] || 5) * 60;  // Column E is Duration
+            : fullDurationSeconds;
           const itemNotes = notes[routineItem['B']] || '';
           const isChordsExpanded = expandedChords.has(routineItem['A']);
 
@@ -4931,14 +4964,14 @@ export const PracticePage = () => {
                       <div className="text-5xl font-mono">
                         {formatTime(timerValue)}
                       </div>
-                      {!isTimerActive && timerValue !== (itemDetails?.['E'] || 5) * 60 && (  // Column E is Duration
+                      {!isTimerActive && timerValue !== fullDurationSeconds && (
                         <button
                           onClick={(e) => resetTimer(routineItem['A'], e)}  // Column A is ID
                           className="flex items-center space-x-2 text-gray-400 hover:text-gray-300 transition-colors"
                           data-ph-capture-attribute-button="reset-practice-timer"
                         >
                           <ResetIcon className="h-4 w-4" />
-                          <span>Reset Timer</span>
+                          <span>Reset timer</span>
                         </button>
                       )}
                     </div>

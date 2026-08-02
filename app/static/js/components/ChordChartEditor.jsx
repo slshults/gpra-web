@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@ui/button';
 import { Input } from '@ui/input';
 import { debugLog } from '@utils/logging';
+import { acceptAllCookies, hasFullPostHogSdk } from '@utils/consent';
 
 const defaultChartConfig = {
   strings: 6,
@@ -87,6 +88,10 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
   const [mutedStrings, setMutedStrings] = useState(new Set()); // Track muted strings (x)
   const [isLoadingChord, setIsLoadingChord] = useState(false); // Loading state for API requests
   const [loadError, setLoadError] = useState(null); // Surfaced when chord data fails to load
+  // Read once: the save-failure note offers the chat widget only if the SDK
+  // that provides it will actually have loaded
+  const [cookiesAllowed] = useState(hasFullPostHogSdk);
+  const [cookiesJustAllowed, setCookiesJustAllowed] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null); // Surfaced when onSave rejects
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false); // Toggle for advanced settings
@@ -181,15 +186,17 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
             if (commonMatches.length > 0) {
               // Use the first common chord match (they should be curated)
               chordToUse = commonMatches[0];
-            } else {
-              // Don't return early - let the finally block clean up
             }
+            // No matches isn't a failure - the chord just isn't in the common
+            // set, and the user builds it by hand. Stay quiet.
           } else {
-            // Don't fail completely - let the finally block clean up
+            // This is the lookup most likely to fail, so it has to be the one
+            // that speaks up - otherwise the user gets a silently empty editor
+            setLoadError("Couldn't look up that chord — you can still build it manually.");
           }
         } catch (commonError) {
           console.error('Error fetching common chords:', commonError);
-          // Don't fail completely - let the finally block clean up
+          setLoadError("Couldn't look up that chord — you can still build it manually.");
         }
       }
 
@@ -234,7 +241,9 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
       
     } catch (error) {
       console.error('Error during autofill:', error);
-      setLoadError("Couldn't look up that chord — please try again.");
+      // Non-blocking: the lookup failed but the editor is fully usable, so say
+      // so rather than implying a retry is the way forward
+      setLoadError("Couldn't look up that chord — you can still build it manually.");
     } finally {
       setIsLoadingChord(false);
     }
@@ -1026,21 +1035,85 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
   const saveButtonText = isSaving ? 'Saving...' : idleSaveLabel;
 
   // Where to report a problem that keeps happening. Wording matches the FAQ
-  // and about pages; the widget is now shown on every in-app page so it's
-  // actually reachable from here.
+  // and about pages. The chat widget needs the full PostHog SDK, which only
+  // loads for users who accepted cookies - so pointing everyone at it would
+  // send the rest looking for a bubble that isn't on their screen.
+  // Deliberately no reload: this note only shows after a failed save, so the
+  // user's chord is unsaved and a reload would discard it. Consent is stored
+  // now; the widget appears on their next page load.
+  const handleAllowCookies = async () => {
+    try {
+      await acceptAllCookies({ reload: false });
+      setCookiesJustAllowed(true);
+    } catch (error) {
+      // Storage blocked - consent didn't stick, so don't claim it did. The
+      // GitHub link in the unchanged note is still a working way to report.
+      console.error('Failed to store cookie consent:', error);
+    }
+  };
+
+  const renderReportProblemNote = () => {
+    if (cookiesAllowed) {
+      return (
+        <>
+          If it keeps happening, use the chat widget in the bottom-right corner, or{' '}
+          <a
+            href="https://github.com/slshults/gpra-web/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-orange-400 hover:underline"
+            data-ph-capture-attribute-link="chord-editor-report-problem"
+          >
+            open a bug report on GitHub
+          </a>.
+        </>
+      );
+    }
+
+    if (cookiesJustAllowed) {
+      return (
+        <>
+          Cookies allowed — refresh the page and the chat widget will be in the
+          bottom-right corner. Save your chord first, it isn't saved yet.
+        </>
+      );
+    }
+
+    return (
+      <>
+          <button
+            type="button"
+            onClick={handleAllowCookies}
+            className="text-orange-400 hover:underline"
+            data-ph-capture-attribute-button="chord-editor-allow-cookies"
+          >
+            Allow cookies
+          </button>
+          {' '}to use the chat widget to report the problem, or{' '}
+          <a
+            href="https://github.com/slshults/gpra-web/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-orange-400 hover:underline"
+            data-ph-capture-attribute-link="chord-editor-report-problem"
+          >
+            open a bug report on GitHub
+          </a>.
+      </>
+    );
+  };
+
   const reportProblemNote = (
-    <p className="text-xs text-gray-400 mt-1">
-      If it keeps happening, use the chat widget in the bottom-right corner, or{' '}
-      <a
-        href="https://github.com/slshults/gpra-web/issues"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-orange-400 hover:underline"
-        data-ph-capture-attribute-link="chord-editor-report-problem"
-      >
-        open an issue on GitHub
-      </a>.
-    </p>
+    <>
+      <p className="text-xs text-gray-400 mt-1">{renderReportProblemNote()}</p>
+      {/* The note is a sibling of the role="alert" error, so swapping states
+          would otherwise be silent to a screen reader - and activating "Allow
+          cookies" unmounts the button, dropping focus. Starts empty so mounting
+          announces nothing; only the swap speaks. */}
+      <p aria-live="polite" className="sr-only">
+        {cookiesJustAllowed ? 'Cookies allowed. Refresh the page to get the chat widget.' : ''}
+      </p>
+    </>
   );
 
   // Feedback under the save button in both layouts: why the button is
@@ -1052,11 +1125,17 @@ export const ChordChartEditor = ({ itemId, onSave, onCancel, editingChordId = nu
           {saveButtonLabel ? 'Nothing to clear yet' : 'Enter a chord name to save'}
         </p>
       )}
-      {/* scrollMarginBottom keeps scrollIntoView from parking the error behind
-          MobileTabBar, which is fixed over the bottom of the viewport. Inline
-          style because the Tailwind build only ships classes already in use. */}
+      {/* scrollMarginBottom keeps scrollIntoView from parking this behind
+          MobileTabBar, which is fixed over the bottom of the viewport. On mobile
+          the chat bubble also floats over the bottom-right and covered the tail
+          of the note below - including the words describing where the bubble is
+          - so pad the whole block clear of it. Inline styles because the
+          Tailwind build only ships classes already in use. */}
       {saveError && (
-        <div ref={saveErrorRef} style={{ scrollMarginBottom: '96px' }}>
+        <div
+          ref={saveErrorRef}
+          style={{ scrollMarginBottom: '96px', paddingRight: useMobileUI ? '60px' : undefined }}
+        >
           <p className="text-sm text-red-400" role="alert">
             {`${saveError} — your chord wasn't saved, please try again`}
           </p>

@@ -5,6 +5,7 @@
 // local concerns (auto-scroll speed, wake lock).
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { ChevronDown, Play, Pause } from 'lucide-react';
+import { resolveDurationSeconds } from '@utils/duration';
 import MobileChordChart from '@components/MobileChordChart';
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -44,7 +45,9 @@ const MobilePlayMode = ({
   const itemId = item?.['B'];
   const details = getItemDetails(itemId);
   const name = item?.minimalDetails?.['C'] || details?.['C'] || 'Untitled item';
-  const durationSec = (parseInt(details?.['E'], 10) || 5) * 60;
+  // minimalDetails leg matters here: prev/next navigate to items that were
+  // never expanded, so their full details aren't cached
+  const durationSec = resolveDurationSeconds(details, item?.minimalDetails);
   const remaining = typeof timers[entryId] === 'number' ? timers[entryId] : durationSec;
   const running = activeTimers.has(entryId);
   // Stable reference so the auto-scroll effect doesn't re-run on unrelated
@@ -225,7 +228,10 @@ const MobilePlayMode = ({
 
       {/* Chord area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto" style={{ padding: '0 14px 14px' }}>
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+        {/* minmax(0, 1fr) — not plain 1fr — or each track floors at its tile's
+            min-content width, which the nowrap (truncate) title sets. A few long
+            chord names then widen the whole grid past the viewport. */}
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '6px' }}>
           {sections.map(section => (
             <Fragment key={section.id}>
               {section.label && (
