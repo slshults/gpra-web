@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, GripVertical, Copy, Check, ExternalLink } from 'lucide-react';
 import RowActionTipModal from './RowActionTipModal';
 import { trackItemOperation } from '../utils/analytics';
+import { formatDurationLabel, resolveDurationMinutes } from '@utils/duration';
 import { Card, CardHeader, CardTitle, CardContent } from '@ui/card';
 import { Button } from '@ui/button';
 import { Input } from '@ui/input';
@@ -83,6 +84,13 @@ const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts, on
           <span className="text-base sm:text-xl">{item['C']}</span>
         </div>
       </div>
+      {/* Same label the mobile Items list uses, so the two pages agree */}
+      <span
+        className="flex-shrink-0"
+        style={{ fontSize: '13px', color: '#9ca3af', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+      >
+        {formatDurationLabel(resolveDurationMinutes(item))}
+      </span>
       <div className="flex space-x-3 justify-end sm:justify-start flex-shrink-0">
         <Button
           variant="ghost"
