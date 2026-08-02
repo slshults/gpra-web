@@ -3644,12 +3644,15 @@ def active_routine():
 
         # Track routine activated event
         if success and current_user.is_authenticated:
-            from app.utils.posthog_client import track_event, get_client_ip
-            routine = data_layer.get_routine(int(routine_id))
-            track_event(current_user.id, 'routine_activated', {
-                'routine_name': routine.get('name') if routine else 'Unknown',
-                'source': 'user'
-            }, ip=get_client_ip())
+            try:
+                from app.utils.posthog_client import track_event, get_client_ip
+                routine = data_layer.get_active_routine()
+                track_event(current_user.id, 'routine_activated', {
+                    'routine_name': routine.get('B') if routine else 'Unknown',
+                    'source': 'user'
+                }, ip=get_client_ip())
+            except Exception as e:
+                app.logger.warning(f"[ACTIVE_ROUTINE] PostHog tracking failed: {e}")
 
         return jsonify({"success": success})
 
@@ -3663,11 +3666,14 @@ def active_routine():
 
         # Track routine deactivated event
         if success and current_user.is_authenticated and active:
-            from app.utils.posthog_client import track_event, get_client_ip
-            track_event(current_user.id, 'routine_deactivated', {
-                'routine_name': active.get('routine', {}).get('name', 'Unknown'),
-                'source': 'user'
-            }, ip=get_client_ip())
+            try:
+                from app.utils.posthog_client import track_event, get_client_ip
+                track_event(current_user.id, 'routine_deactivated', {
+                    'routine_name': active.get('B') or 'Unknown',
+                    'source': 'user'
+                }, ip=get_client_ip())
+            except Exception as e:
+                app.logger.warning(f"[ACTIVE_ROUTINE] PostHog tracking failed: {e}")
 
         return jsonify({"success": success})
 

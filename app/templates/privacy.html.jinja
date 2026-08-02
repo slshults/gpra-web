@@ -42,7 +42,7 @@
         <!-- Page Header -->
         <div class="mb-8">
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Privacy Policy</h1>
-            <p class="text-sm text-gray-700 dark:text-gray-300">Last Updated: July 11th, 2026</p>
+            <p class="text-sm text-gray-700 dark:text-gray-300">Last Updated: August 2nd, 2026</p>
         </div>
 
         <!-- Opening Paragraph -->
@@ -159,7 +159,7 @@
                         <a href="https://posthog.com/privacy" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">PostHog</a>
                     </h3>
                     <p class="ml-6">
-                        Analytics to help me improve GPRA. I track things like which features you use and how, and where bugs happen. PostHog also crunches the numbers for the practice stats you see on the Stats page. I also use other parts of the PostHog platform for things like the contact form, feature flags, surveys, etc. You can opt out of PostHog cookies at anytime in <a href="/#Account" class="text-orange-600 dark:text-orange-400 hover:underline">Account/Settings</a> (though opting out means no practice stats, since that's where they come from.)
+                        Analytics to help me improve GPRA. I track things like which features you use and how, and where bugs happen. PostHog also crunches the numbers for the practice stats you see on the Stats page. I use other parts of the PostHog platform too — the help/chat widget, feature flags, error tracking, session replay, etc. (there's a full rundown in the <a href="#cookies" class="text-orange-600 dark:text-orange-400 hover:underline">Cookies section</a> below). You can opt out of PostHog cookies at anytime in <a href="/#Account" class="text-orange-600 dark:text-orange-400 hover:underline">Account/Settings</a> (though opting out means no practice stats, since that's where they come from.)
                     </p>
                 </div>
 
@@ -174,10 +174,10 @@
 
                 <div class="mb-4">
                     <h3 class="font-semibold text-lg mb-1">
-                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">Google OAuth</a>
+                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">Google (OAuth &amp; reCAPTCHA)</a>
                     </h3>
                     <p class="ml-6">
-                        Optional sign-in method using your Google account.
+                        Optional sign-in method using your Google account. Google's reCAPTCHA also runs on the login, signup, and password reset pages to keep bots from hammering them.
                     </p>
                 </div>
 
@@ -206,8 +206,7 @@
             <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Data Retention</h2>
             <div class="space-y-4 text-gray-700 dark:text-gray-300">
                 <p>
-                    <strong>Practice Items, Routines, Chord Charts, Notes, Practice Stats:</strong> If you stop paying for your account, I keep your practice history for 120 days* (in case you want to resubscribe after a couple of months) then it's automatically deleted. You'll get a reminder 7 days before deletion if you haven't downloaded your data.<br>
-                    <span class="text-sm text-gray-600 dark:text-gray-400">*I say '90 days' elsewhere on the site, but it's actually 120 days to give an extra month of buffer so people don't lose data they meant to keep.</span>
+                    <strong>Practice Items, Routines, Chord Charts, Notes, Practice Stats:</strong> If you stop paying for your account, I keep your stuff for <strong>90 days</strong>, in case you want to come back and pick up where you left off. After that I give it an extra <strong>30-day buffer</strong> before anything is actually deleted, so nobody loses data they meant to keep by cutting it close — 120 days from your last payment, all in. You'll get a reminder 7 days before deletion if you haven't downloaded your data.
                 </p>
                 <p>
                     <strong>Deleted Accounts:</strong> When you delete your account (either scheduled or immediate), I permanently erase all your data. There's no way to recover it, after deletion it's gone for good.
@@ -216,16 +215,31 @@
         </div>
 
         <!-- Cookies -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8" id="cookies">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8 scroll-mt-20" id="cookies">
             <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Cookies</h2>
             <div class="space-y-4 text-gray-700 dark:text-gray-300">
                 <p>
-                    I use a few types of cookies to make GPRA work:
+                    Here's everything GPRA uses cookies (and other browser storage) for:
                 </p>
                 <ul class="list-disc pl-6 space-y-2">
-                    <li><strong>Session Cookies:</strong> Required for login, keeping you logged in, keeping your account settings, etc. These are "functional cookies" and so they don't require consent.</li>
-                    <li><strong>PostHog Cookies:</strong> Tracks how you use GPRA to help me improve it, and powers the practice stats on your Stats page. You can opt out via the <a href="/#Account" class="text-orange-600 dark:text-orange-400 hover:underline">Account/Settings page</a> (but stats tracking stops if you do.)</li>
-                    <li><strong>Dark Mode Preference:</strong> Stored in your browser's localStorage so the app will remember if you're one of those weirdos who prefers light mode. (Yes, my fellow nerds, it's not technically a cookie, but not worthy of its own section in this document either.)</li>
+                    <li><strong>Session cookies:</strong> Required for logging in and staying logged in. (If you sign in with Google or Tidal there's also a "remember me" cookie, so you don't have to log in again every visit.) These are "functional cookies" and so they don't require consent.</li>
+                    <li><strong>PostHog cookies:</strong> These do more than analytics, so here's the whole list of what they're doing:
+                        <ul class="list-disc pl-6 mt-2 space-y-1">
+                            <li><strong>Usage analytics</strong> — which features get used, and where people get stuck, so I know what to fix.</li>
+                            <li><strong>Your practice stats.</strong> The Stats page is built entirely out of PostHog data, so no cookies means no stats.</li>
+                            <li><strong>The help/chat widget</strong> in the bottom-right corner. It's part of PostHog's script, so it only exists on the page if cookies are allowed. (If you'd rather not have cookies but still need to reach me, <a href="https://github.com/slshults/gpra-web/issues" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">open an issue on GitHub</a> instead.)</li>
+                            <li><strong>Error tracking</strong>, so I find out when something breaks for you instead of waiting for you to tell me.</li>
+                            <li><strong>Feature flags</strong>, which decide which version of a feature you get.</li>
+                            <li><strong>Session replay</strong> — only for people who've accepted cookies; it doesn't happen at all otherwise.<br><br>
+                                Note that I cannot access the camera on your device, and session replay recordings are not actual videos. They are a visual reconstruction based on logs. I do not record every session. It's randomized so I can learn things about how to improve the site, or notice when people are trying to abuse the system to do harm to it or other systems. I can't see anything you type into any field in the recordings. Everything you type is replaced by dots, I can't see what you type. So, I can watch a visual reconstruction of your clicks on my site, which is less invasive than when you go into a retail store, bank, movie theater, mall, etc. where the managers and owners can watch videos of you walking around on their property. If you don't like the idea of a visualization built from logs, you can reject cookies to prevent your sessions from being recorded (but if that really concerns you, I'll also suggest you stop using the web and apps, most of which are now doing the same, and maybe stop going to brick-and-mortar stores and businesses, because most of them are now recording you when you do.)</li>
+                        </ul>
+                    </li>
+                    <li><strong>If you say no to cookies:</strong> no practice stats, no help/chat widget, and no session replay. You can change your mind either way, anytime, on the <a href="/#Account" class="text-orange-600 dark:text-orange-400 hover:underline">Account/Settings page</a>.</li>
+                    <li><strong>No cross-site tracking, ever:</strong> if you do allow cookies, they cannot and will not be used to follow you around other websites. I don't load tracking pixels or third-party cookies from Facebook, Instagram, X, TikTok, LinkedIn, Google Analytics, or anyone else. There are none on this site. What happens on GPRA stays on GPRA.</li>
+                    <li><strong>Which banner you see depends on where you are:</strong> in the EU/EEA, UK, Switzerland, and California, analytics cookies stay off until you click "Accept all". Everywhere else they're on by default and the banner lets you turn them off. Dismissing the banner with the X isn't a decision either way — it just hides it for that visit and leaves things as they are.</li>
+                    <li><strong>Your cookie choice itself:</strong> saved in your browser's localStorage and on your session on my server, so I'm not pestering you with the banner on every page.</li>
+                    <li><strong>reCAPTCHA:</strong> the login, signup, and password reset pages load Google's reCAPTCHA to tell humans apart from bots, and it sets its own <code>_GRECAPTCHA</code> cookie for that (<a href="https://developers.google.com/recaptcha/docs/faq#does-recaptcha-use-cookies" target="_blank" rel="noopener noreferrer" class="text-orange-600 dark:text-orange-400 hover:underline">Google's documentation on it</a>). That's a security thing, not a tracking thing, and it's on those pages whatever you choose about analytics cookies. I don't get any information from it, and it isn't used to track you across other websites.</li>
+                    <li><strong>Settings kept in your browser:</strong> things like light/dark mode, chord chart density, auto-scroll speed, and timer volume. These live in your browser's localStorage so the app works the way you left it. They stay on your device and aren't sent anywhere. So yes, the app will remember if you're one of those weirdos who prefers light mode.</li>
                 </ul>
             </div>
         </div>
