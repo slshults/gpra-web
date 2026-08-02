@@ -454,8 +454,11 @@ class CustomAuthOAuthView(AuthOAuthView):
                     'is_new_user': True
                 }, ip=client_ip)
 
-                # Redirect with show_tour flag
-                return redirect('/?show_tour=true')
+                # Redirect with show_tour flag. new_signup marks this as a brand-new
+                # account so the frontend can fire the client-side signup_completed
+                # conversion event -- existing users coming through this same flow get
+                # show_tour without it, and must not be counted as conversions.
+                return redirect(f'/?show_tour=true&new_signup={provider}')
 
 
 class CustomAuthDBView(AuthDBView):

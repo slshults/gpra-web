@@ -348,6 +348,28 @@ export const trackStatsEvent = (eventName, properties = {}) => {
 };
 
 /**
+ * Track signup completion from the browser.
+ *
+ * The backend already fires `user_registered`, but server-side events carry no
+ * browser context, so they arrive with no utm_source, referrer, or $session_id
+ * and marketing analytics can't attribute a signup to the ad that produced it.
+ * This client-side twin ties the conversion to the PostHog session that started
+ * on the landing page, where the campaign params actually were.
+ *
+ * @param {string} registrationMethod - How the account was created ('email' or 'oauth')
+ * @param {string|null} oauthProvider - Provider name for oauth signups, null for email
+ */
+export const trackSignupCompleted = (registrationMethod, oauthProvider = null) => {
+  if (typeof window !== 'undefined' && window.posthog) {
+    window.posthog.capture('signup_completed', {
+      registration_method: registrationMethod,
+      oauth_provider: oauthProvider,
+      ...userContext // Auto-include user_id and subscription_tier
+    });
+  }
+};
+
+/**
  * Debug helper to log events to console in development
  * @param {string} eventName - Name of the event
  * @param {Object} properties - Event properties
@@ -371,5 +393,6 @@ export default {
   trackContentUpdate,
   trackSongbookLinkClick,
   trackActiveRoutine,
-  trackStatsEvent
+  trackStatsEvent,
+  trackSignupCompleted
 };

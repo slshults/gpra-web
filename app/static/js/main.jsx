@@ -22,8 +22,9 @@ import ErrorBoundary from '@components/ErrorBoundary';
 import MobileTabBar, { TAB_BAR_HEIGHT } from '@components/MobileTabBar';
 import { useLightweightItems } from '@hooks/useLightweightItems';
 import { useIsMobile } from '@hooks/useIsMobile';
-import { setUserContext } from './utils/analytics';
+import { setUserContext, trackSignupCompleted } from '@utils/analytics';
 import { isCheckoutReturn, getCheckoutSessionId, clearCheckoutParams } from '@utils/checkoutReturn';
+import { getOAuthSignupProvider, clearOAuthSignupParam } from '@utils/signupReturn';
 import { Loader2 } from 'lucide-react';
 
 // Initialize rate limit handling (intercepts fetch for 429 errors)
@@ -63,6 +64,12 @@ const IMPERSONATION_BANNER_HEIGHT = 36; // px - matches py-2 + text-sm single li
 
 // Read at import time, before the checkout params get cleared from the URL
 const CHECKOUT_RETURN = { came: isCheckoutReturn(), sessionId: getCheckoutSessionId() };
+
+// Likewise read up front, before GuidedTour strips the tour params off the URL.
+// Module-level guard because the marker survives a StrictMode double-mount, which
+// would otherwise report the same signup as two conversions.
+const OAUTH_SIGNUP_PROVIDER = getOAuthSignupProvider();
+let oauthSignupTracked = false;
 
 const App = () => {
   const headerRef = useRef(null);
@@ -138,6 +145,19 @@ const App = () => {
 
           // Cache user context for analytics auto-inclusion
           setUserContext(data);
+        }
+
+        // Fire the OAuth signup conversion once the new account is confirmed.
+        // Deliberately outside the identify block above: cookieless (non-consented)
+        // users get no identify call, but their conversions still need to reach
+        // marketing analytics, which attributes them via the session rather than
+        // the person. That stays PII-free only because setUserContext() above sits
+        // INSIDE the consent gate -- hoisting it out would start leaking the
+        // distinct_id (the user's email) onto cookieless events.
+        if (OAUTH_SIGNUP_PROVIDER && data.authenticated && !oauthSignupTracked) {
+          oauthSignupTracked = true;
+          trackSignupCompleted('oauth', OAUTH_SIGNUP_PROVIDER);
+          clearOAuthSignupParam();
         }
 
         // Show modal for ALL lapsed users (on each fresh login)

@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@ui/c
 import { Alert, AlertDescription } from '@ui/alert';
 import { Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { debugLog } from '@utils/logging';
+import { setUserContext, trackSignupCompleted } from '@utils/analytics';
 
 const RECAPTCHA_SITE_KEY = '6LcjIvQrAAAAAM4psu6wJT3NlL8RIwH4tNiiAJ6C';
 
@@ -217,10 +218,19 @@ const RegisterPage = () => {
             if (authData.posthog_identity_hash && typeof window.posthog.setIdentity === 'function') {
               window.posthog.setIdentity(authData.posthog_distinct_id, authData.posthog_identity_hash);
             }
+
+            // Cache user context so the signup event below carries user_id and tier,
+            // matching what the OAuth path gets from main.jsx. Inside the consent gate
+            // on purpose: cookieless signups must stay free of the PII distinct_id.
+            setUserContext(authData);
           }
         } catch (err) {
           console.error('Failed to identify user with PostHog:', err);
         }
+
+        // Fired outside the identify block so a failed /api/auth/status lookup
+        // still leaves the conversion attributable to the ad that sent them here.
+        trackSignupCompleted('email');
 
         setSuccess(true);
         // Set flag to show tour after login
