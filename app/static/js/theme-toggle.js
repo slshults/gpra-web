@@ -1,36 +1,39 @@
 // Simple Light Mode Toggle
 // Keep dark mode as default, light mode as optional
 
+// Apply the theme to BOTH <html> and <body>.
+//
+// The anti-flash script inlined in each standalone page's <head> sets
+// light-mode on <html> before paint, but this file used to add and remove it
+// only on <body>. The stylesheet keys off descendant selectors
+// (.light-mode .text-gray-300, .light-mode .bg-gray-800, ~60 of them), so a
+// light-mode class left behind on <html> keeps matching every element in the
+// body: toggling to dark gave dark backgrounds with light-mode text on top.
+// Only reproducible after a reload in light mode, which is why it survived -
+// toggling light and back in a single page view never left the class behind.
+const applyTheme = (isLightMode) => {
+  document.documentElement.classList.toggle('light-mode', isLightMode);
+  document.body.classList.toggle('light-mode', isLightMode);
+  document.documentElement.classList.toggle('dark', !isLightMode);
+};
+
 function initThemeToggle() {
   // Check localStorage for saved preference (defaults to dark mode)
   const isLightMode = localStorage.getItem('lightMode') === 'true';
 
-  // Apply saved theme
-  if (isLightMode) {
-    document.body.classList.add('light-mode');
-    document.documentElement.classList.remove('dark');
-  } else {
-    document.documentElement.classList.add('dark');
-  }
+  applyTheme(isLightMode);
 
   // Update toggle button visibility based on current mode
   updateToggleDisplay(isLightMode);
 }
 
 function toggleTheme() {
-  const isCurrentlyLight = document.body.classList.contains('light-mode');
+  // Read from <html>: the anti-flash script sets it there before <body> exists,
+  // and applyTheme keeps the two in sync from then on
+  const isCurrentlyLight = document.documentElement.classList.contains('light-mode');
 
-  if (isCurrentlyLight) {
-    // Switch to dark mode (default)
-    document.body.classList.remove('light-mode');
-    document.documentElement.classList.add('dark');
-    localStorage.setItem('lightMode', 'false');
-  } else {
-    // Switch to light mode
-    document.body.classList.add('light-mode');
-    document.documentElement.classList.remove('dark');
-    localStorage.setItem('lightMode', 'true');
-  }
+  applyTheme(!isCurrentlyLight);
+  localStorage.setItem('lightMode', String(!isCurrentlyLight));
 
   updateToggleDisplay(!isCurrentlyLight);
 }

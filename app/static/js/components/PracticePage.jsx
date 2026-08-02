@@ -578,6 +578,10 @@ export const PracticePage = () => {
   const sessionStartTime = useRef(null);
   const sessionCompletedCount = useRef(0);
   const sessionTimerSeconds = useRef(0);
+  // Timer value each item's current run began at, keyed by routine entry id.
+  // Elapsed time is measured from here rather than from the item's full
+  // duration, so a mid-item pause reports only the stretch just practiced.
+  const runStartValues = useRef({});
   const itemViewStartTimes = useRef({}); // When each item was expanded (for time_on_item_seconds)
 
   // Rotating processing messages for entertainment
@@ -1836,10 +1840,16 @@ export const PracticePage = () => {
     // value: a finished timer reads 0, and initTimer deliberately leaves 0
     // alone (so re-expanding a row can't restart it). Pressing play on a
     // finished item must start it over, not activate a timer stuck at zero.
-    if (timers[itemId] === undefined || timers[itemId] === 0) {
+    const needsSeed = timers[itemId] === undefined || timers[itemId] === 0;
+    if (needsSeed) {
       debugLog('Timer', `Timer ${itemId} absent or finished, seeding from full duration`);
       setTimers(prev => ({ ...prev, [itemId]: getItemDurationSeconds(routineItem) }));
     }
+
+    // Remember where this run began. Elapsed time is measured from here, not
+    // from the item's full duration - otherwise every pause re-reports all the
+    // time since the item started, and the session total compounds.
+    runStartValues.current[itemId] = needsSeed ? getItemDurationSeconds(routineItem) : timers[itemId];
 
     trackPracticeEvent('started_timer', itemName, {
       routine_name: routine?.name,
@@ -1912,7 +1922,11 @@ export const PracticePage = () => {
         // ?? not || - a completed timer is 0, which || would swallow, reporting
         // zero elapsed time for a fully practiced item
         const currentTimer = timers[itemId] ?? initialDuration;
-        const elapsedSeconds = Math.max(0, initialDuration - currentTimer);
+        // Measure from where this run started, so pausing mid-item reports only
+        // the stretch just practiced instead of everything since the item began
+        const runStart = runStartValues.current[itemId] ?? initialDuration;
+        const elapsedSeconds = Math.max(0, runStart - currentTimer);
+        delete runStartValues.current[itemId];
 
         trackPracticeEvent('timer_stopped', itemName, {
           time_elapsed_seconds: elapsedSeconds,
@@ -1983,7 +1997,9 @@ export const PracticePage = () => {
             const initialDuration = getItemDurationSeconds(routineItem);
             // ?? not || - see the timer_stopped handler above
             const currentTimer = timers[routineEntryId] ?? initialDuration;
-            const elapsedSeconds = Math.max(0, initialDuration - currentTimer);
+            const runStart = runStartValues.current[routineEntryId] ?? initialDuration;
+            const elapsedSeconds = Math.max(0, runStart - currentTimer);
+            delete runStartValues.current[routineEntryId];
 
             const viewStart = itemViewStartTimes.current[routineEntryId];
             const timeOnItemSeconds = viewStart ? Math.round((Date.now() - viewStart) / 1000) : null;
@@ -2091,6 +2107,7 @@ export const PracticePage = () => {
         ...prev,
         [itemId]: fullDuration
       }));
+      delete runStartValues.current[itemId];
 
       // Stop the timer if it's currently running
       setActiveTimers(prev => {
@@ -2148,6 +2165,7 @@ export const PracticePage = () => {
       // timer still shows zero. Clearing re-seeds each from its full duration.
       setTimers({});
       setActiveTimers(new Set());
+      runStartValues.current = {};
     } catch (error) {
       console.error('Error resetting progress:', error);
     }
