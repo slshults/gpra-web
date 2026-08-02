@@ -69,17 +69,18 @@
                 <p>
                     <strong>Subscription data:</strong><br>
                     What: If you're on a paid tier, I store your Stripe customer ID, subscription tier, and payment history. (Stripe handles all the actual payment processing, I never see your credit card number.)<br>
-                    Why: I have to store your Stripe customer ID in order to connect your payments to the correct account. I store your payment history to enable my ability to keep your data for you for 90 days in case you miss a month, or purposefully pause your subscription for a couple of months. Payment history also helps me keep an eye out for people who are trying to abuse the system to get free or discounted use.
+                    Why: I have to store your Stripe customer ID in order to connect your payments to the correct account. I store your payment history so I can keep your data for you for 90 days in case you miss a month, or if you purposefully pause your subscription for a couple of months. (Payment history also helps me keep an eye out for people who are trying to abuse the system to steal free or discounted use.)
                 </p>
                 <p>
                     <strong>Account activity:</strong><br>
                     What: I use <a href="https://posthog.com" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">PostHog</a> for traffic analytics, feature flags, tracking my usage of the Anthropic API, error tracking, and to provide some of the features of the app, like your practice stats. PostHog tracks activity on the site.<br>
-                    Why: I'm not using it to "spy" on people, I'm using it to understand how the app is being used, where people are running into difficulty, and how I can make changes to improve the app to make it easier to use. <span class="text-sm text-gray-600 dark:text-gray-400">(Full disclosure: I work for PostHog, but GPRA is my own project, unrelated to PostHog beyond my use of PostHog as a customer.)</span>
+                    Why: I'm not using it to "spy" on people, I'm using it to understand how the app is being used, where people are running into difficulty, and how I can make changes to improve the app to make it easier to use. <span class="text-sm text-gray-600 dark:text-gray-400"><br>
+                    (Full disclosure: I work at PostHog, but GPRA is my own personal project, unrelated to PostHog beyond my use of PostHog as a customer.)</span>
                 </p>
                 <p>
                     <strong>Optional stuff:</strong><br>
-                    What: If you add your own Anthropic API key (the "byoClaude" feature), I encrypt it and store it for you. You can remove it anytime.<br>
-                    Why: So you can use the autocreate feature with the Basic tier plan.
+                    What: If you add your own Anthropic API key (the "byoClaude" feature), I encrypt it (I can see it) and store it so it works. You can remove it anytime on the Account/Settings page.<br>
+                    Why: So you can use the autocreate feature with the free, Dollar Store, and Basic tier plans.
                 </p>
             </div>
         </div>
@@ -89,7 +90,7 @@
             <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">What I do with your info</h2>
             <div class="space-y-4 text-gray-700 dark:text-gray-300">
                 <p>
-                    I use your data to provide GPRA's functionality, and to understand how people use the app so I can improve it. That's it. I'm not in the business of selling or sharing your information (email addresses, usage info, etc.), and I never will be. I didn't build this app to "get rich", I'm just hoping I'll make enough to pay for the cost of hosting it, to break even. (Don't get me wrong, it'd be really cool if it makes a profit, but that seems quite unlikely with the low fees and the fact that it's kinda niche.) More specifically:
+                    I use your data to provide GPRA's functionality, and to understand how people use the app so I can improve it. That's it. I'm not in the business of selling or sharing your information (email addresses, usage info, etc.), and I never will be. I can't, don't, and won't track your activity on other websites. I didn't build this app to "get rich", I'm just hoping I'll make enough to pay for the cost of hosting it, to break even. (Don't get me wrong, it'd be really cool if it makes a profit, but that seems quite unlikely with the low fees and the fact that it's kinda niche.) More specifically:
                 </p>
                 <ul class="list-disc pl-6 space-y-2">
                     <li>Process payments via Stripe (they're <a href="https://stripe.com/en-ca/guides/pci-compliance" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">PCI compliant</a>, so your payment info is kept secure)</li>
@@ -114,7 +115,7 @@
                     <li>I won't save any files you upload to autocreate chord charts (they're not saved at all, they're just shown to Claude so he can create the chord charts, and then they vanish into the ether.)</li>
                     <li>I won't use your info to "increase shareholder value" (narrator's voice: he's the only shareholder.)</li>
                     <li>I won't judge your music. If you like it, it's good for you. I'm pretty polyjamorous myself, I like most kinds of music <span class="text-sm text-gray-600 dark:text-gray-400">(with a couple of strong exceptions)</span>.</li>
-                    <li>I won't steal something you wrote (I don't have the time or the interest to be poking around in your routines or chord charts. Also, I don't write music, I just play covers myself, so I don't want any part of your mediocre break up songs. 😉)</li>
+                    <li>I won't steal something you wrote (I don't have the time or the interest to be poking around in your routines or chord charts. Also, I don't write music, I just play covers myself, so I don't want any part of your mediocre break-up songs. 😉)</li>
                 </ul>
             </div>
         </div>
@@ -174,10 +175,10 @@
 
                 <div class="mb-4">
                     <h3 class="font-semibold text-lg mb-1">
-                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">Google (OAuth &amp; reCAPTCHA)</a>
+                        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" class="text-orange-600 dark:text-orange-400 hover:underline">Google OAuth and reCAPTCHA</a>
                     </h3>
                     <p class="ml-6">
-                        Optional sign-in method using your Google account. Google's reCAPTCHA also runs on the login, signup, and password reset pages to keep bots from hammering them.
+                        Optional Google sign-in method using your Google account, and the tool to try to make sure you're human so my site doesn't get overwhelmed by bot farms.
                     </p>
                 </div>
 
