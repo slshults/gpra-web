@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { trackItemOperation, trackContentUpdate } from '../utils/analytics';
 import { supportsFolderOpening } from '../utils/platform';
+import { resolveDurationMinutes } from '@utils/duration';
 import {
   Dialog,
   DialogContent,
@@ -47,7 +48,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
           setFormData({
             'C': item['C'] || '',
             'D': item['D'] || '',
-            'E': item['E'] || 5,
+            'E': resolveDurationMinutes(item),
             'F': item['F'] || '',
             'G': item['G'] || '',
             'H': item['H'] || '',
@@ -89,7 +90,7 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
       setFormData({
         'C': fullItem['C'] || '',
         'D': fullItem['D'] || '',
-        'E': fullItem['E'] || 5,
+        'E': resolveDurationMinutes(fullItem),
         'F': fullItem['F'] || '',
         'G': fullItem['G'] || '',
         'H': fullItem['H'] || '',
