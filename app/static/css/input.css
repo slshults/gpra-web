@@ -321,6 +321,14 @@ body.show-ph-widget #ph-conversations-widget-container {
   display: block !important;
 }
 
+/* The guided tour adds gpra-tour-active to <body> (GuidedTour.jsx). The bubble
+   floats over tour popovers and the elements they highlight, so it stays out of
+   the way until the tour finishes. Must stay after the show-ph-widget rule —
+   same specificity, so source order decides. */
+body.gpra-tour-active #ph-conversations-widget-container {
+  display: none !important;
+}
+
 /* =============================================================
    PostHog Conversations Widget - GPRA theme overrides
    All rules need !important since PostHog uses inline styles.
@@ -365,6 +373,11 @@ body.show-ph-widget #ph-conversations-widget-container {
 @media (max-width: 639px) {
   #ph-conversations-widget-container > div:has(button[aria-label="Open chat"]) {
     transform: translateY(-76px) !important;
+    /* Bottom-LEFT on mobile only. On the right it sat over the controls at the
+       end of each practice row; desktop keeps PostHog's bottom-right default.
+       Scoped to the collapsed bubble so the open panel keeps its own layout. */
+    left: 12px !important;
+    right: auto !important;
   }
 }
 
