@@ -29,6 +29,25 @@ const settleLayout = (element) =>
     setTimeout(resolve, 100);
   });
 
+// Steps that follow a page change used to advance on a fixed timeout, which is a
+// race: a page that is still fetching (Routines shows "Loading routines...")
+// renders no target yet, and Driver.js then highlights nothing. Poll for the
+// target instead, and fall through after `timeout` so a genuinely missing
+// element can't strand the tour.
+const waitForElement = (selector, timeout = 3000) =>
+  new Promise((resolve) => {
+    const started = Date.now();
+    const poll = () => {
+      const el = document.querySelector(selector);
+      if (el || Date.now() - started >= timeout) {
+        resolve(el);
+        return;
+      }
+      setTimeout(poll, 50);
+    };
+    poll();
+  });
+
 // `suppressed` is set for the page load that comes back from Stripe Checkout. The
 // tour must not hijack the moment right after someone pays.
 const GuidedTour = ({ suppressed = false }) => {
@@ -86,6 +105,10 @@ const GuidedTour = ({ suppressed = false }) => {
     };
 
     checkTourStatus();
+
+    // Insurance: if this unmounts mid-tour, don't strand the body class and
+    // leave the support widget hidden for the rest of the session.
+    return () => document.body.classList.remove('gpra-tour-active');
   }, [suppressed]);
 
   const markTourComplete = async () => {
@@ -105,6 +128,24 @@ const GuidedTour = ({ suppressed = false }) => {
     // true and relaunch on every later full page load. Account settings still has
     // a "Restart tour" button for anyone who wants another pass.
     markTourComplete();
+
+    // The PostHog conversations bubble floats over the tour popovers and the
+    // elements they highlight, so it stays hidden until the tour is done.
+    document.body.classList.add('gpra-tour-active');
+
+    // Steps that wait on an element before advancing leave a window where a
+    // second Next tap arrives mid-wait; without this the extra tap is swallowed
+    // and the button looks dead until you tap again.
+    let advancing = false;
+    const advanceAfter = (work) => {
+      if (advancing) return false;
+      advancing = true;
+      Promise.resolve(work()).then(() => {
+        advancing = false;
+        driverObj.moveNext();
+      });
+      return false;
+    };
 
     const driverObj = driver({
       showProgress: true,
@@ -134,16 +175,15 @@ const GuidedTour = ({ suppressed = false }) => {
             description: `Use the items page to create and manage items.<br>Items can be songs, exercises, reminders, etc.<br>${getTourImage('CreateItem.gif', 'mobile-items-add.png', { width: 600, height: 579 }, 'Creating a practice item')}`,
             side: 'bottom',
             align: 'start',
-            onNextClick: () => {
-              // Navigate to Routines BEFORE Step 2 initializes
-              setActivePage('Routines');
-              // Wait longer for navigation to complete
-              setTimeout(() => {
-                driverObj.moveNext();
-              }, 400);
-              // Prevent default advancement
-              return false;
-            }
+            onNextClick: () =>
+              // Navigate to Routines BEFORE Step 2 initializes, and wait for the
+              // "+ New" button to actually exist — RoutinesPage renders a loading
+              // state while it fetches, and advancing into that left Step 2 with
+              // nothing to highlight (most visible on mobile).
+              advanceAfter(() => {
+                setActivePage('Routines');
+                return waitForElement('[data-tour="new-routine-input"]');
+              })
           }
         },
         {
@@ -155,18 +195,25 @@ const GuidedTour = ({ suppressed = false }) => {
             side: 'bottom',
             align: 'start',
             onPrevClick: () => {
-              // Navigate back to Items page when going backwards
+              // Navigate back to Items page when going backwards, waiting for
+              // the tab to exist rather than guessing at a delay
               setActivePage('Items');
-              // Wait for navigation, then manually go back
-              setTimeout(() => {
+              waitForElement('[data-tour="items-tab"]').then(() => {
                 driverObj.movePrevious();
-              }, 400);
+              });
               // Prevent default behavior
               return false;
             },
             onPopoverRender: () => {
-              // Scroll element into view after popover renders
+              // Scroll element into view after popover renders. On mobile the
+              // button lives in a sticky top bar: scrolling it to centre moves
+              // the page while the button stays pinned, which drags the
+              // highlight off it. Going to the top keeps the two together.
               setTimeout(() => {
+                if (isMobileView()) {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  return;
+                }
                 const element = document.querySelector('[data-tour="new-routine-input"]');
                 if (element) {
                   element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -222,9 +269,14 @@ const GuidedTour = ({ suppressed = false }) => {
               return false;
             },
             onNextClick: () => {
-              // Expand sections BEFORE moving to Step 5
+              // Expand sections BEFORE moving to Step 5. Desktop rows report
+              // state via data-expanded, mobile rows via aria-expanded — check
+              // both, or on mobile this reads null and clicks an already-open
+              // item shut (now likely, since Practice restores expanded items).
               const firstItemHeader = document.querySelector('[data-item-header]');
-              if (firstItemHeader && firstItemHeader.getAttribute('data-expanded') !== 'true') {
+              const alreadyOpen = firstItemHeader?.getAttribute('data-expanded') === 'true'
+                || firstItemHeader?.getAttribute('aria-expanded') === 'true';
+              if (firstItemHeader && !alreadyOpen) {
                 firstItemHeader.click();
               }
 
@@ -255,14 +307,15 @@ const GuidedTour = ({ suppressed = false }) => {
           onHighlighted: (element) => {
             // `element` can be undefined if Driver.js highlights a missing target
             if (!element) return;
-            // After Driver.js positions, scroll so element appears BELOW the popover
-            // The popover is CSS-positioned at top: 10%, so we scroll the element
-            // to appear in the lower half of the viewport
+            // After Driver.js positions, scroll the element clear of the popover.
+            // Desktop keeps the popover at top: 10%, so the element goes below
+            // it. Mobile pins the popover to the bottom half (driver-theme.css)
+            // because it was covering the demo routine, so there the element
+            // goes above it instead.
             setTimeout(() => {
               const rect = element.getBoundingClientRect();
               const viewportHeight = window.innerHeight;
-              // Target: element at ~55% from top of viewport (below the popover)
-              const targetY = viewportHeight * 0.55;
+              const targetY = viewportHeight * (isMobileView() ? 0.2 : 0.55);
               const scrollY = window.scrollY + rect.top - targetY;
               window.scrollTo({ top: Math.max(0, scrollY), behavior: 'smooth' });
             }, 150);
@@ -335,7 +388,8 @@ const GuidedTour = ({ suppressed = false }) => {
           }
         },
         {
-          element: '[data-tour="items-tab"]',
+          // Points at Practice because that's where Done now lands
+          element: '[data-tour="practice-tab"]',
           popover: {
             title: 'You\'re all set!',
             description: 'That\'s it for the tour. Rock on! 🤘<br> (or blues on, folk on, jazz on, hip hop on, country on, reggae on, get your worship on, or whatever floats your musical boat...)',
@@ -346,8 +400,10 @@ const GuidedTour = ({ suppressed = false }) => {
         }
       ],
       onDestroyed: () => {
-        // Navigate to Items page after tour completion
-        setActivePage('Items');
+        document.body.classList.remove('gpra-tour-active');
+        // Land on Practice: it's where a new user actually starts, and the demo
+        // routine is already waiting there.
+        setActivePage('Practice');
         // Scroll to top after navigation
         setTimeout(() => {
           window.scrollTo({ top: 0, behavior: 'smooth' });

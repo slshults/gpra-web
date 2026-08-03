@@ -16,6 +16,7 @@ import { Input } from '@ui/input';
 import { Search, Plus, GripVertical, X } from 'lucide-react';
 import { trackRoutineOperation } from '../utils/analytics';
 import { debugLog } from '@utils/logging';
+import { useIsMobile } from '@hooks/useIsMobile';
 import {
   DndContext,
   DragOverlay,
@@ -35,6 +36,11 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+
+// How long the "+ New item" button stays highlighted when the editor opens on
+// mobile — long enough to read as the suggested next action, short enough not to
+// linger. Matches the fade timing of the just-created item highlight below.
+const NEW_ITEM_HIGHLIGHT_MS = 3500;
 
 // Available item in the search list (draggable for cross-column DnD).
 // justCreated marks an item just added via the "+ New item" button with a
@@ -150,6 +156,7 @@ const SortableRoutineItem = React.memo(({ item, onRemove }) => {
 });
 
 export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineChange, items = [], onItemCreated }) => {
+  const isMobile = useIsMobile();
   const {
     availableItems,
     selectedItems,
@@ -175,6 +182,11 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
   const [highlightStage, setHighlightStage] = useState(null); // 'visible' | 'fading' | null
   const highlightTimersRef = useRef([]);
   const searchInputRef = useRef(null);
+  const contentRef = useRef(null);
+  // Mobile only: the editor no longer focuses the search field on open (the
+  // keyboard covered half the sheet), so the "+ New item" button gets a brief
+  // highlight to point at the action instead.
+  const [newItemHighlighted, setNewItemHighlighted] = useState(false);
 
   const clearHighlightTimers = () => {
     highlightTimersRef.current.forEach(clearTimeout);
@@ -220,6 +232,17 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
   useEffect(() => {
     setRoutineName(routine?.name || '');
   }, [routine?.id]);
+
+  // Highlight the "+ New item" button for a beat when the editor opens on mobile
+  useEffect(() => {
+    if (!open || !isMobile) {
+      setNewItemHighlighted(false);
+      return;
+    }
+    setNewItemHighlighted(true);
+    const timer = setTimeout(() => setNewItemHighlighted(false), NEW_ITEM_HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [open, isMobile]);
 
   // Clear error when modal opens/closes; reset the new-item highlight so a
   // reopened editor doesn't show a stale pin/chip
@@ -446,14 +469,70 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
   if (loading) return <div className="text-2xl text-center p-8" role="status" aria-live="polite">Loading...</div>;
   if (hookError) return <div className="text-2xl text-red-500 text-center p-8" role="alert">{hookError}</div>;
 
+  // Rendered above Selected items on mobile, beside it on desktop
+  const availableItemsCard = (
+    <Card className="w-full sm:w-1/2 min-h-[35vh] sm:min-h-0 bg-gray-900">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>Available items</CardTitle>
+          <Button
+            size="sm"
+            onClick={() => setShowItemEditor(true)}
+            className="bg-blue-600 hover:bg-blue-700"
+            style={newItemHighlighted ? {
+              boxShadow: '0 0 0 3px rgba(96, 165, 250, 0.65)',
+              transition: 'box-shadow 500ms',
+            } : { transition: 'box-shadow 500ms' }}
+            data-ph-capture-attribute-button="routine-editor-new-item"
+          >
+            <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
+            New item
+          </Button>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+          <Input
+            ref={searchInputRef}
+            className="pl-9"
+            placeholder="Search items..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            autoComplete="off"
+          />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4 h-[calc(100%-100px)] overflow-y-auto">
+        {displayedAvailableItems.map(item => (
+          <AvailableItem
+            key={item['A']}
+            item={item}
+            onAdd={handleAddItem}
+            justCreated={highlightStage !== null && justCreatedItem?.['B'] === item['B']}
+            highlightFading={highlightStage === 'fading' && justCreatedItem?.['B'] === item['B']}
+          />
+        ))}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        ref={contentRef}
         className="max-w-4xl max-h-[80vh]"
         modalName="Edit routine"
         onOpenAutoFocus={(e) => {
-          // When editing an existing routine, land the cursor in the search
+          // Mobile: focus nothing, so the on-screen keyboard stays down until
+          // the user taps a field — it was opening over half the sheet. Focus
+          // moves to the dialog itself to keep the focus trap and screen-reader
+          // announcement intact.
+          if (isMobile) {
+            e.preventDefault();
+            requestAnimationFrame(() => contentRef.current?.focus());
+            return;
+          }
+          // Desktop, editing an existing routine: land the cursor in the search
           // (add-items) field instead of the routine-name input Radix would
           // focus by default — so a stray keystroke can't overwrite the name,
           // and adding items (the common action) is one tap away.
@@ -493,7 +572,14 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
           onDragEnd={handleDragEnd}
           onDragCancel={() => setDraggedAvailableItem(null)}
         >
+          {/* Mobile stacks Available items first: the point of opening the
+              editor is usually to add something, and the selected list can be
+              long enough to push the search out of reach. Ordered by swapping
+              the JSX rather than reversing the flex direction — a
+              column-reverse scroll container starts at the wrong end once the
+              content overflows, which would hide the search we're surfacing. */}
           <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 h-[70vh] sm:h-[60vh] overflow-y-auto sm:overflow-visible">
+            {isMobile && availableItemsCard}
             {/* Selected Items */}
             <Card className="w-full sm:w-1/2 min-h-[35vh] sm:min-h-0 bg-gray-900">
               <CardHeader>
@@ -526,45 +612,7 @@ export const RoutineEditor = ({ open, onOpenChange, routine = null, onRoutineCha
               </CardContent>
             </Card>
 
-            {/* Available Items */}
-            <Card className="w-full sm:w-1/2 min-h-[35vh] sm:min-h-0 bg-gray-900">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Available items</CardTitle>
-                  <Button
-                    size="sm"
-                    onClick={() => setShowItemEditor(true)}
-                    className="bg-blue-600 hover:bg-blue-700"
-                    data-ph-capture-attribute-button="routine-editor-new-item"
-                  >
-                    <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
-                    New item
-                  </Button>
-                </div>
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
-                  <Input
-                    ref={searchInputRef}
-                    className="pl-9"
-                    placeholder="Search items..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4 h-[calc(100%-100px)] overflow-y-auto">
-                {displayedAvailableItems.map(item => (
-                  <AvailableItem
-                    key={item['A']}
-                    item={item}
-                    onAdd={handleAddItem}
-                    justCreated={highlightStage !== null && justCreatedItem?.['B'] === item['B']}
-                    highlightFading={highlightStage === 'fading' && justCreatedItem?.['B'] === item['B']}
-                  />
-                ))}
-              </CardContent>
-            </Card>
+            {!isMobile && availableItemsCard}
           </div>
 
           {createPortal(

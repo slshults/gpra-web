@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { trackItemOperation, trackContentUpdate } from '../utils/analytics';
 import { supportsFolderOpening } from '../utils/platform';
 import { resolveDurationMinutes } from '@utils/duration';
@@ -16,8 +16,11 @@ import { Label } from '@ui/label';
 import { Loader2 } from 'lucide-react';
 import TierLimitModal from './TierLimitModal';
 import { renderMarkdown } from './NoteEditor';
+import { useIsMobile } from '@hooks/useIsMobile';
 
 export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) => {
+  const isMobile = useIsMobile();
+  const contentRef = useRef(null);
   const [formData, setFormData] = useState({
     'C': '',
     'D': '',
@@ -184,7 +187,20 @@ export const ItemEditor = ({ open, onOpenChange, item = null, onItemChange }) =>
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-gray-800" modalName={item ? 'Edit item' : 'Create new item'}>
+      <DialogContent
+        ref={contentRef}
+        className="max-w-2xl bg-gray-800"
+        modalName={item ? 'Edit item' : 'Create new item'}
+        onOpenAutoFocus={(e) => {
+          // Mobile: don't put the cursor in Title on open — that raises the
+          // keyboard over the form before the user has decided to type. Focus
+          // the dialog instead so the focus trap and announcement still work.
+          // Desktop keeps autofocus, where a ready cursor costs nothing.
+          if (!isMobile) return;
+          e.preventDefault();
+          requestAnimationFrame(() => contentRef.current?.focus());
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {item ? `Edit item: ${item['C']}` : 'Create new item'}

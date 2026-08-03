@@ -38,6 +38,7 @@ import {
 } from "@ui/alert-dialog";
 import { useIsMobile } from '@hooks/useIsMobile';
 import MobileItemsList from '@components/MobileItemsList';
+import AddToRoutineModal from '@components/AddToRoutineModal';
 
 // Split out item component for better state isolation
 const SortableItem = React.memo(({ item, onEdit, onDelete, onOpenChordCharts, onRowTipClick }) => {
@@ -144,6 +145,21 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
   const [showFirstItemGuide, setShowFirstItemGuide] = useState(false);
   const [copiedGuidance, setCopiedGuidance] = useState(false);
 
+  // "Add this item to a routine" prompt after a create. When the first-item
+  // guide is also due it goes first (it explains routines), and this waits.
+  const [addToRoutineItem, setAddToRoutineItem] = useState(null);
+  const [pendingAddToRoutineItem, setPendingAddToRoutineItem] = useState(null);
+
+  const closeFirstItemGuide = () => {
+    setShowFirstItemGuide(false);
+    if (pendingAddToRoutineItem) {
+      // Deferred a frame for the same Radix close→open reason as above
+      const queued = pendingAddToRoutineItem;
+      setPendingAddToRoutineItem(null);
+      requestAnimationFrame(() => setAddToRoutineItem(queued));
+    }
+  };
+
   useEffect(() => {
     fetch('/api/user/preferences/first-item-guidance-status')
       .then(r => r.json())
@@ -223,19 +239,32 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
     setChordChartsModalOpen(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (savedItem) => {
     const wasCreate = !editingItem;
     onItemsChange();
     setEditingItem(null);
     setIsEditOpen(false);
 
-    if (wasCreate && !firstItemGuidanceShown) {
+    const showGuide = wasCreate && !firstItemGuidanceShown;
+
+    if (showGuide) {
       setShowFirstItemGuide(true);
       setFirstItemGuidanceShown(true);
       window.posthog?.capture('first_item_guidance_shown');
       fetch('/api/user/preferences/first-item-guidance-complete', {
         method: 'POST'
       }).catch(() => {});
+    }
+
+    if (wasCreate && savedItem?.['B']) {
+      if (showGuide) {
+        setPendingAddToRoutineItem(savedItem);
+      } else {
+        // Next frame, so this modal opens after the ItemEditor has finished
+        // closing — same-tick close→open on stacked Radix dialogs can leave
+        // pointer-events: none on <body> and freeze the page.
+        requestAnimationFrame(() => setAddToRoutineItem(savedItem));
+      }
     }
   };
 
@@ -434,7 +463,14 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
         ]}
       />
 
-      <Dialog open={showFirstItemGuide} onOpenChange={setShowFirstItemGuide}>
+      <AddToRoutineModal
+        open={!!addToRoutineItem}
+        onOpenChange={(open) => { if (!open) setAddToRoutineItem(null); }}
+        item={addToRoutineItem}
+        onAdded={onItemsChange}
+      />
+
+      <Dialog open={showFirstItemGuide} onOpenChange={(open) => { if (!open) closeFirstItemGuide(); }}>
         <DialogContent modalName="First item guidance">
           <DialogHeader>
             <DialogTitle>Please read, you won't see this again:</DialogTitle>
@@ -474,7 +510,7 @@ export const PracticeItemsList = ({ items = [], onItemsChange }) => {
               </Button>
             </div>
             <Button onClick={() => {
-              setShowFirstItemGuide(false);
+              closeFirstItemGuide();
               window.posthog?.capture('first_item_guidance_dismissed', { method: 'got_it' });
             }}>Got it</Button>
           </DialogFooter>

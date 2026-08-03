@@ -49,6 +49,11 @@ const MobileTabBar = ({ userStatus, onUnpluggedAttempt, onMoreToggle }) => {
       return;
     }
     setActivePage(page);
+    // All these pages share one document, so the scroll position carries over
+    // from the page you just left — people were landing mid-page on a screen
+    // with nothing visible. Practice may scroll again afterwards, to bring a
+    // restored expanded item back into view (PracticePage).
+    window.scrollTo({ top: 0, behavior: 'auto' });
   };
 
   const moreItems = [

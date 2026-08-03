@@ -227,10 +227,11 @@ body:has(.gpra-tour-welcome) .driver-stage {
     transform: none !important;
   }
 
-  /* Chord charts step: position at top with enough height */
+  /* Chord charts step: pinned to the bottom half. At the top it covered the
+     demo routine this step is asking the user to look at. */
   .gpra-tour-chord-charts.driver-popover {
-    top: 10% !important;
-    bottom: auto !important;
+    top: auto !important;
+    bottom: 16px !important;
     transform: none !important;
     min-height: 180px !important; /* Ensure content + buttons fit */
   }

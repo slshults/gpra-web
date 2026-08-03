@@ -421,15 +421,19 @@ const findSimilarSongs = (sourceTitle, allItems, sourceItemId) => {
 import { autocreateStore, fireAutocreateNotification } from '@utils/autocreateStore';
 import { isValidYouTubeUrl, sanitizeYouTubeUrl, INVALID_YOUTUBE_URL_MESSAGE } from '@utils/youtube';
 
+// Which items were expanded when the user last left the Practice page (mobile)
+const EXPANDED_ITEMS_KEY = 'gpra_practice_expanded';
+
 export const PracticePage = () => {
   const { routine, refreshRoutine } = useActiveRoutine();
   const { fetchItemDetails, getItemDetails, isLoadingItem } = useItemDetails();
   useNavigation();
-  
+
   const { items: allItems, refreshItems } = usePracticeItems();
   const isMobile = useIsMobile();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState(new Set());
+  const expandedRestoredRef = useRef(false);
   const [expandedNotes, setExpandedNotes] = useState(new Set());
   const [activeTimers, setActiveTimers] = useState(new Set());
   const [notes, setNotes] = useState({});
@@ -1764,6 +1768,69 @@ export const PracticePage = () => {
       return prev;
     });
   }, []);
+
+  // Mobile: remember which items were expanded, so leaving Practice and coming
+  // back doesn't collapse everything. PracticePage unmounts on navigation, so
+  // this has to survive outside React state. Written on every change; read once
+  // per mount, once the routine's items are known.
+  //
+  // Must stay BELOW initTimer/fetchNotes: dependency arrays are evaluated during
+  // render, so listing those consts before their declarations throws a temporal
+  // dead zone ReferenceError that takes down the whole app.
+  //
+  // The write waits for the restore: expandedItems starts empty every mount, so
+  // writing before then would blank the very value we're about to read.
+  useEffect(() => {
+    if (!isMobile || !expandedRestoredRef.current) return;
+    sessionStorage.setItem(EXPANDED_ITEMS_KEY, JSON.stringify([...expandedItems]));
+  }, [expandedItems, isMobile]);
+
+  useEffect(() => {
+    if (!isMobile || expandedRestoredRef.current || !routine?.items?.length) return;
+
+    expandedRestoredRef.current = true;
+
+    let stored;
+    try {
+      stored = JSON.parse(sessionStorage.getItem(EXPANDED_ITEMS_KEY) || '[]');
+    } catch {
+      return;
+    }
+    if (!Array.isArray(stored) || stored.length === 0) return;
+
+    // Entries can disappear while you're away (removed from the routine)
+    const validEntries = routine.items.filter(item => stored.includes(item['A']));
+    if (validEntries.length === 0) return;
+
+    // Merge, don't replace: the autocreate effect above runs first on this same
+    // commit and expands its own item, and a replacing set would collapse it.
+    setExpandedItems(prev => new Set([...prev, ...validEntries.map(item => item['A'])]));
+
+    // Same lazy load an expand-by-tap would trigger
+    validEntries.forEach(routineItem => {
+      itemViewStartTimes.current[routineItem['A']] = Date.now();
+      fetchItemDetails(routineItem['B']).then(itemDetails => {
+        if (itemDetails) {
+          initTimer(routineItem['A'], resolveDurationMinutes(itemDetails, routineItem.minimalDetails));
+          fetchNotes(routineItem['B']);
+        }
+      });
+    });
+
+    // Bring the first restored item back into view. MobileTabBar has just
+    // scrolled to the top, so without this the item is expanded but off-screen.
+    // Offset clears the 52px sticky top bar, which would otherwise cover the
+    // item's title and leave you looking at a timer with no name attached.
+    // If autocreate is also scrolling, its later timeout wins — correct, since
+    // the item the user just built charts for is the one to land on.
+    setTimeout(() => {
+      const el = document.querySelector(`[data-item-header="${validEntries[0]['A']}"]`);
+      if (el) {
+        const top = window.scrollY + el.getBoundingClientRect().top - 60;
+        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      }
+    }, 200);
+  }, [isMobile, routine?.items, fetchItemDetails, initTimer, fetchNotes]);
 
   // Modified toggleItem to lazy-load item details when expanding
   const toggleItem = async (itemId) => {
@@ -4738,6 +4805,7 @@ export const PracticePage = () => {
           }}
           onAddSection={addNewSection}
           onAutocreate={(itemId) => setMobileAutocreateItemId(itemId)}
+          onEditRoutine={() => setIsEditOpen(true)}
         />
         {mobileAutocreateItemId != null && (
           <MobileAutocreatePage
@@ -4789,6 +4857,17 @@ export const PracticePage = () => {
             />
           </div>
         )}
+        {/* Same editor the desktop layout renders below — the mobile branch
+            returns early, so it needs its own copy for the header pencil and
+            the "New item" ghost row to have something to open. */}
+        <RoutineEditor
+          open={isEditOpen}
+          onOpenChange={setIsEditOpen}
+          routine={routine ? { id: routine.id, name: routine.name } : null}
+          onRoutineChange={refreshRoutine}
+          items={allItems}
+          onItemCreated={refreshItems}
+        />
       </>
     );
   }

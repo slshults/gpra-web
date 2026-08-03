@@ -3,7 +3,7 @@
 // the 640px breakpoint; PracticePage stays the owner of all practice state and
 // passes the subset this view needs (plus handlers) as props.
 import { useState, useEffect, useCallback } from 'react';
-import { Check, ChevronDown, ChevronRight, Music, RotateCcw, Play, Sparkles } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Music, Pencil, Plus, RotateCcw, Play, Sparkles } from 'lucide-react';
 import { resolveDurationMinutes } from '@utils/duration';
 import MobileChordGrid from '@components/MobileChordGrid';
 import MobilePlayMode from '@components/MobilePlayMode';
@@ -36,6 +36,7 @@ const MobilePracticePage = ({
   onAddChord,
   onAddSection,
   onAutocreate,
+  onEditRoutine,
 }) => {
   const { density, changeDensity } = useChordDensity();
   const [playModeEntryId, setPlayModeEntryId] = useState(null);
@@ -95,15 +96,29 @@ const MobilePracticePage = ({
             {completedMinutes}/{totalMinutes} min · {items.length} item{items.length === 1 ? '' : 's'}
           </div>
         </div>
-        <button
-          onClick={onResetProgress}
-          className="flex items-center justify-center shrink-0"
-          style={{ width: '36px', height: '36px', border: '1px solid #1f2937', borderRadius: '8px', color: '#9ca3af' }}
-          aria-label="Reset progress"
-          data-ph-capture-attribute-button="mobile-reset-progress"
-        >
-          <RotateCcw size={16} />
-        </button>
+        <div className="flex items-center shrink-0" style={{ gap: '6px' }}>
+          {routine && (
+            <button
+              onClick={onEditRoutine}
+              className="flex items-center justify-center"
+              style={{ width: '36px', height: '36px', border: '1px solid #1f2937', borderRadius: '8px', color: '#3b82f6' }}
+              title="Edit routine"
+              aria-label="Edit routine"
+              data-ph-capture-attribute-button="mobile-edit-routine"
+            >
+              <Pencil size={15} />
+            </button>
+          )}
+          <button
+            onClick={onResetProgress}
+            className="flex items-center justify-center"
+            style={{ width: '36px', height: '36px', border: '1px solid #1f2937', borderRadius: '8px', color: '#9ca3af' }}
+            aria-label="Reset progress"
+            data-ph-capture-attribute-button="mobile-reset-progress"
+          >
+            <RotateCcw size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Item rows */}
@@ -218,6 +233,10 @@ const MobilePracticePage = ({
                     </button>
                   </div>
 
+                  {/* The guided tour's chord-charts step highlights this. The
+                      attribute previously existed only in the desktop layout,
+                      so on mobile Driver.js had nothing to point at. */}
+                  <div data-tour="chord-charts-section">
                   {/* Chords header + density toggle */}
                   <div className="flex items-center justify-between" style={{ marginBottom: '8px' }}>
                     <div className="flex items-center min-w-0" style={{ gap: '6px' }}>
@@ -302,11 +321,37 @@ const MobilePracticePage = ({
                       </button>
                     )}
                   </div>
+                  </div>
                 </div>
               )}
             </div>
           );
         })}
+
+        {/* Ghost row: add an item to this routine (same action as the pencil).
+            Desktop has had this since the redesign; without it a new account's
+            demo routine offers no visible way to add a second item. */}
+        {routine && (
+          <button
+            type="button"
+            onClick={onEditRoutine}
+            className="flex items-center w-full"
+            style={{
+              gap: '10px',
+              padding: '0 14px',
+              height: '52px',
+              border: '2px dashed #374151',
+              borderRadius: '10px',
+              color: '#60a5fa',
+              fontSize: '15px',
+            }}
+            title="Add an item to this routine"
+            data-ph-capture-attribute-button="mobile-practice-new-item-row"
+          >
+            <Plus size={18} aria-hidden="true" />
+            New item
+          </button>
+        )}
       </div>
     </div>
     {playModeEntryId && (
