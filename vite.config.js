@@ -13,15 +13,17 @@ const getGitHash = () => {
 };
 
 export default defineConfig(({ mode }) => {
-  // Only upload source maps to PostHog when the build is invoked as a
-  // production build (`npm run build`, not `npm run watch` which proxies
-  // through nodemon) AND the required env vars are exported to the
-  // process. Reading from `process.env` (not loadEnv) means a stale
-  // `.env` won't trigger uploads — uploads are opt-in per invocation.
-  const uploadSourcemaps =
-    process.env.npm_lifecycle_event === 'build'
-    && process.env.POSTHOG_PERSONAL_API_KEY
-    && process.env.POSTHOG_PROJECT_ID;
+  // Upload source maps to PostHog whenever the required credentials are
+  // exported to the process. Gating on env-var presence alone (not also
+  // `npm_lifecycle_event === 'build'`) means every build that *can* upload
+  // *does* — `npm run watch`, CI, or a bare `vite build` all symbolicate,
+  // so exceptions arrive readable instead of as minified frames like `zr`.
+  // Reading from `process.env` (not loadEnv) keeps a stale `.env` from
+  // triggering uploads: the credentials must be exported per invocation.
+  const uploadSourcemaps = Boolean(
+    process.env.POSTHOG_PERSONAL_API_KEY
+    && process.env.POSTHOG_PROJECT_ID
+  );
 
   return {
   plugins: [
@@ -40,7 +42,10 @@ export default defineConfig(({ mode }) => {
   build: {
     outDir: path.resolve(__dirname, 'app/static/dist'),
     emptyOutDir: true,
-    sourcemap: 'hidden',
+    // Only emit source maps when we're going to upload them; otherwise a
+    // build ships hidden `.map` files that PostHog never receives and that
+    // sit unused in `dist/`.
+    sourcemap: uploadSourcemaps ? 'hidden' : false,
     chunkSizeWarningLimit: 600,
     cssCodeSplit: false,  // Prevent duplicate Tailwind CSS in per-chunk files
     rollupOptions: {
@@ -59,11 +64,27 @@ export default defineConfig(({ mode }) => {
           }
           return '[name][extname]';
         },
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'radix-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-select', '@radix-ui/react-tooltip'],
-          'dnd-vendor': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
-          'recharts-vendor': ['recharts']
+        // Split vendor code by matching `node_modules` paths rather than
+        // hand-listing packages. The object-literal form let Rollup park
+        // shared React modules (`scheduler`, `react/jsx-runtime`) that
+        // weren't named wherever it liked — with three entry points it put
+        // them in `radix-vendor`, creating a cycle between the two chunks
+        // and a "Cannot access '...' before initialization" TDZ crash at
+        // startup. Matching on paths keeps *all* of React's runtime in one
+        // chunk and *everything* under `@radix-ui/*` in another, so a new
+        // Radix (or React) dependency can never be silently left off a list.
+        manualChunks(id) {
+          if (!id.includes('/node_modules/')) return;
+          if (
+            id.includes('/node_modules/react/') ||
+            id.includes('/node_modules/react-dom/') ||
+            id.includes('/node_modules/scheduler/')
+          ) {
+            return 'react-vendor';
+          }
+          if (id.includes('/node_modules/@radix-ui/')) return 'radix-vendor';
+          if (id.includes('/node_modules/@dnd-kit/')) return 'dnd-vendor';
+          if (id.includes('/node_modules/recharts/')) return 'recharts-vendor';
         }
       }
     }
