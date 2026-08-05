@@ -3207,12 +3207,21 @@ export const PracticePage = () => {
   // inline replace warning funnel through here.
   const deleteAllChartsForItem = async (itemId) => {
     const existingCharts = chordCharts[itemId] || [];
-    for (const chart of existingCharts) {
-      const response = await fetch(`/api/items/${itemId}/chord-charts/${chart.id}`, {
-        method: 'DELETE'
+    if (existingCharts.length > 0) {
+      // One batch request instead of a DELETE per chart — the per-chart loop
+      // tripped the global 100/min rate limit on items with many charts
+      const response = await fetch('/api/chord-charts/batch-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chord_ids: existingCharts.map(chart => chart.id),
+          item_id: itemId  // Add item context for sharing-aware deletion
+        })
       });
       if (!response.ok) {
-        throw new Error(`Failed to delete chord chart ${chart.id}`);
+        throw new Error(`Failed to delete ${existingCharts.length} chord charts`);
       }
     }
 
