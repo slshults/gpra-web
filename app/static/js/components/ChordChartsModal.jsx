@@ -2232,12 +2232,21 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
   // inline replace warning funnel through here.
   const deleteAllChartsForItem = async (targetItemId) => {
     const existingCharts = chordCharts[targetItemId] || [];
-    for (const chart of existingCharts) {
-      const response = await fetch(`/api/items/${targetItemId}/chord-charts/${chart.id}`, {
-        method: 'DELETE'
+    if (existingCharts.length > 0) {
+      // One batch request instead of a DELETE per chart — the per-chart loop
+      // tripped the global 100/min rate limit on items with many charts
+      const response = await fetch('/api/chord-charts/batch-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chord_ids: existingCharts.map(chart => chart.id),
+          item_id: targetItemId  // Add item context for sharing-aware deletion
+        })
       });
       if (!response.ok) {
-        throw new Error(`Failed to delete chord chart ${chart.id}`);
+        throw new Error(`Failed to delete ${existingCharts.length} chord charts`);
       }
     }
 
