@@ -68,7 +68,7 @@ const AvailableItem = React.memo(({ item, onAdd, justCreated = false, highlightF
       <div className="flex items-center">
         {/* touch-action: none lets dnd-kit own the touch gesture; without it
             the browser scrolls instead of dragging on touch screens */}
-        <div {...attributes} {...listeners} className="cursor-grab" style={{ touchAction: 'none' }}>
+        <div {...attributes} {...listeners} className="cursor-grab" style={{ touchAction: 'none' }} aria-label="Drag to add item to routine" data-ph-capture-attribute-drag="routine-editor-available-drag-handle">
           <GripVertical className="h-5 w-5 text-gray-500 mr-4" aria-hidden="true" />
         </div>
         <span className="text-lg">{item['C']}</span>
