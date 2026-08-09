@@ -3793,22 +3793,25 @@ def get_common_chord_charts():
         with DatabaseTransaction() as session:
             # Get all common chords from PostgreSQL
             result = session.execute(text("""
-                SELECT id, title, chord_data, created_at, "order"
-                FROM common_chords 
-                ORDER BY "order" ASC, title ASC
+                SELECT id, name, chord_data, created_at, order_col
+                FROM common_chords
+                ORDER BY order_col ASC, name ASC
             """))
             
             common_chords = []
             for row in result:
-                chord_id, title, chord_data_str, created_at, order = row
-                
-                # Parse chord data JSON
-                try:
-                    import json
-                    chord_data = json.loads(chord_data_str) if chord_data_str else {}
-                except json.JSONDecodeError:
-                    chord_data = {}
-                
+                chord_id, title, chord_data_raw, created_at, order = row
+
+                # chord_data is a JSON column, so psycopg2 already hands back a dict.
+                # Older rows stored it as text, hence the str branch.
+                if isinstance(chord_data_raw, str):
+                    try:
+                        chord_data = json.loads(chord_data_raw)
+                    except json.JSONDecodeError:
+                        chord_data = {}
+                else:
+                    chord_data = chord_data_raw or {}
+
                 common_chords.append({
                     'id': str(chord_id),
                     'title': title,
@@ -3826,7 +3829,7 @@ def get_common_chord_charts():
         
     except Exception as e:
         app.logger.error(f"Error fetching common chord charts from PostgreSQL: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Failed to fetch chord charts'}), 500
 
 @app.route('/api/chord-charts/common/search', methods=['GET'])
 def search_common_chords():
