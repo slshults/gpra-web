@@ -19,10 +19,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Add mobile chord-density preference (3 or 4 charts across, default 4)."""
-    op.add_column(
-        'user_preferences',
-        sa.Column('chord_density', sa.SmallInteger(), nullable=False, server_default='4'),
+    """Add mobile chord-density preference (3 or 4 charts across, default 4).
+
+    NOTE: Uses IF NOT EXISTS for idempotency. Production got this column via the
+    hand-run migrations/add_chord_density.sql hotfix on 2026-07-26 without the
+    revision being stamped, so a plain op.add_column would abort here.
+    """
+    op.execute(
+        "ALTER TABLE user_preferences "
+        "ADD COLUMN IF NOT EXISTS chord_density SMALLINT NOT NULL DEFAULT 4;"
     )
 
 
