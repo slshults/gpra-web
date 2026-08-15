@@ -4023,6 +4023,52 @@ def get_common_chord_by_id(chord_id):
         return jsonify({"error": "Failed to fetch chord"}), 500
 
 
+@app.route('/api/chord-charts/chord-of-the-day', methods=['GET'])
+def get_chord_of_the_day():
+    """Public — the chord most recently posted to the Bluesky/Facebook feeds.
+
+    `posted_chords` is otherwise reachable only from the cron job and the
+    selector service, so there is no way for anything outside the app to learn
+    today's chord. The MCP server at mcp.guitarpracticeroutine.com calls this
+    once or twice a day and renders the chart from its own snapshot, so the
+    response only needs to identify the chord, not describe it.
+
+    Includes 'partial' alongside 'posted' for the same reason the selector does
+    (app/services/daily_chord/selector.py): a partial run still landed the chord
+    on at least one feed, so it is genuinely the chord of that day.
+
+    Returns 404 when nothing has been posted yet, which is a real state on a
+    fresh install rather than an error.
+    """
+    try:
+        with DatabaseTransaction() as db:
+            row = db.execute(
+                text("""
+                    SELECT cp.chord_name, cp.common_chord_id, pc.posted_at
+                    FROM posted_chords pc
+                    JOIN chord_pool cp ON cp.id = pc.chord_pool_id
+                    WHERE pc.status IN ('posted', 'partial')
+                    ORDER BY pc.posted_at DESC
+                    LIMIT 1
+                """)
+            ).fetchone()
+
+            if not row:
+                return jsonify({"error": "No chord has been posted yet"}), 404
+
+            return jsonify({
+                "chord_name": row[0],
+                "common_chord_id": row[1],
+                "posted_at": row[2].isoformat() if row[2] else None,
+            })
+
+    except Exception as e:
+        # Generic message to the caller, detail to the log — same shape as the
+        # sibling public endpoints.
+        app.logger.error(f"Error fetching chord of the day: {str(e)}")
+        return jsonify({"error": "Failed to fetch chord of the day"}), 500
+
+
 # Autocreate helper functions
 
 def detect_file_types_with_sonnet(client, uploaded_files, user_id=None):
