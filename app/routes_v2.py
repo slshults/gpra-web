@@ -9,7 +9,7 @@ from app.data_layer import data_layer
 from app.database import DatabaseTransaction
 from app.middleware.rls import require_user_context
 from app.subscription_tiers import get_tier_limits
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from datetime import datetime, timedelta
 import logging
 import os
@@ -8353,23 +8353,38 @@ PRACTICE_STATS_CACHE_SECONDS = 900
 PRACTICE_STATS_INGEST_LAG_SECONDS = 45
 
 
+# practice_events event_type values that the stats queries actually aggregate:
+# 'started_timer' becomes practice_timer_started and 'marked_done' becomes
+# practice_item_completed (see trackPracticeEvent in analytics.js). The table
+# also records timer_stopped, timer_reset and practice_page_visited, and none
+# of those move a single number on the Stats page - counting them would make
+# merely opening the Practice page look like a session worth recomputing for.
+PRACTICE_STATS_SOURCE_EVENT_TYPES = ('started_timer', 'marked_done')
+
+
 def _last_practice_age(db, user_id):
     """
-    Seconds since this user's most recent practice event, or None if they have
-    never practiced (or the lookup fails).
+    Seconds since this user last did something the Stats page counts, or None
+    if they never have (or the lookup fails).
 
-    Every timer start, timer stop and Mark done also POSTs to
-    /api/user/practice-events, so practice_events is a local, lag-free record
-    of when the user last did something that stats should reflect. Comparing
-    against it is what tells us a cached PostHog snapshot predates the session
-    the user is looking at.
+    Every timer start and Mark done also POSTs to /api/user/practice-events, so
+    practice_events is a local, lag-free record of the same work the PostHog
+    stats aggregate. Comparing against it is what tells us a cached PostHog
+    snapshot predates the session the user is looking at.
     """
     try:
-        row = db.execute(text("""
+        # expanding=True renders the tuple as a real IN list rather than
+        # leaning on the driver to adapt a Python sequence
+        stmt = text("""
             SELECT EXTRACT(EPOCH FROM (now() - MAX(created_at)))
             FROM practice_events
             WHERE user_id = :user_id
-        """), {'user_id': user_id}).fetchone()
+              AND event_type IN :event_types
+        """).bindparams(bindparam('event_types', expanding=True))
+        row = db.execute(stmt, {
+            'user_id': user_id,
+            'event_types': list(PRACTICE_STATS_SOURCE_EVENT_TYPES),
+        }).fetchone()
     except Exception as e:
         # Never fail the stats request over a freshness hint - fall back to
         # PostHog's cache, which is what this endpoint did before.
@@ -8437,7 +8452,11 @@ def get_practice_stats():
     days_back = PRACTICE_STATS_PERIODS[period]
 
     # Get PostHog distinct_id for this user
-    from app.utils.posthog_client import get_posthog_distinct_id, call_posthog_endpoint
+    from app.utils.posthog_client import (
+        get_posthog_distinct_id,
+        call_posthog_endpoint,
+        call_posthog_endpoint_fresh,
+    )
     distinct_id = get_posthog_distinct_id(current_user.id, current_user.email)
 
     variables = {'distinct_id': distinct_id, 'days_back': days_back}
@@ -8451,24 +8470,13 @@ def get_practice_stats():
         last_practice_age is not None
         and last_practice_age < PRACTICE_STATS_CACHE_SECONDS
     )
-    refresh = 'force' if practiced_recently else 'cache'
 
     def fetch_endpoint(endpoint_name):
-        """Recompute when asked, but never let that cost us the numbers.
-
-        A forced recompute runs the query for real instead of reading a
-        snapshot, so it can exhaust the client timeout where a cached read
-        wouldn't. Slightly stale stats beat the "temporarily unavailable"
-        card, so fall back to the cache rather than returning nothing.
-        """
-        rows = call_posthog_endpoint(endpoint_name, variables, refresh)
-        if rows is None and refresh != 'cache':
-            app.logger.info(
-                f"[PRACTICE_STATS] forced refresh of '{endpoint_name}' failed, "
-                f"falling back to cached results"
-            )
-            rows = call_posthog_endpoint(endpoint_name, variables, 'cache')
-        return rows
+        if practiced_recently:
+            # Recomputes, but falls back to the cached numbers if PostHog turns
+            # the forced refresh down - stale stats beat no stats.
+            return call_posthog_endpoint_fresh(endpoint_name, variables)
+        return call_posthog_endpoint(endpoint_name, variables)
 
     # Call all three endpoints in parallel - each is an independent HTTPS
     # round trip to PostHog, so wall time drops to the slowest single call.

@@ -42,6 +42,7 @@ const StatsPage = ({ userStatus }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [resyncTick, setResyncTick] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [consentFollowUp, setConsentFollowUp] = useState(null); // null | 'accepted' | 'declined'
@@ -49,8 +50,13 @@ const StatsPage = ({ userStatus }) => {
   const [timerImageHovered, setTimerImageHovered] = useState(false);
   const hasTrackedView = useRef(false);
   const hasTrackedUpsell = useRef(false);
-  // One resync per period, so a still-ingesting session can't loop the fetch
+  // One resync per period, so a still-ingesting session can't loop the fetch.
+  // A period earns its slot when the refetch actually fires, not when it's
+  // scheduled - a timer cancelled by switching period never happened.
   const resyncedPeriods = useRef(new Set());
+  // Set just before a resync so the effect knows to refresh in place instead
+  // of tearing the rendered charts down for the full-page spinner
+  const isResync = useRef(false);
 
   const isFreeTier = userStatus?.tier === 'free';
 
@@ -109,7 +115,12 @@ const StatsPage = ({ userStatus }) => {
   useEffect(() => {
     if (isFreeTier) return;
     let cancelled = false;
-    setLoading(true);
+    const background = isResync.current;
+    isResync.current = false;
+    // A resync repaints numbers already on screen. Showing the loading state
+    // would blank the charts and the "catching up" note it belongs to, which
+    // reads as a page reload rather than the quiet top-up it is.
+    if (!background) setLoading(true);
     setError(null);
 
     let resyncTimer = null;
@@ -124,7 +135,9 @@ const StatsPage = ({ userStatus }) => {
           setData(json);
           setLoading(false);
           debugLog('Stats', 'Fetched stats for period:', period, json);
-          trackStatsEvent('practice_stats_data_loaded', {
+          // A resync is a top-up of a view already counted, so it reports
+          // itself separately rather than inflating page-load stats
+          trackStatsEvent(background ? 'practice_stats_resynced' : 'practice_stats_data_loaded', {
             period,
             has_data: (json.daily?.length ?? 0) > 0,
             top_items_count: json.top_items?.length ?? 0,
@@ -137,10 +150,12 @@ const StatsPage = ({ userStatus }) => {
           // the last item of a routine isn't permanently missing from the
           // totals the user opened this page to check.
           if (json.pending_events && !resyncedPeriods.current.has(period)) {
-            resyncedPeriods.current.add(period);
             setSyncing(true);
             resyncTimer = setTimeout(() => {
-              if (!cancelled) setRetryCount((c) => c + 1);
+              if (cancelled) return;
+              resyncedPeriods.current.add(period);
+              isResync.current = true;
+              setResyncTick((t) => t + 1);
             }, STATS_RESYNC_DELAY_MS);
           } else {
             setSyncing(false);
@@ -164,7 +179,7 @@ const StatsPage = ({ userStatus }) => {
       cancelled = true;
       if (resyncTimer) clearTimeout(resyncTimer);
     };
-  }, [period, retryCount, isFreeTier]);
+  }, [period, retryCount, resyncTick, isFreeTier]);
 
   const handlePeriodChange = (newPeriod) => {
     setPeriod(newPeriod);
