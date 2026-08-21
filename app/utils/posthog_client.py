@@ -12,7 +12,7 @@ import hashlib
 import os
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from posthog import Posthog
 
 logger = logging.getLogger(__name__)
@@ -301,20 +301,20 @@ def create_anthropic_client(api_key: str, user_id: Optional[int] = None):
     return anthropic.Anthropic(api_key=api_key)
 
 
-def call_posthog_endpoint(endpoint_name: str, variables: Dict[str, Any]) -> Optional[list]:
+def _run_posthog_endpoint(
+    endpoint_name: str,
+    variables: Dict[str, Any],
+    refresh: str,
+) -> Tuple[Optional[list], bool]:
     """
-    Call a PostHog SQL Endpoint and return results as a list of dicts.
-
-    PostHog Endpoints are pre-defined SQL queries with variables, executed via
-    the PostHog API. Each returns columnar data that we reshape into rows.
-
-    Args:
-        endpoint_name: The endpoint slug (e.g. 'user_practice_summary')
-        variables: Dict of variable names/values to pass to the endpoint
+    Execute one PostHog Endpoint call.
 
     Returns:
-        List of dicts (one per result row), or None on any failure.
-        For a single-row endpoint, returns a list with one dict.
+        (rows, reachable). rows is None on any failure. reachable is False only
+        when PostHog itself didn't answer - a timeout or a dead connection - so
+        callers know a second attempt would just burn another timeout. A
+        rejected request (HTTP error) leaves reachable True, because a
+        different request to the same healthy PostHog may well succeed.
     """
     import requests
 
@@ -323,7 +323,7 @@ def call_posthog_endpoint(endpoint_name: str, variables: Dict[str, Any]) -> Opti
 
     if not api_key or not project_id:
         logger.error("PostHog Endpoints not configured: missing POSTHOG_PERSONAL_API_KEY or POSTHOG_PROJECT_ID")
-        return None
+        return None, False
 
     url = f"https://us.posthog.com/api/projects/{project_id}/endpoints/{endpoint_name}/run/"
 
@@ -334,7 +334,7 @@ def call_posthog_endpoint(endpoint_name: str, variables: Dict[str, Any]) -> Opti
                 'Authorization': f'Bearer {api_key}',
                 'Content-Type': 'application/json',
             },
-            json={'variables': variables, 'refresh': 'cache'},
+            json={'variables': variables, 'refresh': refresh},
             timeout=10,
         )
         resp.raise_for_status()
@@ -344,20 +344,72 @@ def call_posthog_endpoint(endpoint_name: str, variables: Dict[str, Any]) -> Opti
         results = data.get('results', [])
 
         # Reshape array-of-arrays into list of dicts
-        return [dict(zip(columns, row)) for row in results]
+        return [dict(zip(columns, row)) for row in results], True
 
     except requests.exceptions.Timeout:
         logger.warning(f"PostHog Endpoint '{endpoint_name}' timed out")
-        return None
+        return None, False
     except requests.exceptions.ConnectionError:
         logger.warning(f"PostHog Endpoint '{endpoint_name}' connection failed")
-        return None
+        return None, False
     except requests.exceptions.HTTPError as e:
         logger.error(f"PostHog Endpoint '{endpoint_name}' HTTP error: {e.response.status_code} - {e.response.text[:200]}")
-        return None
+        return None, True
     except Exception as e:
         logger.error(f"PostHog Endpoint '{endpoint_name}' unexpected error: {str(e)}")
-        return None
+        return None, True
+
+
+def call_posthog_endpoint(
+    endpoint_name: str,
+    variables: Dict[str, Any],
+    refresh: str = 'cache',
+) -> Optional[list]:
+    """
+    Call a PostHog SQL Endpoint and return results as a list of dicts.
+
+    PostHog Endpoints are pre-defined SQL queries with variables, executed via
+    the PostHog API. Each returns columnar data that we reshape into rows.
+
+    Args:
+        endpoint_name: The endpoint slug (e.g. 'user_practice_summary')
+        variables: Dict of variable names/values to pass to the endpoint
+        refresh: PostHog cache policy. 'cache' (default) serves any result
+            still inside the endpoint's data_freshness_seconds window; 'force'
+            recomputes. Prefer call_posthog_endpoint_fresh over passing 'force'
+            here, so a rejected recompute still yields the cached numbers.
+
+    Returns:
+        List of dicts (one per result row), or None on any failure.
+        For a single-row endpoint, returns a list with one dict.
+    """
+    return _run_posthog_endpoint(endpoint_name, variables, refresh)[0]
+
+
+def call_posthog_endpoint_fresh(
+    endpoint_name: str,
+    variables: Dict[str, Any],
+) -> Optional[list]:
+    """
+    Call an Endpoint with a forced recompute, falling back to its cached result.
+
+    Use when a snapshot inside the endpoint's freshness window would visibly
+    omit something the user just did. PostHog allows at most one forced
+    recompute per query per minute and quietly serves the cache otherwise, so
+    this is a hint rather than a guarantee.
+
+    The fallback covers a rejected recompute, not a dead PostHog: when the
+    forced call establishes that PostHog isn't answering, retrying would only
+    spend a second timeout to fail the same way, so we give up instead.
+    """
+    rows, reachable = _run_posthog_endpoint(endpoint_name, variables, 'force')
+    if rows is None and reachable:
+        logger.info(
+            f"PostHog Endpoint '{endpoint_name}' rejected a forced refresh, "
+            f"falling back to cached results"
+        )
+        rows = call_posthog_endpoint(endpoint_name, variables, 'cache')
+    return rows
 
 
 def shutdown():

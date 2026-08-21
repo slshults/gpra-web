@@ -9,7 +9,7 @@ from app.data_layer import data_layer
 from app.database import DatabaseTransaction
 from app.middleware.rls import require_user_context
 from app.subscription_tiers import get_tier_limits
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from datetime import datetime, timedelta
 import logging
 import os
@@ -8341,6 +8341,60 @@ PRACTICE_STATS_PERIODS = {
     'all': 3650,
 }
 
+# Mirrors data_freshness_seconds on the three PostHog Endpoints. Inside this
+# window PostHog answers 'refresh': 'cache' from its own snapshot, which is
+# taken before the session that is being checked - see _last_practice_age.
+PRACTICE_STATS_CACHE_SECONDS = 900
+
+# PostHog captures an event client-side and queries it from ClickHouse only
+# after it clears the ingestion pipeline. Within this window a recompute can
+# still miss the item just marked done, so the response flags itself pending
+# and the Stats page refetches once instead of leaving the gap on screen.
+PRACTICE_STATS_INGEST_LAG_SECONDS = 45
+
+
+# practice_events event_type values that the stats queries actually aggregate:
+# 'started_timer' becomes practice_timer_started and 'marked_done' becomes
+# practice_item_completed (see trackPracticeEvent in analytics.js). The table
+# also records timer_stopped, timer_reset and practice_page_visited, and none
+# of those move a single number on the Stats page - counting them would make
+# merely opening the Practice page look like a session worth recomputing for.
+PRACTICE_STATS_SOURCE_EVENT_TYPES = ('started_timer', 'marked_done')
+
+
+def _last_practice_age(db, user_id):
+    """
+    Seconds since this user last did something the Stats page counts, or None
+    if they never have (or the lookup fails).
+
+    Every timer start and Mark done also POSTs to /api/user/practice-events, so
+    practice_events is a local, lag-free record of the same work the PostHog
+    stats aggregate. Comparing against it is what tells us a cached PostHog
+    snapshot predates the session the user is looking at.
+    """
+    try:
+        # expanding=True renders the tuple as a real IN list rather than
+        # leaning on the driver to adapt a Python sequence
+        stmt = text("""
+            SELECT EXTRACT(EPOCH FROM (now() - MAX(created_at)))
+            FROM practice_events
+            WHERE user_id = :user_id
+              AND event_type IN :event_types
+        """).bindparams(bindparam('event_types', expanding=True))
+        row = db.execute(stmt, {
+            'user_id': user_id,
+            'event_types': list(PRACTICE_STATS_SOURCE_EVENT_TYPES),
+        }).fetchone()
+    except Exception as e:
+        # Never fail the stats request over a freshness hint - fall back to
+        # PostHog's cache, which is what this endpoint did before.
+        app.logger.warning(f"[PRACTICE_STATS] last-practice lookup failed: {e}")
+        return None
+
+    if not row or row[0] is None:
+        return None
+    return float(row[0])
+
 @app.route('/api/user/practice-stats', methods=['GET'])
 def get_practice_stats():
     """
@@ -8357,8 +8411,12 @@ def get_practice_stats():
             "summary": {"days_practiced": N, "items_completed": N, ...},
             "daily": [{"practice_date": "2026-04-01", ...}, ...],
             "top_items": [{"item_name": "...", ...}, ...],
-            "period": "week"
+            "period": "week",
+            "pending_events": false
         }
+
+    pending_events is true when the user practiced in the last few seconds, so
+    PostHog may not have ingested that work yet and the caller should refetch.
 
     Errors:
         401 - Not authenticated
@@ -8368,7 +8426,9 @@ def get_practice_stats():
     if not current_user.is_authenticated:
         return jsonify({"error": "Authentication required"}), 401
 
-    # Tier gating: free tier users cannot access stats
+    # Tier gating: free tier users cannot access stats. The same session also
+    # answers "how long ago did this user last practice?", which decides below
+    # whether PostHog's cached snapshot is old enough to be missing that work.
     from app.database import SessionLocal
     db = SessionLocal()
     try:
@@ -8376,6 +8436,7 @@ def get_practice_stats():
             SELECT tier FROM subscriptions WHERE user_id = :user_id
         """), {'user_id': current_user.id}).fetchone()
         tier = subscription[0] if subscription else 'free'
+        last_practice_age = _last_practice_age(db, current_user.id)
     finally:
         db.close()
         SessionLocal.remove()
@@ -8391,21 +8452,42 @@ def get_practice_stats():
     days_back = PRACTICE_STATS_PERIODS[period]
 
     # Get PostHog distinct_id for this user
-    from app.utils.posthog_client import get_posthog_distinct_id, call_posthog_endpoint
+    from app.utils.posthog_client import (
+        get_posthog_distinct_id,
+        call_posthog_endpoint,
+        call_posthog_endpoint_fresh,
+    )
     distinct_id = get_posthog_distinct_id(current_user.id, current_user.email)
 
     variables = {'distinct_id': distinct_id, 'days_back': days_back}
+
+    # A user who practiced within the cache window is almost certainly here to
+    # look at that session. Serving PostHog's cached snapshot would show them
+    # the numbers from before it - most visibly for the last item in a routine,
+    # which is marked done seconds before Stats is opened and so is the one
+    # item a cached read reliably omits. Recompute instead.
+    practiced_recently = (
+        last_practice_age is not None
+        and last_practice_age < PRACTICE_STATS_CACHE_SECONDS
+    )
+
+    def fetch_endpoint(endpoint_name):
+        if practiced_recently:
+            # Recomputes, but falls back to the cached numbers if PostHog turns
+            # the forced refresh down - stale stats beat no stats.
+            return call_posthog_endpoint_fresh(endpoint_name, variables)
+        return call_posthog_endpoint(endpoint_name, variables)
 
     # Call all three endpoints in parallel - each is an independent HTTPS
     # round trip to PostHog, so wall time drops to the slowest single call.
     # carry_otel_context keeps their spans nested under the request trace.
     from concurrent.futures import ThreadPoolExecutor
     from app.utils.otel_traces import carry_otel_context
-    call_endpoint = carry_otel_context(call_posthog_endpoint)
+    call_endpoint = carry_otel_context(fetch_endpoint)
     with ThreadPoolExecutor(max_workers=3) as pool:
-        summary_future = pool.submit(call_endpoint, 'user_practice_summary', variables)
-        daily_future = pool.submit(call_endpoint, 'user_daily_practice', variables)
-        top_items_future = pool.submit(call_endpoint, 'user_top_items', variables)
+        summary_future = pool.submit(call_endpoint, 'user_practice_summary')
+        daily_future = pool.submit(call_endpoint, 'user_daily_practice')
+        top_items_future = pool.submit(call_endpoint, 'user_top_items')
         summary_rows = summary_future.result()
         daily_rows = daily_future.result()
         top_items_rows = top_items_future.result()
@@ -8428,4 +8510,11 @@ def get_practice_stats():
         "daily": daily_rows or [],
         "top_items": top_items_rows or [],
         "period": period,
+        # True when the user practiced so recently that PostHog may not have
+        # ingested it yet, even though we forced a recompute. The Stats page
+        # uses this to refetch once rather than show an incomplete total.
+        "pending_events": (
+            last_practice_age is not None
+            and last_practice_age < PRACTICE_STATS_INGEST_LAG_SECONDS
+        ),
     })
