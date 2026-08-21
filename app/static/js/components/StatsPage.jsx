@@ -13,6 +13,11 @@ import { Loader2 } from 'lucide-react';
 import { debugLog } from '@utils/logging';
 import { trackStatsEvent } from '@utils/analytics';
 
+// How long to wait before refetching stats the server flagged as still
+// ingesting. Comfortably past PostHog's usual few-second event lag, short
+// enough that the number lands while the user is still on the page.
+const STATS_RESYNC_DELAY_MS = 15000;
+
 const PERIODS = [
   { value: 'today', label: 'Today' },
   { value: 'week', label: 'This week' },
@@ -37,12 +42,15 @@ const StatsPage = ({ userStatus }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [consentFollowUp, setConsentFollowUp] = useState(null); // null | 'accepted' | 'declined'
   const [timerImagePinned, setTimerImagePinned] = useState(false);
   const [timerImageHovered, setTimerImageHovered] = useState(false);
   const hasTrackedView = useRef(false);
   const hasTrackedUpsell = useRef(false);
+  // One resync per period, so a still-ingesting session can't loop the fetch
+  const resyncedPeriods = useRef(new Set());
 
   const isFreeTier = userStatus?.tier === 'free';
 
@@ -104,6 +112,8 @@ const StatsPage = ({ userStatus }) => {
     setLoading(true);
     setError(null);
 
+    let resyncTimer = null;
+
     fetch(`/api/user/practice-stats?period=${period}`)
       .then((res) => {
         if (!res.ok) throw new Error(`Server returned ${res.status}`);
@@ -120,12 +130,28 @@ const StatsPage = ({ userStatus }) => {
             top_items_count: json.top_items?.length ?? 0,
             total_practice_seconds: json.summary?.total_practice_seconds ?? 0,
           });
+
+          // The server saw practice activity newer than these numbers can
+          // account for - the item just marked done is still working its way
+          // through PostHog's ingestion pipeline. Come back for it once, so
+          // the last item of a routine isn't permanently missing from the
+          // totals the user opened this page to check.
+          if (json.pending_events && !resyncedPeriods.current.has(period)) {
+            resyncedPeriods.current.add(period);
+            setSyncing(true);
+            resyncTimer = setTimeout(() => {
+              if (!cancelled) setRetryCount((c) => c + 1);
+            }, STATS_RESYNC_DELAY_MS);
+          } else {
+            setSyncing(false);
+          }
         }
       })
       .catch((err) => {
         if (!cancelled) {
           setError(err.message);
           setLoading(false);
+          setSyncing(false);
           debugLog('Stats', 'Fetch error:', err.message);
           trackStatsEvent('practice_stats_load_failed', {
             period,
@@ -134,11 +160,15 @@ const StatsPage = ({ userStatus }) => {
         }
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (resyncTimer) clearTimeout(resyncTimer);
+    };
   }, [period, retryCount, isFreeTier]);
 
   const handlePeriodChange = (newPeriod) => {
     setPeriod(newPeriod);
+    setSyncing(false);
     trackStatsEvent('practice_stats_period_changed', {
       from_period: period,
       to_period: newPeriod,
@@ -150,6 +180,7 @@ const StatsPage = ({ userStatus }) => {
       period,
       retry_count: retryCount + 1,
     });
+    resyncedPeriods.current.delete(period);
     setRetryCount((c) => c + 1);
   };
 
@@ -211,6 +242,7 @@ const StatsPage = ({ userStatus }) => {
           onPeriodChange={handlePeriodChange}
           data={data}
           loading={loading}
+          syncing={syncing}
           error={error}
           onRetry={handleRetry}
           showEmptyHint={statsEmpty && analyticsConsentGiven()}
@@ -258,6 +290,13 @@ const StatsPage = ({ userStatus }) => {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {!loading && !error && data && syncing && (
+        <div className="flex items-center text-sm text-gray-400">
+          <Loader2 className="h-4 w-4 animate-spin text-orange-400 mr-2" />
+          Catching up on the session you just finished...
+        </div>
       )}
 
       {!loading && !error && data && (

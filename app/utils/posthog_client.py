@@ -301,7 +301,11 @@ def create_anthropic_client(api_key: str, user_id: Optional[int] = None):
     return anthropic.Anthropic(api_key=api_key)
 
 
-def call_posthog_endpoint(endpoint_name: str, variables: Dict[str, Any]) -> Optional[list]:
+def call_posthog_endpoint(
+    endpoint_name: str,
+    variables: Dict[str, Any],
+    refresh: str = 'cache',
+) -> Optional[list]:
     """
     Call a PostHog SQL Endpoint and return results as a list of dicts.
 
@@ -311,6 +315,12 @@ def call_posthog_endpoint(endpoint_name: str, variables: Dict[str, Any]) -> Opti
     Args:
         endpoint_name: The endpoint slug (e.g. 'user_practice_summary')
         variables: Dict of variable names/values to pass to the endpoint
+        refresh: PostHog cache policy. 'cache' (default) serves any result
+            still inside the endpoint's data_freshness_seconds window; 'force'
+            recomputes. Use 'force' only when a stale snapshot would visibly
+            omit something the user just did - PostHog honours at most one
+            forced recompute per query per minute and falls back to the cached
+            result otherwise.
 
     Returns:
         List of dicts (one per result row), or None on any failure.
@@ -334,7 +344,7 @@ def call_posthog_endpoint(endpoint_name: str, variables: Dict[str, Any]) -> Opti
                 'Authorization': f'Bearer {api_key}',
                 'Content-Type': 'application/json',
             },
-            json={'variables': variables, 'refresh': 'cache'},
+            json={'variables': variables, 'refresh': refresh},
             timeout=10,
         )
         resp.raise_for_status()

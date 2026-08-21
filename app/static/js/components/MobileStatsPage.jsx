@@ -175,6 +175,7 @@ const MobileStatsPage = ({
   onPeriodChange,
   data,
   loading,
+  syncing = false,
   error,
   onRetry,
   showEmptyHint,
@@ -283,6 +284,16 @@ const MobileStatsPage = ({
           >
             Try again
           </button>
+        </div>
+      )}
+
+      {!loading && !error && data && syncing && (
+        <div
+          className="flex items-center"
+          style={{ margin: '10px 12px 0', fontSize: '13px', color: '#9ca3af' }}
+        >
+          <Loader2 className="animate-spin" size={16} color="#fb923c" />
+          <span style={{ marginLeft: '8px' }}>Catching up on the session you just finished...</span>
         </div>
       )}
 
