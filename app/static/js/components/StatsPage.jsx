@@ -13,6 +13,11 @@ import { Loader2 } from 'lucide-react';
 import { debugLog } from '@utils/logging';
 import { trackStatsEvent } from '@utils/analytics';
 
+// How long to wait before refetching stats the server flagged as still
+// ingesting. Comfortably past PostHog's usual few-second event lag, short
+// enough that the number lands while the user is still on the page.
+const STATS_RESYNC_DELAY_MS = 15000;
+
 const PERIODS = [
   { value: 'today', label: 'Today' },
   { value: 'week', label: 'This week' },
@@ -37,12 +42,21 @@ const StatsPage = ({ userStatus }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [resyncTick, setResyncTick] = useState(0);
+  const [syncing, setSyncing] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [consentFollowUp, setConsentFollowUp] = useState(null); // null | 'accepted' | 'declined'
   const [timerImagePinned, setTimerImagePinned] = useState(false);
   const [timerImageHovered, setTimerImageHovered] = useState(false);
   const hasTrackedView = useRef(false);
   const hasTrackedUpsell = useRef(false);
+  // One resync per period, so a still-ingesting session can't loop the fetch.
+  // A period earns its slot when the refetch actually fires, not when it's
+  // scheduled - a timer cancelled by switching period never happened.
+  const resyncedPeriods = useRef(new Set());
+  // Set just before a resync so the effect knows to refresh in place instead
+  // of tearing the rendered charts down for the full-page spinner
+  const isResync = useRef(false);
 
   const isFreeTier = userStatus?.tier === 'free';
 
@@ -101,8 +115,15 @@ const StatsPage = ({ userStatus }) => {
   useEffect(() => {
     if (isFreeTier) return;
     let cancelled = false;
-    setLoading(true);
+    const background = isResync.current;
+    isResync.current = false;
+    // A resync repaints numbers already on screen. Showing the loading state
+    // would blank the charts and the "catching up" note it belongs to, which
+    // reads as a page reload rather than the quiet top-up it is.
+    if (!background) setLoading(true);
     setError(null);
+
+    let resyncTimer = null;
 
     fetch(`/api/user/practice-stats?period=${period}`)
       .then((res) => {
@@ -114,18 +135,38 @@ const StatsPage = ({ userStatus }) => {
           setData(json);
           setLoading(false);
           debugLog('Stats', 'Fetched stats for period:', period, json);
-          trackStatsEvent('practice_stats_data_loaded', {
+          // A resync is a top-up of a view already counted, so it reports
+          // itself separately rather than inflating page-load stats
+          trackStatsEvent(background ? 'practice_stats_resynced' : 'practice_stats_data_loaded', {
             period,
             has_data: (json.daily?.length ?? 0) > 0,
             top_items_count: json.top_items?.length ?? 0,
             total_practice_seconds: json.summary?.total_practice_seconds ?? 0,
           });
+
+          // The server saw practice activity newer than these numbers can
+          // account for - the item just marked done is still working its way
+          // through PostHog's ingestion pipeline. Come back for it once, so
+          // the last item of a routine isn't permanently missing from the
+          // totals the user opened this page to check.
+          if (json.pending_events && !resyncedPeriods.current.has(period)) {
+            setSyncing(true);
+            resyncTimer = setTimeout(() => {
+              if (cancelled) return;
+              resyncedPeriods.current.add(period);
+              isResync.current = true;
+              setResyncTick((t) => t + 1);
+            }, STATS_RESYNC_DELAY_MS);
+          } else {
+            setSyncing(false);
+          }
         }
       })
       .catch((err) => {
         if (!cancelled) {
           setError(err.message);
           setLoading(false);
+          setSyncing(false);
           debugLog('Stats', 'Fetch error:', err.message);
           trackStatsEvent('practice_stats_load_failed', {
             period,
@@ -134,11 +175,15 @@ const StatsPage = ({ userStatus }) => {
         }
       });
 
-    return () => { cancelled = true; };
-  }, [period, retryCount, isFreeTier]);
+    return () => {
+      cancelled = true;
+      if (resyncTimer) clearTimeout(resyncTimer);
+    };
+  }, [period, retryCount, resyncTick, isFreeTier]);
 
   const handlePeriodChange = (newPeriod) => {
     setPeriod(newPeriod);
+    setSyncing(false);
     trackStatsEvent('practice_stats_period_changed', {
       from_period: period,
       to_period: newPeriod,
@@ -150,6 +195,7 @@ const StatsPage = ({ userStatus }) => {
       period,
       retry_count: retryCount + 1,
     });
+    resyncedPeriods.current.delete(period);
     setRetryCount((c) => c + 1);
   };
 
@@ -211,6 +257,7 @@ const StatsPage = ({ userStatus }) => {
           onPeriodChange={handlePeriodChange}
           data={data}
           loading={loading}
+          syncing={syncing}
           error={error}
           onRetry={handleRetry}
           showEmptyHint={statsEmpty && analyticsConsentGiven()}
@@ -258,6 +305,13 @@ const StatsPage = ({ userStatus }) => {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {!loading && !error && data && syncing && (
+        <div className="flex items-center text-sm text-gray-400">
+          <Loader2 className="h-4 w-4 animate-spin text-orange-400 mr-2" />
+          Catching up on the session you just finished...
+        </div>
       )}
 
       {!loading && !error && data && (
