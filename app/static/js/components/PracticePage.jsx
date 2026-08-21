@@ -1324,6 +1324,16 @@ export const PracticePage = () => {
     // expand effect doesn't re-run on every render (e.g. each timer tick).
   }, [chordCharts]);
 
+  // Routine entries that are expanded with their chord charts open - the only
+  // places a chord grid is rendered, and so the only candidates for the
+  // auto-scroll control. Memoised so a timer tick doesn't hand
+  // DesktopAutoScroll a fresh array every second.
+  const openChordSectionIds = useMemo(() => (
+    (routine?.items || [])
+      .map(item => item['A'])  // Column A is the routine entry ID
+      .filter(id => expandedItems.has(id) && expandedChords.has(id))
+  ), [routine, expandedItems, expandedChords]);
+
   const completedItemIds = useMemo(() => {
     if (routine?.items) {
       return new Set(
@@ -4884,9 +4894,11 @@ export const PracticePage = () => {
   return (
     <div className="max-w-1130px mx-auto border border-gray-700 rounded-lg p-6" style={{maxWidth: '1130px', paddingBottom: '72px'}}>
       {/* Hands-free auto-scroll (same speeds as mobile Play mode, own storage
-          key). The container's extra bottom padding keeps the fixed pill from
-          covering the last row on short pages. */}
-      <DesktopAutoScroll />
+          key). Renders itself only when an open chord section is taller than
+          the viewport, so it isn't sitting over a page that already fits. The
+          container's extra bottom padding keeps the fixed pill from covering
+          the last row on short pages. */}
+      <DesktopAutoScroll openChordSectionIds={openChordSectionIds} />
       <div className="flex justify-between items-start mb-8">
         <div className="flex flex-col">
           {routine && (
