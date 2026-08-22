@@ -5,6 +5,11 @@
 // roughly double mobile Play mode's — a desktop viewport covers more ground.
 // Persists under its own keys (not Play mode's) so a speed left on in Play
 // mode doesn't surprise-scroll the desktop page on load.
+//
+// The control only earns its place when there is something to scroll through:
+// an expanded item, its chord charts open, and more chord rows there than the
+// viewport can show at once. Anywhere else it is a permanent piece of
+// furniture over a page that already fits, so it renders nothing.
 import { useState, useEffect } from 'react';
 
 const SCROLL_SPEEDS = { slow: 16, med: 32, fast: 56 }; // px per second
@@ -36,12 +41,67 @@ const persist = (key, value) => {
   }
 };
 
-const DesktopAutoScroll = () => {
+// openChordSectionIds are the routine-entry ids whose item is expanded AND
+// whose chord charts section is open - the only places a chord grid can be
+// tall enough to need scrolling. Joined into a string so the measuring effect
+// keys off the contents rather than the array's identity, which would
+// otherwise re-run it on every timer tick.
+const DesktopAutoScroll = ({ openChordSectionIds = [] }) => {
   const [speed, setSpeed] = useState(readSpeed);
   const [on, setOn] = useState(readOn);
+  const [overflowing, setOverflowing] = useState(false);
+  const sectionKey = openChordSectionIds.join(',');
+
+  // Watch the open chord sections and show the control only while the chords
+  // can't all be on screen at once. Charts arrive asynchronously after the
+  // section opens, so a one-shot measurement would read the empty container -
+  // hence the ResizeObserver rather than a single check on mount.
+  useEffect(() => {
+    const ids = sectionKey ? sectionKey.split(',') : [];
+    const elements = ids
+      .map(id => document.getElementById(`chord-charts-content-${id}`))
+      .filter(Boolean);
+
+    if (!elements.length) {
+      setOverflowing(false);
+      return;
+    }
+
+    const measure = () => {
+      // Measure the run of open chord content from the top of the first
+      // section to the bottom of the last. For one section that is just its
+      // height; with several items open it also counts what sits between
+      // them, which is the distance you'd have to scroll to get from the
+      // first chord row to the last.
+      //
+      // Rects share the current scroll origin, so their difference doesn't
+      // move as the page scrolls - the control can't flicker out from under
+      // the user mid-scroll the way a "does this reach past the fold?" test
+      // would. And it stays tied to chord content, so a long routine of
+      // collapsed items can't summon a control there's nothing to scroll for.
+      const rects = elements.map(el => el.getBoundingClientRect());
+      const span = Math.max(...rects.map(r => r.bottom)) - Math.min(...rects.map(r => r.top));
+      setOverflowing(span > window.innerHeight);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    elements.forEach(el => observer.observe(el));
+    // With more than one section open the span also covers whatever sits
+    // between them, so watch the page itself for anything that shifts them
+    // apart. Safe to observe: the control is position: fixed and so can't
+    // resize the body back and re-trigger this.
+    observer.observe(document.body);
+    window.addEventListener('resize', measure);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [sectionKey]);
 
   useEffect(() => {
-    if (!on) return;
+    if (!on || !overflowing) return;
     const pxPerSec = SCROLL_SPEEDS[speed] || 0;
     const el = document.scrollingElement;
     let raf;
@@ -75,7 +135,7 @@ const DesktopAutoScroll = () => {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [on, speed]);
+  }, [on, speed, overflowing]);
 
   const toggleOn = () => {
     const next = !on;
@@ -95,6 +155,11 @@ const DesktopAutoScroll = () => {
     }
     window.posthog?.capture('practice_page_scroll_speed_changed', { speed: s });
   };
+
+  // Hooks above run unconditionally; the early return has to come after them.
+  // `on` stays in localStorage while hidden, so re-opening a tall chord
+  // section resumes at the speed the user left it on.
+  if (!overflowing) return null;
 
   return (
     <div
