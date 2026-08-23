@@ -26,7 +26,7 @@ def generate_unsubscribe_token(user_id: int) -> str:
 
     Example:
         >>> token = generate_unsubscribe_token(42)
-        >>> # Token can be used in: /unsubscribe/inactivity/{token}
+        >>> # Token is used in: /api/unsubscribe/inactivity/{token}
     """
     serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
 
