@@ -275,29 +275,28 @@
                 </details>
 
                 <details id="mcp-server" class="border-b border-gray-200 dark:border-gray-700 pb-4">
-                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                    <summary data-ph-capture-attribute-faq-topic="mcp_server" class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
                         <span>Can I get chord charts from Claude, ChatGPT, or another AI assistant?</span>
                         <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-300 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                         </svg>
                     </summary>
                     <div class="mt-2 text-sm text-gray-700 dark:text-gray-300 leading-relaxed pl-2">
-                        Yep. There's a free MCP server that hands your assistant the same 12,708 chord charts the <a href="/find-a-chord-chart" class="text-orange-600 dark:text-orange-400 hover:underline">chord chart finder</a> uses. No account, no API key, no cost. Ask for a chord by name and you get the chart, plus a link to the picture of it.
-                        <p class="mt-2">It's worth having because assistants are genuinely unreliable at chord fingerings from memory — they'll produce something plausible and wrong. This gives them real chart data to read from instead.</p>
-                        <p class="mt-2">To add it in Claude: <strong>Settings → Connectors → Add custom connector</strong>, URL <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">https://mcp.guitarpracticeroutine.com/mcp</code>, and leave authentication set to none. Other MCP-capable apps take the same URL.</p>
-                        <p class="mt-2">Whether the chart shows up as a picture or as a text diagram depends on the app — some render images inline, some don't, so every answer also carries a link you can click.</p>
+                        Yep. There's a free MCP server that gives your assistant the same chord charts the <a href="/find-a-chord-chart" class="text-orange-600 dark:text-orange-400 hover:underline">chord chart finder</a> uses — 12,700+ voicings, standard tuning. Ask for a chord by name and you get the chart back, plus a link to a picture of it. No API key, no cost. (Worth doing because assistants are pretty unreliable at chord fingerings from memory.)
+                        <p class="mt-2">The address is <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">https://mcp.guitarpracticeroutine.com/mcp</code>. In Claude you add it under <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">Customize</code> → <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">Connectors</code>; <a target="_blank" rel="noopener noreferrer" href="https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp" class="text-orange-600 dark:text-orange-400 hover:underline">Anthropic's guide</a> walks through it, and heads up that free-plan accounts only get one custom connector. Other MCP-capable apps take the same URL.</p>
+                        <p class="mt-2">Charts come back on the same five-fret grid you see here, so a voicing that reaches past the fifth fret gets those notes named underneath rather than drawn. Whether you see a picture or a text diagram depends on the app, which is why every answer also includes a link you can click.</p>
                     </div>
                 </details>
 
                 <details class="border-b border-gray-200 dark:border-gray-700 pb-4">
-                    <summary class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
+                    <summary data-ph-capture-attribute-faq-topic="chord_data_credits" class="py-2 font-medium text-gray-900 dark:text-gray-200 hover:text-orange-600 dark:hover:text-orange-400 transition-colors flex items-start justify-between gap-4">
                         <span>Where do the chord charts in the finder come from?</span>
                         <svg class="chevron-icon w-4 h-4 text-gray-600 dark:text-gray-300 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                         </svg>
                     </summary>
                     <div class="mt-2 text-sm text-gray-700 dark:text-gray-300 leading-relaxed pl-2">
-                        The chord data comes from <a href="https://github.com/TormodKv/SVGuitar-ChordCollection" class="text-orange-600 dark:text-orange-400 hover:underline" target="_blank" rel="noopener">SVGuitar-ChordCollection</a> by TormodKv, which builds on <a href="https://github.com/T-vK/chord-collection" class="text-orange-600 dark:text-orange-400 hover:underline" target="_blank" rel="noopener">chord-collection</a> by T-vK. Standard tuning, one voicing per chord name. Credit where it's due — this app wouldn't have a chord library without their work.
+                        The chord data comes from <a target="_blank" rel="noopener noreferrer" href="https://github.com/TormodKv/SVGuitar-ChordCollection" class="text-orange-600 dark:text-orange-400 hover:underline">SVGuitar-ChordCollection</a> by TormodKv, which builds on <a target="_blank" rel="noopener noreferrer" href="https://github.com/T-vK/chord-collection" class="text-orange-600 dark:text-orange-400 hover:underline">chord-collection</a> by T-vK. Credit where it's due — this app wouldn't have a chord library without their work.
                     </div>
                 </details>
 
