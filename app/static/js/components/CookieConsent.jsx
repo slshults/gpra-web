@@ -23,6 +23,20 @@ import React, { useState, useEffect } from 'react';
  */
 const CookieConsent = () => {
   const [showBanner, setShowBanner] = useState(false);
+  const [tourActive, setTourActive] = useState(false);
+
+  // The first-run guided tour pins its popover to the bottom of a mobile
+  // viewport, the same strip this banner sits on. Stay hidden while the tour
+  // runs (it sets `gpra-tour-active` on <body>), then reappear once it ends so
+  // the user can still make a consent choice.
+  useEffect(() => {
+    const syncTourState = () =>
+      setTourActive(document.body.classList.contains('gpra-tour-active'));
+    syncTourState();
+    const observer = new MutationObserver(syncTourState);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const checkConsent = async () => {
@@ -173,7 +187,7 @@ const CookieConsent = () => {
     ? 'This site uses functional cookies (required for login and the database) and analytics cookies to understand usage and improve the app. You can opt out of analytics cookies anytime.'
     : 'This site uses functional cookies (required for login and accessing the database, "Essential only"), cookies for help-chat, and for understanding how the site is used in order to improve it ("Accept all").';
 
-  if (!showBanner) {
+  if (!showBanner || tourActive) {
     return null;
   }
 
