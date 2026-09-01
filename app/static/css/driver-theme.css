@@ -98,9 +98,10 @@
   outline-offset: 4px !important;
 }
 
-/* Z-index to ensure tour is above everything */
+/* Z-index to ensure tour is above everything, including the cookie consent
+   banner (z-index 9999). A tie there let the banner cover the popover footer. */
 .driver-popover-wrapper {
-  z-index: 9999 !important;
+  z-index: 10000 !important;
 }
 
 /* Desktop width adjustments - ensure welcome message displays on one line */
