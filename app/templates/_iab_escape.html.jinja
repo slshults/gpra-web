@@ -33,6 +33,12 @@
     // Meta apps (Facebook, Instagram, Messenger) tag their WebView UA.
     var isMetaApp = /FBAN|FBAV|FB_IAB|FB4A|FBIOS|Instagram|Messenger/i.test(ua);
 
+    // Expose the raw-UA check for _posthog_init's before_send. Meta parses to
+    // $browser "Chrome" server-side, so the SDK can't tell it apart; the raw UA
+    // can. before_send uses this to drop stackless exceptions from scripts Meta
+    // injects into its in-app browser (see _posthog_init.html.jinja).
+    window.__metaInAppBrowser = isMetaApp;
+
     // Generic Android WebView carries a "wv" token real Chrome never has.
     var isAndroid = /Android/i.test(ua);
     var isAndroidWebView = isAndroid && /;\s*wv\)/.test(ua);

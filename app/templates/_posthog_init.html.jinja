@@ -38,6 +38,17 @@
             if (event && event.event === '$exception') {
                 var exceptionList = (event.properties &&
                     event.properties.$exception_list) || [];
+                // A third class of injected noise: Meta injects scripts into
+                // every page in its in-app browser, and its escape navigation
+                // can cut one off mid-parse. The WebView then reports a
+                // stackless parse error (e.g. SyntaxError) against our page,
+                // even though no first-party bundle can raise one with zero
+                // frames. Drop stackless exceptions inside a Meta in-app
+                // browser. The message text is too generic to suppress
+                // globally, so scope it to those sessions; _iab_escape.html.jinja
+                // sets __metaInAppBrowser from the raw user agent.
+                var metaStackless = window.__metaInAppBrowser === true &&
+                    exceptionList.length > 0;
                 for (var i = 0; i < exceptionList.length; i++) {
                     var value = exceptionList[i] && exceptionList[i].value;
                     if (typeof value === 'string') {
@@ -47,6 +58,13 @@
                             }
                         }
                     }
+                    var stacktrace = exceptionList[i] && exceptionList[i].stacktrace;
+                    if (stacktrace && stacktrace.frames && stacktrace.frames.length) {
+                        metaStackless = false;
+                    }
+                }
+                if (metaStackless) {
+                    return null;
                 }
             }
             return event;
