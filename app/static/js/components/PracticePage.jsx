@@ -4055,15 +4055,12 @@ export const PracticePage = () => {
         const itemName = itemDetails?.['C'] || `Item ${itemId}`;
 
         // Track autocreate chord charts success
-        const routineItem = routine.items.find(item => item['B'] === itemId);
-        if (routineItem) {
-          trackChordChartEvent('autocreated', itemName, {
-            surface: autocreateSurfaceRef.current,
-            file_count: files?.length || 0,
-            content_type: contentType || 'mixed',
-            uploaded_file_names: files?.map(f => f.name).join(', ') || ''
-          });
-        }
+        trackChordChartEvent('autocreated', itemName, {
+          surface: autocreateSurfaceRef.current,
+          file_count: files?.length || 0,
+          content_type: contentType || 'mixed',
+          uploaded_file_names: files?.map(f => f.name).join(', ') || ''
+        });
 
         // Show success modal for visual analysis (more complex processing)
         setAutocreateSuccessData({
@@ -4107,6 +4104,8 @@ export const PracticePage = () => {
           });
           setMixedContentData(null);
         }, 2000);
+      } else {
+        throw new Error(result.error || 'Autocreate did not complete');
       }
     } catch (error) {
       console.error(`[AUTOCREATE] Error processing mixed content choice:`, error);
@@ -4114,6 +4113,14 @@ export const PracticePage = () => {
         message: error.message,
         stack: error.stack,
         name: error.name
+      });
+
+      trackChordChartEvent('autocreate_failed', getItemDetails(itemId)?.['C'] || `Item ${itemId}`, {
+        surface: autocreateSurfaceRef.current,
+        error_message: (error.message || error.toString()).slice(0, 200),
+        content_type: contentType,
+        effort_level: selectedEffort,
+        file_count: files?.length || 0
       });
 
       // Check if this is an API key required error
@@ -4331,6 +4338,13 @@ export const PracticePage = () => {
         console.error('Error in autocreate:', error);
 
         const errorMsg = error.message || error.toString();
+
+        trackChordChartEvent('autocreate_failed', itemName, {
+          surface: autocreateSurfaceRef.current,
+          error_message: errorMsg.slice(0, 200),
+          effort_level: effortLevel,
+          file_count: files?.length || 0
+        });
 
         // Fire error notification if user opted in (works even when unmounted)
         const storeEntry = autocreateStore.getActive(itemId);
