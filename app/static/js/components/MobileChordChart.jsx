@@ -27,7 +27,7 @@ const buildConfig = (chartData) => ({
   textColor: '#ffffff',
   fretLabelColor: '#ffffff',
   barreChordStrokeColor: '#ffffff',
-  barreChordStyle: 'arc', // rectangle barres have a black-fill bug in v2.5.1
+  barreChordStyle: 'arc', // stored barre frets are +1 for arc rendering; every renderer must use arc
   fingerTextColor: '#000000',
   fingerTextSize: 28,
 });
