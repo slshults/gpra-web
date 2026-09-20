@@ -22,7 +22,7 @@ const defaultChartConfig = {
   textColor: '#ffffff',       // White text
   fretLabelColor: '#ffffff',  // White fret labels
   barreChordStrokeColor: '#ffffff', // White barre outline
-  barreChordStyle: 'arc',           // Arc style (rectangle has a fill bug in v2.5.1)
+  barreChordStyle: 'arc',           // Stored barre frets are +1 for arc rendering (see toggleBarre); every renderer must use arc
   // Finger text settings - using SVGuitar's correct property names
   fingerTextColor: '#000000', // Black text on white dots for contrast
   fingerTextSize: 28          // Larger text size for better visibility

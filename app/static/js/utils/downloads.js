@@ -84,6 +84,9 @@ const renderChordToSVG = (chartData) => {
       fretLabelColor: '#333333',  // Dark fret labels
       fingerTextColor: '#ffffff', // White text on dark dots
       fingerTextSize: 28,
+      // The editor stores barre frets +1 to suit arc rendering, so every
+      // renderer must draw arcs or barres land one fret low
+      barreChordStyle: 'arc',
       title: chartData.title || '' // Keep SVGuitar's built-in title (don't add duplicate below)
     };
 

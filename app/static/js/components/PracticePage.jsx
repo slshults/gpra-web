@@ -153,7 +153,10 @@ const MemoizedChordChart = memo(({ chart, onEdit, onDelete, onInsertAfter }) => 
           fretLabelColor: '#ffffff',  // White fret labels
           // Finger text settings (match editor)
           fingerTextColor: '#000000', // Black text on white dots for contrast
-          fingerTextSize: 28         // Larger text size for visibility (match editor)
+          fingerTextSize: 28,        // Larger text size for visibility (match editor)
+          // The editor stores barre frets +1 to suit arc rendering, so every
+          // renderer must draw arcs or barres land one fret low
+          barreChordStyle: 'arc'
         };
 
         // Combine regular fingers with open and muted strings (same as in editor)
