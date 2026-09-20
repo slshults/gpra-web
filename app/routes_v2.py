@@ -7470,7 +7470,9 @@ def delete_account_scheduled():
         )
 
         # Get actual period end from Stripe response
-        deletion_date = datetime.fromtimestamp(subscription['current_period_end'])
+        _, deletion_date = billing.subscription_period(subscription)
+        if deletion_date is None:
+            raise ValueError(f"Stripe subscription {stripe_subscription_id} has no current_period_end")
 
         # Update database with deletion schedule (NO refund amount)
         db.execute(text("""

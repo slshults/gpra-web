@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / '.env')
 
 from app.database import SessionLocal
+from app.billing import subscription_period
 from app.utils.email_templates import inactivity_notification_email
 from sqlalchemy import text
 from itsdangerous import URLSafeTimedSerializer
@@ -172,15 +173,14 @@ def check_inactive_subscribers():
         db.close()
 
 
-def refresh_stripe_period_end():
+def refresh_stripe_period_end(force=False):
     """
     Once per month, refresh current_period_end from Stripe for all paying subscribers.
 
     This ensures our local data stays in sync with Stripe's actual subscription dates.
-    Only runs on the 1st of each month.
+    Only runs on the 1st of each month unless force=True (`--refresh-now` on the CLI).
     """
-    # Only run on the 1st of the month
-    if datetime.utcnow().day != 1:
+    if not force and datetime.utcnow().day != 1:
         logger.info("Skipping Stripe period refresh (not the 1st of the month)")
         return
 
@@ -212,20 +212,24 @@ def refresh_stripe_period_end():
                 # Fetch subscription from Stripe
                 stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
 
-                # Update local database with Stripe's current_period_end
+                # Update local database with Stripe's billing period
                 # Also update stripe_period_end for backward compatibility
-                period_end = datetime.utcfromtimestamp(stripe_sub.current_period_end)
+                period_start, period_end = subscription_period(stripe_sub)
+                if period_end is None:
+                    logger.warning(f"Stripe subscription {stripe_sub_id} for user {user_id} has no current_period_end; skipping")
+                    continue
 
                 db.execute(text("""
                     UPDATE subscriptions
-                    SET current_period_end = :period_end,
+                    SET current_period_start = :period_start,
+                        current_period_end = :period_end,
                         stripe_period_end = :period_end
                     WHERE user_id = :user_id
-                """), {'period_end': period_end, 'user_id': user_id})
+                """), {'period_start': period_start, 'period_end': period_end, 'user_id': user_id})
 
                 updated_count += 1
 
-            except stripe.error.InvalidRequestError as e:
+            except stripe.InvalidRequestError as e:
                 # Subscription might be canceled/deleted in Stripe
                 logger.warning(f"Could not fetch Stripe subscription {stripe_sub_id} for user {user_id}: {e}")
             except Exception as e:
@@ -242,6 +246,11 @@ def refresh_stripe_period_end():
 
 
 if __name__ == '__main__':
-    # Run both tasks
-    check_inactive_subscribers()
-    refresh_stripe_period_end()
+    # `--refresh-now` backfills the billing period outside the monthly window
+    # (e.g. right after deploying a fix to the refresh itself) without also
+    # re-running the email sweep, which the daily cron has already done.
+    if '--refresh-now' in sys.argv:
+        refresh_stripe_period_end(force=True)
+    else:
+        check_inactive_subscribers()
+        refresh_stripe_period_end()

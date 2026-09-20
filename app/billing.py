@@ -37,6 +37,23 @@ def timestamp_to_datetime(unix_timestamp):
     return datetime.utcfromtimestamp(unix_timestamp).replace(tzinfo=None)
 
 
+def subscription_period(stripe_subscription):
+    """Return (current_period_start, current_period_end) as naive UTC datetimes.
+
+    API versions before 2025-03-31.basil carry the period on the subscription;
+    basil and later moved it to each subscription item, so a modern payload has
+    no top-level field and the old read silently stored None.
+    """
+    source = stripe_subscription
+    if source.get('current_period_end') is None:
+        items = stripe_subscription['items']['data']
+        source = items[0] if items else {}
+    return (
+        timestamp_to_datetime(source.get('current_period_start')),
+        timestamp_to_datetime(source.get('current_period_end')),
+    )
+
+
 def create_checkout_session(db: Session):
     """Create a Stripe Checkout Session for subscription purchase"""
     try:
@@ -523,8 +540,7 @@ def handle_subscription_created(db: Session, stripe_subscription, *, emit_analyt
     subscription.stripe_subscription_item_id = stripe_subscription['items']['data'][0]['id']  # Store item ID for updates
     subscription.tier = tier
     subscription.status = stripe_subscription['status']
-    subscription.current_period_start = timestamp_to_datetime(stripe_subscription.get('current_period_start'))
-    subscription.current_period_end = timestamp_to_datetime(stripe_subscription.get('current_period_end'))
+    subscription.current_period_start, subscription.current_period_end = subscription_period(stripe_subscription)
     subscription.cancel_at_period_end = stripe_subscription['cancel_at_period_end']
 
     # Calculate MRR (convert from cents, normalize to monthly)
@@ -596,8 +612,7 @@ def handle_subscription_updated(db: Session, stripe_subscription):
     subscription.stripe_subscription_item_id = stripe_subscription['items']['data'][0]['id']  # Store item ID for updates
     subscription.tier = tier
     subscription.status = stripe_subscription['status']
-    subscription.current_period_start = timestamp_to_datetime(stripe_subscription.get('current_period_start'))
-    subscription.current_period_end = timestamp_to_datetime(stripe_subscription.get('current_period_end'))
+    subscription.current_period_start, subscription.current_period_end = subscription_period(stripe_subscription)
     subscription.cancel_at_period_end = stripe_subscription['cancel_at_period_end']
 
     # Update MRR
