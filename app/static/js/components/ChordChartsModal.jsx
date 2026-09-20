@@ -1524,6 +1524,15 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
       }
     } catch (error) {
       console.error('Error processing mixed content choice:', error);
+
+      trackChordChartEvent('autocreate_failed', itemTitle || `Item ${mixedItemId}`, {
+        surface: autocreateSurfaceRef.current,
+        error_message: (error.message || error.toString()).slice(0, 200),
+        content_type: contentType,
+        effort_level: selectedEffort,
+        file_count: files?.length || 0
+      });
+
       if (isMountedRef.current) {
         const errorMsg = error.message || error.toString();
         if (errorMsg.startsWith('API_KEY_REQUIRED: ')) {
@@ -2147,6 +2156,13 @@ export default function ChordChartsModal({ isOpen, onClose, itemId, itemTitle })
         console.error('Error in autocreate:', error);
 
         const errorMsg = error.message || error.toString();
+
+        trackChordChartEvent('autocreate_failed', itemName, {
+          surface: autocreateSurfaceRef.current,
+          error_message: errorMsg.slice(0, 200),
+          effort_level: effortLevel,
+          file_count: files?.length || 0
+        });
 
         // Fire error notification if user opted in (works even when unmounted)
         const storeEntry = autocreateStore.getActive(dropItemId);
