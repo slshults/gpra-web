@@ -8245,16 +8245,20 @@ def stripe_webhook():
         db.close()
 
 
-@app.route('/api/unsubscribe/inactivity/<token>', methods=['GET'])
+@app.route('/api/unsubscribe/inactivity/<token>', methods=['GET', 'POST'])
 def unsubscribe_inactivity_emails(token):
     """
-    Handle one-click unsubscribe from inactivity reminder emails.
+    Handle unsubscribe from inactivity reminder emails.
 
-    This endpoint allows users to opt out of 90-day inactivity emails
-    without needing to log in. The token is cryptographically signed
-    and tied to a specific user.
+    GET renders a confirmation page; the opt-out is only written on POST.
+    Mail security scanners (SafeLinks, Mimecast, Proofpoint) follow links in
+    delivered mail, so a GET that wrote would silently unsubscribe people who
+    never saw the message -- and this audience, inactive for 90+ days by
+    definition, would never notice they had been opted out.
 
-    Returns a simple HTML page confirming the unsubscribe action.
+    The signed token is the whole authorization: there is no login and no
+    cookie-based identity here, so CSRF protection would guard nothing that
+    the token does not already guard, and is deliberately not used.
     """
     from itsdangerous import SignatureExpired, BadSignature
     from app.unsubscribe_tokens import validate_unsubscribe_token
@@ -8314,11 +8318,30 @@ def unsubscribe_inactivity_emails(token):
     """
 
     try:
-        # Validate the token
+        # Validate on both verbs, so an expired or forged link fails before we
+        # render a button claiming it will work.
         payload = validate_unsubscribe_token(token)
         user_id = payload['user_id']
 
-        # Update the subscription to opt out of inactivity emails
+        if request.method == 'GET':
+            confirm = """
+            <h1>Unsubscribe</h1>
+            <p>Stop receiving inactivity reminder emails about your unused
+               subscription?</p>
+            <form method="post" style="margin-top: 30px;">
+                <button type="submit" style="background-color: #ea580c;
+                        color: #fff; border: none; padding: 12px 24px;
+                        border-radius: 6px; font-size: 16px; cursor: pointer;">
+                    Yes, unsubscribe me
+                </button>
+            </form>
+            <p style="margin-top: 30px;">
+                <a href="https://guitarpracticeroutine.com/">No, take me to GPRA</a>
+            </p>
+            """
+            return html_template.format(content=confirm), 200
+
+        # POST: the user clicked the button, so perform the opt-out.
         with DatabaseTransaction() as tx:
             tx.execute(text("""
                 UPDATE subscriptions
