@@ -106,3 +106,7 @@ MIGRATION_GUIDE.md
 
 # SDD (subagent-driven-development) scratch — briefs, reports, diffs, ledger
 .superpowers/
+
+# Ban-plan deploy config lives outside this public repo (Steven's private notes)
+deploy/fail2ban/
+deploy/nginx/probe-log.conf

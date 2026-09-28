@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>No backstage pass - Guitar Practice Routine App</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="48x48" href="/static/images/favicon-48x48.png">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}?v={{ asset_version }}">
+
+    <script>
+        // Apply theme immediately to prevent flash (light-mode system)
+        (function() {
+            if (localStorage.getItem('lightMode') === 'true') {
+                document.documentElement.classList.add('light-mode');
+                document.documentElement.classList.remove('dark');
+            }
+        })();
+    </script>
+    {% include "_posthog_init.html.jinja" %}
+</head>
+<body class="bg-gray-900 show-ph-widget">
+    {% set current_page = '' %}
+    {% include '_standalone_header.html.jinja' %}
+
+    <main class="max-w-4xl mx-auto px-4 py-16">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 mb-6 text-center max-w-2xl mx-auto">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white leading-snug mb-6">
+                Hey, you don't have a backstage pass, why are you trying to look around back here?
+            </h1>
+
+            <p class="text-4xl font-extrabold text-gray-900 dark:text-white leading-tight mb-8">
+                If you try that one more time, the security guard will show you the door and you will be banned.
+            </p>
+
+            <p class="text-lg text-gray-700 dark:text-gray-300 mb-4">
+                I don't care if you're a paying user. If you try to find ways to break into my site, you get banned even if you paid. (And no I won't refund you if you get yourself banned.)
+            </p>
+
+            <p class="text-lg text-gray-700 dark:text-gray-300 mb-4">
+                So knock it off. Put down the hacking tools and pick up your guitar.
+            </p>
+
+            <p class="text-lg italic text-gray-700 dark:text-gray-300">
+                "Now go away, or I'll taunt you again."
+            </p>
+        </div>
+    </main>
+    <script src="{{ url_for('static', filename='js/theme-toggle.js') }}?v={{ asset_version }}"></script>
+    {# No cookie consent banner here: its Accept button reloads the page, and
+       reloading this page is the sixth /admin attempt, which would ban the
+       visitor. So record_admin_denial renders it with posthog_cookieless_only,
+       and PostHog runs cookieless in every region. #}
+</body>
+</html>

@@ -48,9 +48,11 @@
             </p>
 
 
+            {% if not banned %}
             <p class="text-gray-700 dark:text-gray-300 mb-2">
                 Click an item on the menu above, or <span id="e403-countdown-text">wait 20 seconds</span> to be redirected.
             </p>
+            {% endif %}
 
             <p class="text-sm text-gray-400 dark:text-gray-500 mt-8">
                 (If you keep seeing this page after clicking something,<br> please use the chat icon below to report the problem, thanks.)
@@ -97,6 +99,7 @@
 
     <script src="{{ url_for('static', filename='js/theme-toggle.js') }}?v={{ asset_version }}"></script>
 
+    {% if not banned %}
     <script>
         // Countdown timer that redirects to / after 20 seconds
         (function() {
@@ -113,6 +116,7 @@
             }, 1000);
         })();
     </script>
+    {% endif %}
 
     {% include '_cookie_consent_banner.html.jinja' %}
     {% include '_iab_escape.html.jinja' %}
