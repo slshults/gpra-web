@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Banned - Guitar Practice Routine App</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="48x48" href="/static/images/favicon-48x48.png">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/main.css') }}?v={{ asset_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/CookieConsent.css') }}?v={{ asset_version }}">
+    {% include "_posthog_init.html.jinja" %}
+</head>
+<body class="bg-gray-900 show-ph-widget">
+    <main class="max-w-4xl mx-auto px-4 py-16">
+        <div class="bg-gray-800 rounded-lg shadow-md p-8 mb-6 text-center max-w-2xl mx-auto">
+            <h1 class="text-lg font-normal text-gray-300 mb-4">
+                I warned you. Did you think I was kidding? Or bluffing?
+            </h1>
+
+            <p class="text-lg text-gray-300 mb-4">
+                You've been escorted to the curb by the security guard.<br>
+                You are no longer welcome at this venue.<br>
+                You have been placed on a blocklist.
+            </p>
+
+            <p class="text-lg text-gray-300">
+                Bye, Felicia.
+            </p>
+        </div>
+    </main>
+
+    {% include '_cookie_consent_banner.html.jinja' %}
+</body>
+</html>

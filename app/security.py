@@ -616,11 +616,12 @@ from markupsafe import Markup as _Markup
 
 @property
 def _impersonate_prop(self):
+    # Markup.format escapes its arguments; usernames are user-chosen.
     return _Markup(
-        f'<a href="/admin/impersonate/{self.id}" target="_blank" '
-        f'class="btn btn-sm btn-warning" title="Impersonate {self.username}">'
-        f'<i class="fa fa-user-secret"></i> Impersonate</a>'
-    )
+        '<a href="/admin/impersonate/{}" target="_blank" '
+        'class="btn btn-sm btn-warning" title="Impersonate {}">'
+        '<i class="fa fa-user-secret"></i> Impersonate</a>'
+    ).format(self.id, self.username)
 
 
 if not isinstance(getattr(_FABUser, 'impersonate', None), property):

@@ -16,8 +16,21 @@ Allow: /oauth-signup/
 Allow: /find-a-chord-chart
 
 Disallow: /api/
-Disallow: /admin/
+Disallow: /admin
 Disallow: /forgot-password
 Disallow: /reset-password
+Disallow: /.env
+Disallow: /.git
+Disallow: /.aws
+Disallow: /.ssh
+Disallow: /.htaccess
+Disallow: /.DS_Store
+Disallow: /wp-
+Disallow: /*.php
+Disallow: /*/.env
+Disallow: /*/.git
+Disallow: /*/.aws
+Disallow: /*/.ssh
+Disallow: /*/wp-
 
 Sitemap: https://guitarpracticeroutine.com/sitemap.xml

@@ -1,4 +1,5 @@
 from flask import Flask
+from jinja2 import select_autoescape
 import logging
 from logging.handlers import RotatingFileHandler
 import os
@@ -25,6 +26,10 @@ except Exception:
     _git_hash = 'dev'
 app.jinja_env.globals['asset_version'] = _git_hash
 
+# Flask only autoescapes .html/.htm/.xml, so .html.jinja templates would
+# insert values raw. Escape them too.
+app.jinja_env.autoescape = select_autoescape(['html', 'htm', 'xml', 'jinja'])
+
 # Region-aware cookie consent: expose a per-request consent_mode to every
 # template. Opt-in regions (EU/EEA/UK/CH/US-California) keep the strict
 # opt-in banner; everyone else gets opt-out defaults. See app/geo.py.
@@ -47,8 +52,10 @@ print(f"DEBUG: FLASK_ENV = '{flask_env}', IS_PRODUCTION = {IS_PRODUCTION}")
 app.logger.info(f"Environment: FLASK_ENV = '{flask_env}', IS_PRODUCTION = {IS_PRODUCTION}")
 if IS_PRODUCTION:
     from werkzeug.middleware.proxy_fix import ProxyFix
-    # Trust X-Forwarded-* headers from nginx
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+    # Trust X-Forwarded-For/-Proto from nginx. Not -Host/-Prefix: nginx doesn't
+    # set them, so the client's own values would pass straight through and
+    # could point generated links (password resets) at another site.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
     app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 # Configure Flask app
@@ -229,15 +236,25 @@ def debug_session_cookie():
                        f'host={request.host}, referrer={request.referrer}')
 
 @app.before_request
+def block_banned_ips():
+    """Serve the 403 page to IPs banned by app.banhammer. Runs before the /admin guard."""
+    from app.banhammer import banned_response
+    return banned_response(app.config['SESSION_REDIS'])
+
+@app.before_request
 def redirect_non_admin_from_admin():
     """
     Redirect non-admin users from /admin/* to /#Account.
 
     Flask-AppBuilder shows "Access Denied" for non-admin users.
     We redirect them to the React app's Account page instead.
+
+    Each denied request also counts toward app.banhammer's per-IP limit:
+    a warning page on the fifth attempt, a ban on the sixth.
     """
-    from flask import redirect
+    from flask import redirect, session
     from flask_login import current_user
+    from app.banhammer import clear_admin_denials, record_admin_denial
 
     # Only check /admin/* routes
     if not request.path.startswith('/admin'):
@@ -254,17 +271,21 @@ def redirect_non_admin_from_admin():
     # Check if user is authenticated
     if not current_user.is_authenticated:
         # Not logged in - redirect to login page
-        return redirect('/login')
+        return record_admin_denial(app.config['SESSION_REDIS']) or redirect('/login')
 
     # Check if user has Admin role
     admin_role_name = app.config.get('AUTH_ROLE_ADMIN', 'Admin')
     user_roles = [role.name for role in current_user.roles]
 
     if admin_role_name not in user_roles:
+        # An admin impersonating a user isn't probing; don't count it.
+        if session.get('original_admin_id'):
+            return redirect('/#Account')
         # Non-admin user trying to access /admin/* - send to Account page
-        return redirect('/#Account')
+        return record_admin_denial(app.config['SESSION_REDIS']) or redirect('/#Account')
 
     # Admin user - allow access
+    clear_admin_denials(app.config['SESSION_REDIS'])
     return None
 
 # CSRF Configuration (uses Redis sessions configured above)
