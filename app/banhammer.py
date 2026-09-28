@@ -254,8 +254,11 @@ def record_admin_denial(redis_client):
         current_app.logger.warning(f'banhammer: warning page for {bucket} after {count} /admin attempts')
         return render_template('backstage_warning.html.jinja', posthog_key=posthog_key, posthog_cookieless_only=True), 403
 
-    # Exempt IPs see the farewell page (useful for testing) but are never banned.
+    # Exempt IPs see the farewell page once (useful for testing) but are never
+    # banned; after that they get the normal login redirect again.
     if _is_exempt(ip):
+        if count > BAN_AT:
+            return None
         current_app.logger.warning(f'banhammer: {ip} hit the ban limit but is exempt')
     else:
         ban_key = f'banhammer:banned:{bucket}'
