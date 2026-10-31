@@ -944,9 +944,14 @@ def set_unplugged_mode(db: Session):
         from app.models import Routine
         from datetime import timedelta
 
+        # Already unplugged - nothing to schedule
+        if subscription.unplugged_mode:
+            return jsonify({'success': True})
+
         # Check rate limiting (once per billing period)
-        # If user paused/unpause within current billing period, don't allow another pause
-        if subscription.last_pause_action and subscription.current_period_start:
+        # If user paused/unpause within current billing period, don't allow another pause.
+        # Skipped for canceled subscriptions: their period never advances, so the limit would never clear.
+        if subscription.status != 'canceled' and subscription.last_pause_action and subscription.current_period_start:
             # Check if last pause was within current billing period
             period_start = subscription.current_period_start.replace(tzinfo=None) if hasattr(subscription.current_period_start, 'replace') else subscription.current_period_start
             last_pause = subscription.last_pause_action.replace(tzinfo=None) if hasattr(subscription.last_pause_action, 'replace') else subscription.last_pause_action
@@ -978,6 +983,18 @@ def set_unplugged_mode(db: Session):
                 logger.warning(f"User {user_id} scheduled pause but has no routines")
 
         subscription.last_active_routine_id = active_routine_id
+
+        # Already canceled (e.g. payment failure): no period end left to wait for, so unplug now.
+        # Keep any existing countdown dates rather than restarting the clock.
+        if subscription.status == 'canceled':
+            subscription.unplugged_mode = True
+            if not subscription.lapse_date:
+                subscription.lapse_date = datetime.now()
+            if not subscription.data_deletion_date:
+                subscription.data_deletion_date = subscription.lapse_date + timedelta(days=90)
+            db.commit()
+            logger.info(f"User {user_id} (canceled subscription) entered unplugged mode")
+            return jsonify({'success': True})
 
         # Update Stripe subscription to cancel at period end
         if subscription.stripe_subscription_id:

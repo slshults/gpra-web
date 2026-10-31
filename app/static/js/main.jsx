@@ -140,10 +140,10 @@ const App = () => {
           setUserContext(data);
         }
 
-        // Show modal for ALL lapsed users (on each fresh login)
-        // BUT not if they already dismissed it this session via "Unplugged" button
+        // Show modal for lapsed users (on each fresh login)
+        // BUT not if they're already unplugged, or dismissed it this session
         const dismissedThisSession = sessionStorage.getItem('lapsedModalDismissed') === 'true';
-        if (data.is_lapsed && !dismissedThisSession) {
+        if (data.is_lapsed && !data.unplugged_mode && !dismissedThisSession) {
           setLapsedInfo({
             daysUntil90: data.days_until_90,
             lapseDate: data.lapse_date
