@@ -4,6 +4,32 @@ export default function LapsedSubscriptionModal({ isOpen, onClose, daysUntil90, 
   const [loading, setLoading] = useState(false);
   const [lastPayment, setLastPayment] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState(null);
+
+  // Returns the server's error message, logging the raw body (may be a non-JSON proxy page)
+  const readErrorMessage = async (response, label) => {
+    const text = await response.text();
+    console.error(`${label} failed:`, response.status, text);
+    try {
+      const { error } = JSON.parse(text);
+      return typeof error === 'string' ? error : null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Errors must never trap the user behind the modal: show the message and allow dismissing
+  const handleError = (message, endpoint, status = null) => {
+    window.posthog?.capture('lapsed_modal_error_shown', { endpoint, status });
+    setErrorMessage(message);
+    setLoading(false);
+    sessionStorage.setItem('lapsedModalDismissed', 'true');
+  };
+
+  const handleDismiss = () => {
+    sessionStorage.setItem('lapsedModalDismissed', 'true');
+    onClose();
+  };
 
   // Fetch last payment info when modal opens
   useEffect(() => {
@@ -36,6 +62,7 @@ export default function LapsedSubscriptionModal({ isOpen, onClose, daysUntil90, 
 
   const handlePlugItIn = async () => {
     setLoading(true);
+    setErrorMessage(null);
     try {
       // Create Stripe billing portal session to update payment method
       const response = await fetch('/api/billing/resume-subscription', {
@@ -45,9 +72,9 @@ export default function LapsedSubscriptionModal({ isOpen, onClose, daysUntil90, 
       });
 
       if (!response.ok) {
-        const text = await response.text();
-        console.error('Resume subscription failed:', response.status, text);
-        throw new Error(`Failed to resume subscription: ${response.status}`);
+        const serverMessage = await readErrorMessage(response, 'Resume subscription');
+        handleError(serverMessage || 'Error resuming subscription. Please try again later.', 'resume-subscription', response.status);
+        return;
       }
 
       const data = await response.json();
@@ -60,13 +87,13 @@ export default function LapsedSubscriptionModal({ isOpen, onClose, daysUntil90, 
       }
     } catch (error) {
       console.error('Error resuming subscription:', error);
-      alert('Error resuming subscription. Please try again.');
-      setLoading(false);
+      handleError('Error resuming subscription. Please try again later.', 'resume-subscription');
     }
   };
 
   const handleUnplugged = async () => {
     setLoading(true);
+    setErrorMessage(null);
     try {
       const response = await fetch('/api/billing/set-unplugged', {
         method: 'POST',
@@ -75,9 +102,9 @@ export default function LapsedSubscriptionModal({ isOpen, onClose, daysUntil90, 
       });
 
       if (!response.ok) {
-        const text = await response.text();
-        console.error('Set unplugged failed:', response.status, text);
-        throw new Error(`Failed to set unplugged mode: ${response.status}`);
+        const serverMessage = await readErrorMessage(response, 'Set unplugged');
+        handleError(serverMessage || 'Error switching to freebie mode. Please try again later.', 'set-unplugged', response.status);
+        return;
       }
 
       const data = await response.json();
@@ -92,8 +119,7 @@ export default function LapsedSubscriptionModal({ isOpen, onClose, daysUntil90, 
       }
     } catch (error) {
       console.error('Error setting unplugged mode:', error);
-      alert('Error. Please try again.');
-      setLoading(false);
+      handleError('Error switching to freebie mode. Please try again later.', 'set-unplugged');
     }
   };
 
@@ -157,6 +183,18 @@ export default function LapsedSubscriptionModal({ isOpen, onClose, daysUntil90, 
               {loading ? 'Loading...' : 'Unplugged'}
             </button>
           </div>
+
+          {errorMessage && (
+            <div className="border border-red-300 rounded-lg p-4 bg-red-50" role="alert">
+              <p className="text-sm text-red-800 mb-3">{errorMessage}</p>
+              <button
+                onClick={handleDismiss}
+                className="w-full bg-white hover:bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded border border-gray-300 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
