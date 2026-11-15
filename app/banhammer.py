@@ -22,6 +22,11 @@ address nginx appends to X-Forwarded-For. Never use the leftmost XFF entry
 here: the client controls it, and a forged one would let anyone get a third
 party banned. IPv6 clients are bucketed by /64.
 
+Each ban, and each AbuseIPDB lookup that hits the hourly budget or fails,
+also sends a server-side PostHog event (ip_banned,
+abuseipdb_lookup_budget_exhausted, abuseipdb_lookup_failed) for the monthly
+ban report. They carry no IP or bucket.
+
 To lift a ban, clear the attempt counter too, or the next denied request
 re-bans straight away:
     redis-cli DEL banhammer:banned:<ip or v6 /64> banhammer:admin:<ip or v6 /64>
@@ -106,6 +111,27 @@ if not ban_log.handlers:
     ban_log.setLevel(logging.INFO)
 
 
+# Server-side PostHog events for the monthly ban report, all under one bot
+# distinct_id like the cron scripts' events. They go straight to the shared
+# client rather than through track_event, which would add the request's user
+# agent, URL and referrer, and here those belong to the person being banned.
+# For the same reason no event carries the IP or the bucket.
+EVENT_DISTINCT_ID = 'banhammer-bot'
+
+
+def _capture(event, properties):
+    """Queue a PostHog event. Never raises: a PostHog problem must not get in the way of a ban."""
+    try:
+        # Imported here so a broken PostHog setup can't fail this module's
+        # import, which would 500 every request.
+        from app.utils.posthog_client import posthog_client
+        if posthog_client:
+            # capture() only queues the event; the SDK's own thread sends it.
+            posthog_client.capture(distinct_id=EVENT_DISTINCT_ID, event=event, properties=properties)
+    except Exception as e:
+        log.warning(f'banhammer: could not send {event} to PostHog: {type(e).__name__}')
+
+
 def _bucket(ip):
     """The unit we count and ban: the IPv4 address, or the IPv6 /64."""
     try:
@@ -167,6 +193,10 @@ def _ban_seconds(ip, redis_client):
         used = 0
     if used > LOOKUPS_PER_HOUR:
         current_app.logger.warning('banhammer: AbuseIPDB hourly lookup budget used up')
+        _capture('abuseipdb_lookup_budget_exhausted', {
+            'lookups_requested_this_hour': used,
+            'hourly_limit': LOOKUPS_PER_HOUR,
+        })
         return BAN_SECONDS, 'default (lookup budget used up)'
     try:
         resp = requests.get(
@@ -182,6 +212,11 @@ def _ban_seconds(ip, redis_client):
         is_tor = bool(data.get('isTor'))
     except Exception as e:  # external API: any failure means the default tier, never a 500
         current_app.logger.warning(f'banhammer: AbuseIPDB lookup failed for {ip}: {type(e).__name__}')
+        props = {'error_type': type(e).__name__}
+        status_code = getattr(getattr(e, 'response', None), 'status_code', None)
+        if status_code is not None:
+            props['status_code'] = status_code  # 429 means the daily AbuseIPDB quota is gone
+        _capture('abuseipdb_lookup_failed', props)
         return BAN_SECONDS, 'default (lookup failed)'
     # Shared wins over reputation: a carrier or campus IP collects reports
     # from everyone behind it, and a year-long ban would hit them all.
@@ -284,4 +319,11 @@ def record_admin_denial(redis_client):
                 ban_log.info(f'{bucket} path={request.path!r} attempts={count} days={ban_seconds // DAY} tier={reason!r}')
             except OSError:
                 current_app.logger.exception('banhammer: could not write the ban audit log')
+            # Sent even when the audit line couldn't be written: the ban happened.
+            _capture('ip_banned', {
+                'days': ban_seconds // DAY,
+                'tier': reason,
+                'attempts': count,
+                'path': request.path,
+            })
     return render_template('banned.html.jinja', posthog_key=posthog_key), 403
