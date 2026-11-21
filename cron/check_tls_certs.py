@@ -64,8 +64,6 @@ GPRA_DOMAINS = [
     'www.guitarpracticeroutine.com',
     'gpra.app',
     'www.gpra.app',
-    'guitarpracticeroutineapp.com',
-    'www.guitarpracticeroutineapp.com',
     'mcp.guitarpracticeroutine.com',
 ]
 SHAKESMONOS_DOMAINS = [
