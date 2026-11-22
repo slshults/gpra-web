@@ -2,6 +2,10 @@
 # Since we restrict Dependabot to ONLY posthog-python (see dependabot.yml),
 # all semver types (patch, minor, major) are auto-merged.
 # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/automating-dependabot-with-github-actions
+#
+# Needs two repo settings: Settings > Actions > General > "Allow GitHub
+# Actions to create and approve pull requests", and Settings > General >
+# "Allow auto-merge".
 
 name: Dependabot auto-merge
 
@@ -14,8 +18,16 @@ permissions:
 jobs:
   dependabot:
     runs-on: ubuntu-latest
-    # Only run for dependabot[bot] authored PRs
-    if: github.actor == 'dependabot[bot]'
+    # Only run when Dependabot both opened the PR and triggered this event,
+    # from a branch in this repo (not a fork), and only in slshults/gpra-web
+    # itself (not in a copy someone forked). github.actor alone is whoever
+    # triggered the latest event, which isn't always the PR's author, so
+    # check both. A manual re-run keeps the original actor.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.repository == 'slshults/gpra-web'
     steps:
       - name: Dependabot metadata
         id: metadata
@@ -23,30 +35,72 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      # Safety check: only auto-merge if the dependency is posthog
-      # This is defense-in-depth alongside the dependabot.yml allow filter
+      # Safety check: only auto-merge if the dependency is posthog from pip.
+      # This is defense-in-depth alongside the dependabot.yml allow filter.
       - name: Verify dependency is posthog
         id: verify
+        env:
+          # Passed through env, not interpolated into the script, so a value
+          # can never be run as shell code.
+          DEP_NAME: ${{ steps.metadata.outputs.dependency-names }}
+          ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
         run: |
-          DEP_NAME="${{ steps.metadata.outputs.dependency-names }}"
-          echo "Dependency: $DEP_NAME"
-          if [[ "$DEP_NAME" == "posthog" ]]; then
+          if [[ "$DEP_NAME" == "posthog" && "$ECOSYSTEM" == "pip" ]]; then
             echo "allowed=true" >> "$GITHUB_OUTPUT"
           else
             echo "allowed=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Unexpected dependency '$DEP_NAME' - skipping auto-merge"
+            echo "::warning::Not a pip posthog update - skipping auto-merge"
           fi
 
-      - name: Auto-approve PR
+      # fetch-metadata only reads the PR's first commit, so also check what
+      # the PR as a whole changes: exactly one file, requirements.txt, and
+      # nothing but the posthog== pin line.
+      - name: Verify the diff is only the posthog pin
+        id: diff
         if: steps.verify.outputs.allowed == 'true'
-        run: gh pr review --approve "$PR_URL"
         env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          files_json=$(gh api "repos/$REPO/pulls/$PR_NUMBER/files")
+          files=$(jq -r '.[].filename' <<< "$files_json")
+          if [[ "$files" != "requirements.txt" ]]; then
+            echo "::warning::PR changes files other than requirements.txt - skipping auto-merge"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The API's patch has no +++/--- file headers, so every line that
+          # starts with + or - is a real change.
+          changed=$(jq -r '.[0].patch // ""' <<< "$files_json" | grep -E '^[+-]' || true)
+          adds=$(grep -c '^+' <<< "$changed" || true)
+          dels=$(grep -c '^-' <<< "$changed" || true)
+          if [[ "$adds" == "1" && "$dels" == "1" ]] \
+            && ! grep -Evq '^[+-]posthog==[0-9]+(\.[0-9]+)*$' <<< "$changed"; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::requirements.txt changes more than the posthog pin - skipping auto-merge"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Approve and merge only the exact commit this run checked, so a later
+      # push to the branch can't ride along on this approval.
+      - name: Auto-approve PR
+        if: steps.verify.outputs.allowed == 'true' && steps.diff.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh api --method POST "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+            -f event=APPROVE -f commit_id="$HEAD_SHA" > /dev/null
 
       - name: Auto-merge PR
-        if: steps.verify.outputs.allowed == 'true'
-        run: gh pr merge --auto --squash "$PR_URL"
+        if: steps.verify.outputs.allowed == 'true' && steps.diff.outputs.ok == 'true'
+        run: gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

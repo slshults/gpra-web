@@ -18,7 +18,15 @@
 pyproject.toml @slshults
 package.json @slshults
 package-lock.json @slshults
-requirements.txt @slshults
+
+# requirements.txt has no owner on purpose. Branch protection requires a
+# code-owner review, and the auto-merge workflow's approval can't count as
+# one, so with an owner every posthog-python bump from Dependabot would wait
+# on Steven. Edits to it still need one approving review: from Steven, or from
+# a workflow or app allowed to approve. The only such workflow today is the
+# auto-merge one, which approves only Dependabot's posthog pin bumps. .github/
+# stays owned, so new or changed workflows still need Steven's review.
+/requirements.txt
 
 # Environment and config
 .env.example @slshults
