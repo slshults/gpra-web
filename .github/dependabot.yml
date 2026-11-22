@@ -16,13 +16,16 @@ updates:
       time: "09:00"
       timezone: "America/Vancouver"
     open-pull-requests-limit: 5
-    # Wait 7 days after a release before proposing it, so a bad or
-    # compromised release has time to be caught and yanked (PostHog's
-    # Shai-Hulud post-mortem suggests at least 3; GitHub's default is 3).
-    # Security updates skip the cooldown. To take a version sooner, bump
-    # requirements.txt by hand.
+    # Propose a release once it's a day old, not seven: the 7-day wait is on
+    # merging instead. Dependabot still runs weekly, so a PR opens on the
+    # Monday after a release. dependabot-auto-merge.yml merges it only once
+    # the release is 7 days old, and dependabot-recheck.yml re-runs that check
+    # every 6 hours until then. (PostHog's Shai-Hulud post-mortem suggests
+    # waiting at least 3 days.) The one day keeps next Monday's run from
+    # replacing a PR just before it would merge. Security updates skip the
+    # cooldown.
     cooldown:
-      default-days: 7
+      default-days: 1
     target-branch: "main"
     allow:
       - dependency-name: "posthog"

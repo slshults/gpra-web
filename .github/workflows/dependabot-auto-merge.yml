@@ -1,6 +1,9 @@
 # Auto-approve and auto-merge Dependabot PRs for posthog-python updates
 # Since we restrict Dependabot to ONLY posthog-python (see dependabot.yml),
-# all semver types (patch, minor, major) are auto-merged.
+# all semver types (patch, minor, major) are auto-merged, once the release
+# has been on PyPI for 7 days. Dependabot proposes a release once it's a
+# day old, on its weekly run; dependabot-recheck.yml re-runs this workflow
+# every 6 hours until the release is old enough.
 # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/automating-dependabot-with-github-actions
 #
 # Needs two repo settings: Settings > Actions > General > "Allow GitHub
@@ -15,17 +18,20 @@ permissions:
   contents: write
   pull-requests: write
 
+# One run per PR at a time, so a withdraw can't race an approve.
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   dependabot:
     runs-on: ubuntu-latest
-    # Only run when Dependabot both opened the PR and triggered this event,
-    # from a branch in this repo (not a fork), and only in slshults/gpra-web
-    # itself (not in a copy someone forked). github.actor alone is whoever
-    # triggered the latest event, which isn't always the PR's author, so
-    # check both. A manual re-run keeps the original actor.
+    # Only on PRs Dependabot opened, from a branch in this repo (not a fork),
+    # and only in slshults/gpra-web itself (not in a copy someone forked).
+    # Who triggered the event is checked in the first step instead, so that
+    # a push by anyone else still reaches the withdraw step at the end.
     if: >-
       github.event.pull_request.user.login == 'dependabot[bot]' &&
-      github.actor == 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.repository == 'slshults/gpra-web'
     steps:
@@ -44,8 +50,11 @@ jobs:
           # can never be run as shell code.
           DEP_NAME: ${{ steps.metadata.outputs.dependency-names }}
           ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          # github.actor is whoever triggered this event, which isn't always
+          # the PR's author. A re-run keeps the original actor.
+          ACTOR: ${{ github.actor }}
         run: |
-          if [[ "$DEP_NAME" == "posthog" && "$ECOSYSTEM" == "pip" ]]; then
+          if [[ "$ACTOR" == "dependabot[bot]" && "$DEP_NAME" == "posthog" && "$ECOSYSTEM" == "pip" ]]; then
             echo "allowed=true" >> "$GITHUB_OUTPUT"
           else
             echo "allowed=false" >> "$GITHUB_OUTPUT"
@@ -54,7 +63,7 @@ jobs:
 
       # fetch-metadata only reads the PR's first commit, so also check what
       # the PR as a whole changes: exactly one file, requirements.txt, and
-      # nothing but the posthog== pin line.
+      # nothing but the posthog== pin line. Then check the release's age.
       - name: Verify the diff is only the posthog pin
         id: diff
         if: steps.verify.outputs.allowed == 'true'
@@ -76,11 +85,31 @@ jobs:
           changed=$(jq -r '.[0].patch // ""' <<< "$files_json" | grep -E '^[+-]' || true)
           adds=$(grep -c '^+' <<< "$changed" || true)
           dels=$(grep -c '^-' <<< "$changed" || true)
-          if [[ "$adds" == "1" && "$dels" == "1" ]] \
-            && ! grep -Evq '^[+-]posthog==[0-9]+(\.[0-9]+)*$' <<< "$changed"; then
+          if [[ "$adds" != "1" || "$dels" != "1" ]] \
+            || grep -Evq '^[+-]posthog==[0-9]+(\.[0-9]+)*$' <<< "$changed"; then
+            echo "::warning::requirements.txt changes more than the posthog pin - skipping auto-merge"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Merge only a release that has been on PyPI at least 7 days, every
+          # file of it, and isn't yanked. Until then dependabot-recheck.yml
+          # re-runs this workflow every 6 hours.
+          version=$(grep '^+' <<< "$changed"); version=${version#+posthog==}
+          cutoff=$(( $(date -u +%s) - 7 * 86400 ))
+          if ! doc=$(curl -fsS --max-time 30 "https://pypi.org/pypi/posthog/$version/json"); then
+            echo "::warning::couldn't read posthog $version on PyPI - skipping auto-merge"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if jq -e --arg v "$version" --argjson cutoff "$cutoff" '
+              .info.version == $v and (.urls | length) > 0
+              and all(.urls[]; .yanked == false
+                and ((.upload_time_iso_8601 | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) <= $cutoff))
+            ' <<< "$doc" > /dev/null; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::requirements.txt changes more than the posthog pin - skipping auto-merge"
+            echo "::notice::posthog $version isn't 7 days old on PyPI yet (or PyPI's record didn't check out) - waiting; dependabot-recheck.yml will try again"
             echo "ok=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -104,3 +133,35 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # If this run didn't pass its checks, take back anything an earlier run
+      # did for an older commit on this PR: auto-merge stays armed across
+      # Dependabot's force-pushes, and an approval may too.
+      - name: Withdraw earlier approval and auto-merge
+        if: always() && (steps.verify.outputs.allowed != 'true' || steps.diff.outputs.ok != 'true')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          approvals() {
+            local out
+            out=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+              --jq '.[] | select(.user.login == "github-actions[bot]" and .state == "APPROVED") | .id') \
+              || { echo "::error::Couldn't read the PR's reviews"; exit 1; }
+            grep -E '^[0-9]+$' <<< "$out" || true
+          }
+          gh pr merge --disable-auto "$PR_URL" 2>/dev/null || true
+          for id in $(approvals); do
+            gh api --method PUT "repos/$REPO/pulls/$PR_NUMBER/reviews/$id/dismissals" \
+              -f message="Checks didn't pass on the newest commit" -f event=DISMISS > /dev/null \
+              || echo "::warning::couldn't dismiss review $id"
+          done
+          # Fail loudly if anything is still armed, so the run shows red.
+          left=""
+          [[ "$(gh pr view "$PR_URL" --json autoMergeRequest --jq '.autoMergeRequest != null')" == "false" ]] \
+            || left="auto-merge is still on"
+          remaining=$(approvals) || remaining="couldn't check"
+          [[ -z "$remaining" ]] || left="${left:+$left, }a bot approval may still be there"
+          if [[ -n "$left" ]]; then echo "::error::Couldn't withdraw: $left"; exit 1; fi
