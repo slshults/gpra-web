@@ -1,0 +1,78 @@
+# Re-runs the Dependabot auto-merge check on open Dependabot PRs that are
+# still waiting. Dependabot proposes PostHog releases once they're a day old
+# (on its weekly Monday run), but
+# dependabot-auto-merge.yml only merges releases at least 7 days old, and
+# nothing else runs it again once the PR is open. This does, every 6 hours,
+# so a PR merges within 6 hours of its release turning 7 days old.
+#
+# It only asks GitHub to re-run that workflow's latest run for the PR's
+# current commit. A re-run keeps the original run's event, its workflow file
+# and Dependabot as the actor, with Dependabot's permissions, so every check
+# runs exactly as it did when the PR opened. This never checks out, installs
+# or runs anything from a PR.
+#
+# Runs older than 10 days are left alone: a PR that hasn't merged by then is
+# stuck for a reason a re-run won't fix, so it waits for a person.
+#
+# A re-run uses the workflow file from the PR's original run. After changing
+# dependabot-auto-merge.yml, comment "@dependabot recreate" on any open
+# Dependabot PR so its checks run with the new file.
+#
+# Every 6 hours for 10 days is at most 40 re-runs of one run, under GitHub's
+# per-run re-run limit; keep that in mind before running this more often.
+# GitHub turns off scheduled workflows in a public repo after 60 days with no
+# activity. If PostHog PRs ever sit unmerged, check that this workflow is
+# still enabled under the repo's Actions tab.
+
+name: Dependabot recheck
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  pull-requests: read
+
+concurrency:
+  group: dependabot-recheck
+  cancel-in-progress: false
+
+jobs:
+  recheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.repository == 'slshults/gpra-web'
+    steps:
+      - name: Re-run the auto-merge check on waiting Dependabot PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          oldest=$(( $(date -u +%s) - 10 * 86400 ))
+          # Open PRs that Dependabot opened from a branch in this repo, with
+          # auto-merge not already on.
+          gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" \
+            | jq -r --arg repo "$REPO" '.[]
+                | select(.user.login == "dependabot[bot]" and .head.repo.full_name == $repo and .auto_merge == null)
+                | [.number, .head.sha] | @tsv' \
+            | while IFS=$'\t' read -r pr sha; do
+                [[ "$pr" =~ ^[0-9]+$ && "$sha" =~ ^[0-9a-f]{40}$ ]] || continue
+                if ! run=$(gh api "repos/$REPO/actions/workflows/dependabot-auto-merge.yml/runs?event=pull_request&head_sha=$sha&per_page=20" \
+                  | jq -r --argjson oldest "$oldest" --argjson pr "$pr" '[.workflow_runs[]
+                        | select(any(.pull_requests[]?; .number == $pr))][0] // empty
+                      | select(.status == "completed" and .actor.login == "dependabot[bot]")
+                      | select((.created_at | fromdateiso8601) >= $oldest)
+                      | .id'); then
+                  echo "::warning::PR #$pr: couldn't read its auto-merge runs"
+                  continue
+                fi
+                [[ "$run" =~ ^[0-9]+$ ]] || { echo "PR #$pr: nothing to re-run"; continue; }
+                if gh api --method POST "repos/$REPO/actions/runs/$run/rerun" > /dev/null; then
+                  echo "PR #$pr: re-ran run $run"
+                else
+                  echo "::warning::PR #$pr: couldn't re-run run $run"
+                fi
+              done
