@@ -16,6 +16,13 @@ updates:
       time: "09:00"
       timezone: "America/Vancouver"
     open-pull-requests-limit: 5
+    # Wait 7 days after a release before proposing it, so a bad or
+    # compromised release has time to be caught and yanked (PostHog's
+    # Shai-Hulud post-mortem suggests at least 3; GitHub's default is 3).
+    # Security updates skip the cooldown. To take a version sooner, bump
+    # requirements.txt by hand.
+    cooldown:
+      default-days: 7
     target-branch: "main"
     allow:
       - dependency-name: "posthog"
